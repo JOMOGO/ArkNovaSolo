@@ -120,6 +120,7 @@ change. Planned hooks (the final list goes into `CHANGES.md`):
 | H12 | `break_phase_discard` (12165), `start_income_phase` (12313) | wrapper | ARNO has no hand limit and no income; ARNO's income slot runs his **break draw** (OUT-15) |
 | H13 | `leader_candidates`, `constriction`, `pilfering` targets (8616, 7295, 8732) | wrapper | ARNO is never a target |
 | H14 | `start_final_scoring_discard` (4586), `start_final_scoring` / `score_all_players` (12954, 12986) | wrapper | ARNO skips the final-scoring discard and card scoring; gets token CP (OUT-16) |
+| H16 | hand guards: `wait_for_all_hand_counts`, `other_hand_counts`, `other_hands_unchanged`, `final_scoring_cards`, `player_hand_cards`, plus the all-player loops in `start_setup_discard`, `break_phase_discard`, `start_final_scoring` (covered by H8/H12/H14) | wrapper | ARNO has no hand. Every site that loops over all players' hands, or reads another player's hand, treats an ARNO as an empty hand that never changes. The TTS docs say hand zones are owned by the colour, so reading them unseated is probably fine, but this is not documented. The guards make the mod independent of that. Hand reads inside a player's own action (pouch, magnet, snap, digging, store, …) are unreachable for ARNO, because he never takes human actions and H11 filters draw/snap rewards. |
 | H15 | `cnsts.saved_globals`, `cnsts.saved_player_fields` | text edit or bundle append (file-local `cnsts` is in scope at the bundle) | persist `arno_state` and `players[i].is_arno` |
 
 **Rule of thumb for review:** every hook is a single call into `ARNO.*`. No ARNO logic is
@@ -322,7 +323,7 @@ with "(ruling Rn)".
 | # | Topic | Proposed default | Source |
 |---|---|---|---|
 | R1 | Rules version | **ARNO 3.0** (confirmed) | owner |
-| R2 | DONATE (Association upgraded) | like a human donation, without paying: cube on the next donation spot, +1 CP | **needs 3.0 rules** |
+| R2 | DONATE (Association upgraded) | **Resolved:** a human donation (`donate`, `Global.lua`) = pay cost, cube on the next donation spot, +1 CP. ARNO "doesn't spend money for actions" (`aboutARNO.noMoney`), so ARNO places a cube on the next donation spot (or overflow) and gains 1 CP, without paying. | mod `donate` + helper prose |
 | R3 | Association fallback CP | **1** (code and unit test) | app code vs prose |
 | R4 | Scope: Marine Worlds / project module | MW: follow the mod's setup option. Project module: optional toggle | owner |
 | R5 | Unavailable zoo/university roll | reroll excluding all values tried so far, until one is available; if none, skip and log | app reroll button |
@@ -330,8 +331,8 @@ with "(ruling Rn)".
 | R7 | Action order within a card; break mid-turn | icons first (appeal, reputation, CP, break), then the described actions, as the app displays them; a break triggered mid-turn waits until ARNO's card is done | app display order |
 | R8 | No project possible | skip, log | — |
 | R9 | ARNO can trigger the game end by score | yes | base rules |
-| R10 | ARNO reputation cap / over 15 | mod rule (`max_reputation`, overflow as for humans; Cards upgrade raises the cap) | **needs 3.0 rules** |
-| R11 | ARNO's project tokens | taken "next to his mat", so no map project-bonus uncovering; reward = slot reward only. ARNO **does** get the map A right-area bonuses the prose refers to (`Global.lua:1709–1713`): partner zoos 2/3/4 → card flip / unlock worker / 2 CP; universities 2/3 → card flip / 2 CP; 3rd worker → 2 CP. "Card flip" means an ARNO upgrade, or a worker once he has ≥ 2 CP. To confirm with the 3.0 rules. | `setupARNO.playerTokens`, `aboutARNO.rightArea` |
+| R10 | ARNO reputation cap / over 15 | **Resolved:** base rule as in the mod. `max_reputation` = 9, or 15 once his **Cards** card is upgraded (ARNO's upgrades are synced to the mod's `*_flipped`). Overflow past the cap: appeal, or with Marine Worlds the max-reputation bonus tile, which ARNO takes if available. This matches both helper notes (`scoring.appealReputationTrack`, `upgradeCard.noteAppeal15BonusTile`). | mod `update_rep`/`offer_rep_overflow` + helper prose |
+| R11 | ARNO's project tokens | **Resolved:** taken "next to his mat", so no map project-bonus uncovering; reward = slot reward only. ARNO **does** get the map A right-area bonuses the prose refers to (`Global.lua:1709–1713`): partner zoos 2/3/4 → card flip / unlock worker / 2 CP; universities 2/3 → card flip / 2 CP; 3rd worker → 2 CP. "Card flip" means an ARNO upgrade, or a worker once he has ≥ 2 CP. To confirm with the 3.0 rules. | `setupARNO.playerTokens`, `aboutARNO.rightArea` |
 | R12 | "N-th project" order | base projects in row order, then added projects in row order | — |
 | R13 | Several ARNOs' break draws | in income order (the mod's break order) | — |
 | R14 | Kiosk count (project module) | displayed only, as in the app | app |
