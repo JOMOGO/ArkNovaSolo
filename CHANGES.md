@@ -45,7 +45,8 @@ The Global script is the base script plus:
 | H16 | `wait_for_all_hand_counts`, `other_hand_counts`, `final_scoring_cards`, `player_hand_cards`, `hands_released_guids`, `card_settled_in_hand` | ARNO's (non-existent) hand is never read or waited for |
 | H17 | `game_winners` | ARNO wins ties against humans |
 | H18 | `map_income` | card 265 Franchise Business counts ARNO's kiosks as the module tracker value (0 without the module), not map A's printed kiosk |
-| H19 | `action_selection_panel_xml` | one hint line for humans: "Undo a choice: press the rewind arrow twice." |
+| H19 | `action_selection_panel_xml` | one hint line for humans: "Undo later choices: press the rewind arrow twice." |
+| H20 | `on_action_card_button_clicked`, `note_player_interaction`, `onObjectPickUp` | **owner request, for humans:** "Back to action choice" button right after choosing Association, Build, Animals or Sponsors, until the next click or card pick-up. It restores the player's state exactly (X-tokens refunded, card put back). Not offered for Cards, X-token mode, multiplier or hypnosis turns, or a venom-poisoned card |
 | PANEL | `resume_checkpoint` | re-draws the ARNO panel after load or rewind |
 
 ## 3. Additions to base data (at load time)

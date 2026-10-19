@@ -72,7 +72,7 @@ function M.xml(running_color)
   local st = state.get()
   if st == nil or not state.active() then return nil end
   if M.collapsed then
-    return [[<Panel id="arnoPanel" rectAlignment="UpperRight" offsetXY="-10 -60" width="120" height="34" color="#1B2B3AEE">
+    return [[<Panel id="arnoPanel" rectAlignment="UpperLeft" offsetXY="70 -10" width="120" height="34" color="#1B2B3AEE">
       <Button onClick="on_arno_panel_toggle" fontSize="14" color="#2E5D7A" textColor="#FFFFFF">ARNO ▸</Button></Panel>]]
   end
   local blocks, height = {}, 62
@@ -88,7 +88,7 @@ function M.xml(running_color)
           <Button onClick="on_arno_panel_toggle" fontSize="13" color="#555555" textColor="#FFFFFF">Hide</Button>
         </HorizontalLayout>]], running_color and "true" or "false", st.auto and "on" or "off")
   return string.format([[
-    <Panel id="arnoPanel" rectAlignment="UpperRight" offsetXY="-10 -60" width="420" height="%d" color="#1B2B3AEE">
+    <Panel id="arnoPanel" rectAlignment="UpperLeft" offsetXY="70 -10" width="420" height="%d" color="#1B2B3AEE">
       <VerticalLayout spacing="2" padding="8 8 6 6" childForceExpandHeight="false">
         <Text fontSize="16" color="#EBD717" alignment="MiddleLeft" minHeight="20">A.R.N.O. 3.0  (seed %s)</Text>
 %s

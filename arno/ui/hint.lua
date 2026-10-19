@@ -7,7 +7,7 @@
 
 local M = {}
 
-M.TEXT = "Undo a choice: press the rewind arrow twice."
+M.TEXT = "Undo later choices: press the rewind arrow twice."
 M.EXTRA_HEIGHT = 22
 
 function M.add_undo_hint(xml)

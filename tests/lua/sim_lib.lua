@@ -128,7 +128,7 @@ function sim.make_player(color, is_arno)
     claims = {}, acquired_partner_zoos = {}, acquired_universities = {}, worker_count = 1,
     deployed_workers = {}, played_animals = {}, persistent_rewards = {}, post_action_rewards = {},
     partial_rewards = {}, income = {}, sponsorships = {}, bonus_tiles = {}, hooks = {},
-    workers = {}, map_key = "map_A", map_A = true, icon_counters = {},
+    workers = {}, map_key = "map_A", map_A = true, icon_counters = {}, engineer_builds = {},
   }
   for i = 1, 4 do p.workers[i] = sim.fake("worker " .. i).getGUID() end
   p.action_cards = {}

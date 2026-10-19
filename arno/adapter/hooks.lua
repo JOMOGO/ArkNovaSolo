@@ -170,6 +170,33 @@ function M.install(ARNO)
     end
   end)
 
+  -- H20 (owner request): "Back to action choice" right after choosing an action
+  local back = require("adapter.back")
+  wrap("H20", "on_action_card_button_clicked", function(orig)
+    return function(p, value, id)
+      local color, slot = tostring(value):match("^(%a+)_(%d+)$")
+      local sel = color and action_selection_state[color]
+      local snap = sel and back.capture(sel.player, tonumber(slot), sel)
+      local r = orig(p, value, id)
+      if snap ~= nil then back.offer(snap) end
+      return r
+    end
+  end)
+  -- any further interaction commits the choice (the Back handler itself is not on_*,
+  -- so the mod's interaction wrapper does not call this for it)
+  wrap("H20", "note_player_interaction", function(orig)
+    return function(...)
+      back.clear_all()
+      return orig(...)
+    end
+  end)
+  wrap("H20", "onObjectPickUp", function(orig)
+    return function(color, obj, ...)
+      back.clear(color)
+      return orig(color, obj, ...)
+    end
+  end)
+
   -- panel after load/rewind (transient panels are rebuilt by the mod; add ours)
   wrap("PANEL", "resume_checkpoint", function(orig)
     return function(...)

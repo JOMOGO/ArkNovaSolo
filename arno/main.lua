@@ -45,6 +45,11 @@ function on_arno_auto_clicked()
   require("ui.panel").render(ARNO.turn.pending)
 end
 
+-- deliberately not named on_*: the mod's interaction wrapper would commit the choice first
+function arno_back_clicked(_, color, _)
+  require("adapter.back").back(color)
+end
+
 function on_arno_panel_toggle()
   local panel = require("ui.panel")
   panel.collapsed = not panel.collapsed

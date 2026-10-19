@@ -121,9 +121,9 @@ function M.gain_cp(player, n, source)
   end
   local applied, old, new = apply_cp(player, surplus)
   if pay > 0 then
-    state.note(player, string.format("Conservation +%d (%d pay off the debt) -> %d CP", n, pay, new))
+    state.note(player, string.format("Conservation +%d (%d pay off the debt), now %d CP", n, pay, new))
   else
-    state.note(player, string.format("Conservation +%d -> %d CP", n, new))
+    state.note(player, string.format("Conservation +%d, now %d CP", n, new))
   end
   print_track_change(player, applied, "conservation point", source or "ARNO")
   -- checkpoints, in the order the mod offers them (4549-4580)
@@ -143,7 +143,7 @@ function M.gain_rep(player, n, source)
   set_counter(player.rep_counter, new, cnsts.counter_style.rep)
   move_when_settled(player.reputation_token.getGUID(), get_rep_zone_position(new))
   print_track_change(player, new - old, "reputation", source or "ARNO")
-  state.note(player, string.format("Reputation +%d -> %d", new - old, new))
+  state.note(player, string.format("Reputation +%d, now %d", new - old, new))
   local overflow = old + n - new
   if overflow > 0 then
     if marine_worlds_enabled and rep_max_bonus ~= nil then
@@ -281,7 +281,7 @@ local S = M.STEPS
 
 S.appeal = function(p, step, continue)
   update_appeal(p, step.n, "ARNO")
-  state.note(p, string.format("Appeal +%d -> %d", step.n, get_counter_value(p.appeal_counter)))
+  state.note(p, string.format("Appeal +%d, now %d", step.n, get_counter_value(p.appeal_counter)))
   continue()
 end
 S.reputation = function(p, step, continue) M.gain_rep(p, step.n, "ARNO"); continue() end
