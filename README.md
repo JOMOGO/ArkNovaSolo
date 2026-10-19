@@ -95,10 +95,10 @@ In-game checklist: `TESTING.md`.
 
 ## Credits and licence
 
-- A.R.N.O. solo mode: Andre K. (BGG anke79).
+- A.R.N.O. solo mode and the ARNO action-card images: Andre K. (BGG anke79).
 - Ark Nova Solo Helper (logic ported here): Stefan Seifert, Apache License 2.0.
 - "Ark Nova - Complete Scripted" TTS mod: its author. This is a modified version; credit them
   when sharing.
-- Ark Nova: Mathias Wigge / Feuerland Spiele / Capstone Games. No card art or text is added
-  by this project.
+- Ark Nova: Mathias Wigge / Feuerland Spiele / Capstone Games. No Ark Nova card art or text
+  is added by this project.
 - Code in `arno/`, `tools/`, `tests/`: Apache License 2.0, with attribution as in `NOTICE`.
