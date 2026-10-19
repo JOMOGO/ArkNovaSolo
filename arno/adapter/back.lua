@@ -123,7 +123,8 @@ end
 
 -- ---------------------------------------------------------------- Back
 
--- Association tasks 3/4/5: snapshot taken before the task button is handled (owner request)
+-- Association tasks 3/4/5 and Sponsors "Play a Sponsor Card": snapshot taken before the
+-- button is handled (owner request); Back returns to that choice
 function M.capture_task(player)
   local color = player.color
   local claims = {}
@@ -139,6 +140,13 @@ function M.capture_task(player)
     for k, v in pairs(a) do assoc[k] = v end
     assoc.taken = copy_map(a.taken)
   end
+  local sp = sponsor_actions[color]
+  local sponsor = nil
+  if sp ~= nil then
+    sponsor = {}
+    for k, v in pairs(sp) do sponsor[k] = v end
+    sponsor.offers = copy_map(sp.offers)
+  end
   local fields = {}
   for k, v in pairs(player) do fields[k] = v end
   local parent = M.recent[color]
@@ -150,6 +158,7 @@ function M.capture_task(player)
     fields = fields,
     claims = claims,
     assoc = assoc,
+    sponsor = sponsor,
     persistent_rewards = copy_map(player.persistent_rewards),
     post_action_rewards = copy_list(player.post_action_rewards),
     deployed = copy_list(player.deployed_workers),
@@ -172,19 +181,24 @@ local function back_task(snap)
   player.post_action_rewards = snap.post_action_rewards
   player.claims = snap.claims
   player.on_claims_empty = nil
-  -- restore in place: the task buttons' validity closures hold the original table
-  local live = association_actions[color]
-  if live ~= nil and snap.assoc ~= nil then
-    for k in pairs(live) do live[k] = nil end
-    for k, v in pairs(snap.assoc) do live[k] = v end
-  else
-    association_actions[color] = snap.assoc
+  -- restore in place: the choice buttons' closures hold the original state tables
+  local function restore(tbl, saved)
+    local live = tbl[color]
+    if live ~= nil and saved ~= nil then
+      for k in pairs(live) do live[k] = nil end
+      for k, v in pairs(saved) do live[k] = v end
+    else
+      tbl[color] = saved
+    end
   end
+  restore(association_actions, snap.assoc)
+  restore(sponsor_actions, snap.sponsor)
+  if snap.sponsor ~= nil and lock_display_cards then lock_display_cards() end
   if project_supports ~= nil then project_supports[color] = nil end
   active_claim = nil
   claims_players[color] = nil
   clear_player_panel(color)
-  printToAll(player.steam_name .. " takes back their association task choice.")
+  printToAll(player.steam_name .. " takes back their " .. (snap.sponsor and "sponsor" or "association task") .. " choice.")
   if snap.parent ~= nil then M.pending[color] = snap.parent end
   render_claims_table(player)
 end

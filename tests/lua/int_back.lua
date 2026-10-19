@@ -11,6 +11,7 @@ local function human_turn()
   p.x_tokens = {}
   action_selection_state = { Red = { player = p, x_tokens_used = 0, x_token_active = false } }
   association_actions, build_actions, animal_actions, sponsor_actions = {}, {}, {}, {}
+  display_cards = {}
   zones = setmetatable({}, { __index = function(t, k)
     local z = sim.fake("zone " .. k)
     local contents = {}
@@ -126,6 +127,29 @@ T.test("Association task 3: Back returns to the task list, worker goes home", fu
   T.eq(#p.claims[#p.claims], tasks, "the full task list is back")
   T.eq(back.pending.Red and back.pending.Red.kind, "action", "Back to action choice available again")
   T.ok(active_panels.Red:find("Back to action choice", 1, true) ~= nil)
+end)
+
+T.test("Sponsors: Play a Sponsor Card has Back to the sponsor choice", function()
+  local p = human_turn()
+  sim.record("playable_sponsor_candidates", function() return { "a sponsor" } end)
+  sim.record("add_sponsor_hand_offers")
+  sim.record("render_sponsor_panel", function(_, pl)
+    set_player_panel(pl.color, '<Panel id="sponsorPanel" height="120"><VerticalLayout><Text>pick a sponsor</Text></VerticalLayout></Panel>')
+  end)
+  on_action_card_button_clicked(nil, "Red_" .. slot_of(p, "SP"), nil)
+  local choices = #p.claims[#p.claims]
+  local i = claim_index(p, "Play a Sponsor Card")
+  T.ok(i ~= nil, "play option offered")
+  note_player_interaction()
+  on_claim_button_clicked(nil, "Red_" .. i, nil)
+  T.eq(sponsor_actions.Red.opening_resolved, true)
+  T.eq(back.pending.Red and back.pending.Red.label, "Back to sponsor choice")
+  T.ok(active_panels.Red:find("Back to sponsor choice", 1, true) ~= nil, "button in the sponsor panel")
+  T.ok(active_panels.Red:find('height="166"', 1, true) ~= nil, "sponsor panel grew to fit")
+  arno_back_clicked(nil, "Red", nil)
+  T.eq(sponsor_actions.Red.opening_resolved, nil, "choice not made")
+  T.eq(#p.claims[#p.claims], choices, "Break / Play choice is back")
+  T.eq(back.pending.Red and back.pending.Red.kind, "action", "Back to action choice available again")
 end)
 
 T.test("ARNO panel height covers its contents with a margin", function()

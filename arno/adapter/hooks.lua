@@ -191,7 +191,8 @@ function M.install(ARNO)
       local color = tostring(value):match("^(%a+)_")
       local player = color and claims_players[color]
       local snap = nil
-      if player ~= nil and not is_bot(player) and association_actions[color] ~= nil then
+      if player ~= nil and not is_bot(player)
+          and (association_actions[color] ~= nil or sponsor_actions[color] ~= nil) then
         snap = back.capture_task(player)
       end
       back.recent[color or ""] = nil
@@ -200,7 +201,15 @@ function M.install(ARNO)
       local started = back.task_started
       back.task_started = nil
       if not ok then error(r, 0) end
-      if snap ~= nil and started ~= nil then back.offer(snap) end
+      if snap ~= nil and started ~= nil then
+        if started == "sponsor" then
+          snap.label = "Back to sponsor choice"
+          snap.assoc = nil
+        else
+          snap.sponsor = nil
+        end
+        back.offer(snap)
+      end
       return r
     end
   end)
@@ -208,6 +217,13 @@ function M.install(ARNO)
     return function(player, task, ...)
       if task == 3 or task == 4 or task == 5 then back.task_started = task end
       return orig(player, task, ...)
+    end
+  end)
+
+  wrap("H20", "open_sponsor_panel", function(orig)
+    return function(player, additional, ...)
+      if additional == nil then back.task_started = "sponsor" end
+      return orig(player, additional, ...)
     end
   end)
 
