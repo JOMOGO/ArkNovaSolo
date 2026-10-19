@@ -23,8 +23,8 @@ local M = {}
 M.current = nil            -- the active run (transient)
 
 -- ---------------------------------------------------------------- positions on ARNO's mat
--- ARNO only uses the right area of his mat; the left area holds his zoo cards and his
--- final scoring card (rules p2, p3). Boards are axis aligned: world = board + offset.
+-- ARNO only uses the right area of his mat (rules p2). His zoo cards and final scoring
+-- card lie in front of the mat (owner choice). Boards are axis aligned: world = board + offset.
 M.OFFSETS = {
   -- owner choice: everything ARNO receives lies in front of his mat, in his (unused)
   -- played-cards row (base mod: played_cards_col_1 = -7.23, -0.03, -12.87; columns 3.6
