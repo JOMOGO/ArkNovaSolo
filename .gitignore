@@ -5,3 +5,5 @@ dist/
 tools/moonsharp/bin/
 tools/moonsharp/obj/
 build/
+reference/*.pdf
+tests/harness/node_modules

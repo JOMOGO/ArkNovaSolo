@@ -1,0 +1,29 @@
+ARNO 3.0 for "Ark Nova - Complete Scripted" (Tabletop Simulator)
+
+This product includes software ported from:
+
+  Ark Nova Solo Helper
+  https://github.com/brdgm/ark-nova-solo-helper
+  Copyright Stefan Seifert
+  Licensed under the Apache License, Version 2.0
+  (http://www.apache.org/licenses/LICENSE-2.0)
+
+  The ARNO decision logic in arno/core/ (card slots, action tables, slot draw,
+  conservation project module tracker, and the dice of the helper's components) is a
+  Lua port of that TypeScript code. Modifications: translated to Lua for MoonSharp /
+  Tabletop Simulator; randomness replaced by a seeded generator; component dice moved
+  into pure functions. arno/core/cards_data.lua is generated from src/services/Cards.ts.
+
+  The test harness in tests/harness/ runs the unmodified helper code as a reference.
+
+A.R.N.O. 3.0, unofficial solo mode for Ark Nova:
+  designed by Andre K.,
+  https://boardgamegeek.com/thread/2823056/rno-alternative-solo-mode
+
+Ark Nova is a game by Mathias Wigge, published by Feuerland Spiele / Capstone Games.
+Ark Nova names, card art and card text belong to their respective owners. This project
+adds no card art or card text.
+
+The base Tabletop Simulator mod "Ark Nova - Complete Scripted" belongs to its author;
+this project builds a modified version of it. Credit to that author is kept in the
+save and its description.

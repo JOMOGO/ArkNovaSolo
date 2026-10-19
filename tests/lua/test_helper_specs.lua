@@ -1,0 +1,161 @@
+-- Port of the helper's unit tests (vendor/ark-nova-solo-helper/tests/unit/services/*.spec.ts)
+-- to the Lua core. One Lua test per TypeScript `it(...)`, same names and expectations.
+local T = require("tests.lib")
+local rng = require("core.rng")
+local cards_data = require("core.cards_data")
+local card_slots = require("core.card_slots")
+local bot_actions = require("core.bot_actions")
+local tracker = require("core.project_tracker")
+
+-- BotActions.spec.ts setup(card, upgraded, slot, level, tokenScoringCardCount = 0)
+local function setup(card, upgraded, slot, level, tokens)
+  local others = {}
+  for _, c in ipairs(cards_data) do
+    if c.name ~= card then others[#others + 1] = c.name end
+  end
+  local slots = {}
+  for i = 1, slot - 1 do slots[#slots + 1] = others[i] end
+  slots[#slots + 1] = card
+  for i = slot, 4 do slots[#slots + 1] = others[i] end
+  local cs = { slots = slots, upgraded = upgraded and { card } or {} }
+  return bot_actions.with_slot(cs, level, slot, tokens or 0)
+end
+
+local function a(action, amount) return { action = action, amount = amount } end
+
+-- services/BotActions
+T.test("BotActions randomPick", function()
+  local r = rng.new(12345)
+  local cs = card_slots.new(r)
+  local slot = bot_actions.random_slot(r)
+  local ba = bot_actions.with_slot(cs, 1, slot, 0)
+  T.ok(ba.card ~= nil)
+  T.ok(ba.slot >= 2 and ba.slot <= 5)
+  T.ok(#ba.actions ~= 0, "has actions")
+end)
+T.test("BotActions animals-standard-5-beginner", function()
+  local ba = setup("animals", false, 5, 1)
+  T.eq(ba.card, "animals"); T.eq(ba.actions, { a("appeal", 5) }); T.eq(ba.has_fallback, false)
+end)
+T.test("BotActions animals-standard-2-easy", function()
+  local ba = setup("animals", false, 2, 3)
+  T.eq(ba.card, "animals"); T.eq(ba.actions, { a("appeal", 3) }); T.eq(ba.has_fallback, false)
+end)
+T.test("BotActions animals-upgrade-3-hard", function()
+  local ba = setup("animals", true, 3, 5)
+  T.eq(ba.card, "animals"); T.eq(ba.actions, { a("appeal", 6) }); T.eq(ba.has_fallback, false)
+end)
+T.test("BotActions association-standard-4-easy", function()
+  local ba = setup("association", false, 4, 3)
+  T.eq(ba.card, "association")
+  T.eq(ba.actions, { a("gain-partner-university", 0) })
+  T.eq(ba.has_fallback, true)
+  T.eq(ba.fallback, { a("conservation", 1), a("break", 2), a("gain-partner-zoo-or-university", 0) })
+end)
+T.test("BotActions association-upgraded-5-easy", function()
+  local ba = setup("association", true, 5, 3)
+  T.eq(ba.card, "association")
+  T.eq(ba.actions, { a("conservation-project-work", 0), a("donate", 0) })
+  T.eq(ba.has_fallback, true)
+  T.eq(ba.fallback, { a("conservation", 1), a("break", 2), a("gain-partner-zoo-or-university", 0) })
+end)
+T.test("BotActions sponsors-standard-2-easy", function()
+  local ba = setup("sponsors", false, 2, 3, 3)
+  T.eq(ba.card, "sponsors")
+  T.eq(ba.actions, { a("reputation", 1), a("token-scoring-card", 1), a("break", 2) })
+  T.eq(ba.has_fallback, false)
+  T.eq(ba.token_scoring, 1); T.eq(ba.token_notepad, 0); T.eq(ba.appeal, 0)
+end)
+T.test("BotActions sponsors-standard-2-easy-tokencount-scoringcard-6", function()
+  local ba = setup("sponsors", false, 2, 3, 6)
+  T.eq(ba.card, "sponsors")
+  T.eq(ba.actions, { a("reputation", 1), a("conservation", 2), a("break", 2) })
+  T.eq(ba.has_fallback, false)
+  T.eq(ba.token_scoring, 0); T.eq(ba.token_notepad, 0); T.eq(ba.appeal, 0)
+end)
+T.test("BotActions sponsors-upgraded-3-easy", function()
+  local ba = setup("sponsors", true, 3, 3)
+  T.eq(ba.card, "sponsors")
+  T.eq(ba.actions, { a("appeal", 3), a("token-notepad", 1), a("break", 3) })
+  T.eq(ba.has_fallback, false)
+  T.eq(ba.token_scoring, 0); T.eq(ba.token_notepad, 1); T.eq(ba.appeal, 3)
+end)
+T.test("BotActions build-standard-5-hard", function()
+  local ba = setup("build", false, 5, 5)
+  T.eq(ba.card, "build"); T.eq(ba.actions, { a("conservation", 3) }); T.eq(ba.has_fallback, false)
+end)
+T.test("BotActions build-upgraded-2-easy", function()
+  local ba = setup("build", true, 2, 3)
+  T.eq(ba.card, "build")
+  T.eq(ba.actions, { a("take-card-display", 0), a("reputation", 1) })
+  T.eq(ba.has_fallback, false)
+end)
+T.test("BotActions cards-standard-3-easy", function()
+  local ba = setup("cards", false, 3, 3)
+  T.eq(ba.card, "cards")
+  T.eq(ba.actions, { a("conservation", 1), a("take-card-display", 0), a("break", 1), a("appeal", 2) })
+  T.eq(ba.has_fallback, false)
+end)
+
+-- services/Cards
+T.test("Cards get", function()
+  local card = bot_actions.card("association")
+  T.ok(card ~= nil); T.eq(card.name, "association")
+end)
+T.test("Cards getAll", function()
+  T.eq(#cards_data, 5)
+end)
+
+-- services/CardSlots
+T.test("CardSlots newShuffled", function()
+  local cs = card_slots.new(rng.new(99))
+  T.eq(#cs.slots, 5)
+  T.eq(cs.slots[1], "animals")
+  for _, name in ipairs(cs.slots) do T.eq(card_slots.is_upgraded(cs, name), false, name .. " upgraded") end
+end)
+T.test("CardSlots upgradeAndMove", function()
+  local cs = { slots = { "association", "animals", "build", "sponsors", "cards" }, upgraded = { "build" } }
+  T.eq(card_slots.is_upgraded(cs, card_slots.get(cs, 3)), true, "card 'build' upgraded")
+  T.eq(card_slots.is_upgraded(cs, card_slots.get(cs, 1)), false, "card 'association' upgraded")
+  T.eq(card_slots.can_upgrade(cs), true, "can upgrade card")
+  card_slots.upgrade(cs, card_slots.get(cs, 1))
+  T.eq(card_slots.is_upgraded(cs, card_slots.get(cs, 1)), true, "card 'association' upgraded")
+  card_slots.move_first(cs, card_slots.get(cs, 4))
+  T.eq(cs.slots, { "sponsors", "association", "animals", "build", "cards" })
+  T.eq(cs.upgraded, { "build", "association" })
+end)
+T.test("CardSlots revertUpgradedCard", function()
+  local cs = { slots = { "association", "animals", "build", "sponsors", "cards" }, upgraded = { "build", "association" } }
+  T.eq(card_slots.can_revert_upgrade(cs), true, "can revert upgrade card")
+  T.eq(card_slots.is_upgraded(cs, card_slots.get(cs, 1)), true)
+  T.eq(card_slots.is_upgraded(cs, card_slots.get(cs, 3)), true)
+  card_slots.revert_upgrade(cs, card_slots.get(cs, 3))
+  T.eq(card_slots.is_upgraded(cs, card_slots.get(cs, 1)), true, "card 'association' upgraded")
+  T.eq(card_slots.is_upgraded(cs, card_slots.get(cs, 3)), false, "card 'build' not upgraded")
+end)
+
+-- services/ProjectModuleTracker
+T.test("ProjectModuleTracker trackerPosition", function()
+  T.eq(tracker.position(nil), 1); T.eq(tracker.position(0), 1); T.eq(tracker.position(1), 2)
+  T.eq(tracker.position(5), 6); T.eq(tracker.position(13), 14); T.eq(tracker.position(14), 13)
+  T.eq(tracker.position(24), 3); T.eq(tracker.position(27), 0); T.eq(tracker.position(30), 3)
+end)
+T.test("ProjectModuleTracker projectSlot-kioskCount", function()
+  local slots = { "right", "middle", "right", "left", "middle", "right", "middle", "left", "right",
+                  "left", "middle", "left", "middle", "left" }
+  local kiosks = { 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 5 }
+  for i = 0, #slots - 1 do
+    local pos = tracker.position(i)
+    T.eq(tracker.slot(pos), slots[i + 1], "discardCount " .. i .. " projectSlot")
+    T.eq(tracker.kiosk_count(pos), kiosks[i + 1], "discardCount " .. i .. " kioskCount")
+  end
+end)
+T.test("ProjectModuleTracker getPreferredProjectSlots", function()
+  T.eq(tracker.preferred_slots(tracker.position(0)), { "right", "middle", "left" })
+  T.eq(tracker.preferred_slots(tracker.position(1)), { "middle", "right", "left" })
+  T.eq(tracker.preferred_slots(tracker.position(2)), { "right", "middle", "left" })
+  T.eq(tracker.preferred_slots(tracker.position(3)), { "left", "right", "middle" })
+  T.eq(tracker.preferred_slots(tracker.position(4)), { "middle", "left", "right" })
+end)
+
+T.finish("helper specs")
