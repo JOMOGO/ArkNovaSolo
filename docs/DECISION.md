@@ -154,9 +154,15 @@ run as a local service polled by TTS.
 
 - **Effort: XXL.** It needs a full rules engine for about 255 zoo cards, more than 100
   sponsor effects, maps, buildings, breaks, and a UI.
-- **Licensing: blocker.** The card text, data and art belong to Feuerland/Capstone. A
-  playable game needs the card effects, so this option depends on content that cannot be
-  redistributed. Even for personal use, you would have to transcribe the cards yourself.
+- **Licensing: blocks publishing, not building.** The card text, data, art and the
+  "Ark Nova" name belong to Feuerland/Capstone. Copyright and trademark apply whether or
+  not the app is free, so a public app or website needs their permission. They already
+  have an official digital licensee, so a free public clone is less likely to be
+  tolerated than a Workshop mod. Kept **strictly private**, C2 is in the same position as
+  using the TTS mod. The card data would still have to be typed in by you, or taken from
+  the mod, whose Lua has no licence: fine privately, never publishable. Not legal advice.
+- **For personal use, the real objection is effort.** C2 rebuilds the rules engine that
+  the scripted mod already contains (18k lines). Option A reuses it and adds only ARNO.
 - **It already exists:** *Ark Nova Digital* (Dire Wolf) is in Steam Early Access, with AI
   opponents and solo challenges ([announcement](https://news.direwolfdigital.com/ark-nova-digital-is-now-available-on-early-access),
   [Steam](https://store.steampowered.com/app/2438990)). The unofficial ARNO bot is not
@@ -174,7 +180,7 @@ run as a local service polled by TTS.
 | Mod update fragility | re-apply hooks | same + HTTP | save-format coupling | n/a |
 | Helper update fragility | low (harness detects drift) | lowest | lowest | n/a |
 | Offline | yes | yes (service) | yes | yes |
-| Licensing | personal use only (mod and art) | same | clean | **blocked** (card content) |
+| Licensing | personal use only (mod and art) | same | clean | personal use only; publishing needs publisher permission |
 | Main risk | bot inside a humans-only `players` model | unverified v14 localhost HTTP | goal not met | scope, IP |
 
 ## 5. Where every ARNO input and output would live
@@ -224,7 +230,8 @@ Reasons:
 3. **Faithfulness can be proven for the part the app computes**: a differential harness
    (seeded Lua vs the original TypeScript with a stubbed `Math.random`) plus the helper's
    own test cases. The parts the app does not compute need your rulings in either option.
-4. **C1 does not reduce the outputs you apply by hand, and C2 is blocked by licensing.**
+4. **C1 does not reduce the outputs you apply by hand.** C2 means rebuilding everything
+   the mod already does, and it could never be published.
 
 Proposed stages, each one playable on its own:
 
