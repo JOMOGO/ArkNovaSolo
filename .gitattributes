@@ -2,3 +2,10 @@ mods/** -text
 src/** -text
 reference/** -text
 dist/** -text
+assets/mod_assets/*.obj filter=lfs diff=lfs merge=lfs -text
+assets/mod_assets/*.unity3d filter=lfs diff=lfs merge=lfs -text
+assets/mod_assets/*.webp filter=lfs diff=lfs merge=lfs -text
+assets/mod_assets/*.jpg filter=lfs diff=lfs merge=lfs -text
+assets/mod_assets/*.png filter=lfs diff=lfs merge=lfs -text
+assets/mod_assets/*.pdf filter=lfs diff=lfs merge=lfs -text
+assets/mod_assets/*.mp3 filter=lfs diff=lfs merge=lfs -text

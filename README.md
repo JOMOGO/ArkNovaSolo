@@ -86,6 +86,13 @@ In-game checklist: `TESTING.md`.
 | `docs/MOD_PRIMITIVES.md` | mod functions used for each ARNO step |
 | `CHANGES.md` | every change to the base mod |
 
+## Backups (not used by the build)
+
+- `assets/arno_cards/`: the two ARNO card sheets (`python tools/arno_cards.py`).
+- `assets/mod_assets/`: every Steam Cloud file the base saves link to (images, models,
+  PDFs, music), with `manifest.json` mapping each URL to its file
+  (`python tools/download_assets.py`). Stored with Git LFS (`git lfs install` before cloning).
+
 ## Credits and licence
 
 - A.R.N.O. solo mode: Andre K. (BGG anke79).
