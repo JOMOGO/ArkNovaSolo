@@ -260,6 +260,32 @@ decision:
   - `tools/tts_build.py` rebuilds the new version from a fresh extract, so base-mod
     updates can be absorbed quickly.
 
+### Owner decisions for Phase 2 (2026-10-19)
+
+- **Option A.** ARNO is seated as a **real player entry** in the mod's `players`.
+- **Player mixes:** 1–4 humans plus 0–3 ARNOs, at most 4 in total (the mod's colours
+  White/Red/Blue/Yellow). Each ARNO takes a colour **no human is seated in**. The
+  difficulty is set per ARNO, as in the helper. Any colour can be an ARNO, not just Yellow.
+- **Regression requirement:** with 0 ARNOs the mod must behave exactly as the original,
+  including the official solo challenge for 1 human. With ≥ 1 ARNO, `#players > 1`, so
+  every solo path (`#players == 1`) is off automatically and the normal multi-player
+  rules apply.
+- **Turn order (from `Global.lua:4213–4240`):** the colour order is fixed around the
+  table, and the start player is `math.random` over all `players`. Required hook: choose
+  the start player among **humans only** (ARNO 3.0: a human starts). ARNOs can sit
+  between humans. Starting appeal for each ARNO = (position in actual turn order − 1),
+  which is the rule text "according to player order". It equals the helper's
+  `bot + playerCount − 1` when all ARNOs sit after the humans.
+- **Several ARNOs:** each one keeps its own card slots, upgrades, tokens, difficulty and
+  project-module tracker (the helper is per-bot already). Each ARNO runs automatically
+  when its turn comes, and consecutive ARNOs chain. Every seated player sees the panel
+  and log. The manual trigger works for any seated player.
+- **Multiplayer:** scripts run on the host, and the ARNO state lives in the host's
+  checkpoint. There is no network dependency.
+- **Open for multiple ARNOs (rules):** in a break, the order in which several ARNOs draw
+  their 3 cards. Proposal: turn order starting after the player who triggered the break.
+  To confirm against the 3.0 rules.
+
 ### Before Phase 2, please decide or answer
 
 1. **Choose an option** (my recommendation is A).
