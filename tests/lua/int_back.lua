@@ -130,6 +130,27 @@ T.test("Association task 3: Back returns to the task list, worker goes home", fu
   T.ok(active_panels.Red:find("Back to action choice", 1, true) ~= nil)
 end)
 
+T.test("Association task 3, Back to tasks, Back to action choice: worker stays free (found in play)", function()
+  local p = human_turn()
+  on_action_card_button_clicked(nil, "Red_" .. slot_of(p, "AS"), nil)
+  note_player_interaction()
+  on_claim_button_clicked(nil, "Red_" .. claim_index(p, "Take a Partner Zoo"), nil)
+  arno_back_clicked(nil, "Red", nil)               -- back to the task list
+  T.eq(back.pending.Red and back.pending.Red.kind, "action")
+  arno_back_clicked(nil, "Red", nil)               -- back to the action choice
+  T.eq(#p.deployed_workers, 0, "no worker left deployed")
+  T.eq(available_workers(p), p.worker_count, "all workers available next turn")
+end)
+
+T.test("action Back sends home a worker deployed after the choice", function()
+  local p = human_turn()
+  on_action_card_button_clicked(nil, "Red_" .. slot_of(p, "AS"), nil)
+  p.deployed_workers[#p.deployed_workers + 1] = { guid = p.workers[1], task = 3 }
+  arno_back_clicked(nil, "Red", nil)
+  T.eq(#p.deployed_workers, 0)
+  T.eq(#sim.calls.send_worker_home, 1, "worker sent home")
+end)
+
 T.test("Sponsors: Play a Sponsor Card has Back to the sponsor choice", function()
   local p = human_turn()
   sim.record("playable_sponsor_candidates", function() return { "a sponsor" } end)
@@ -246,6 +267,7 @@ T.test("ARNO panel height covers its contents with a margin", function()
     local bot = arno_state.bots[color]
     bot.last_turn = {}
     for i = 1, 9 do bot.last_turn[i] = string.rep("a long outcome line ", 4) .. i end
+    bot.last_slot = 1
   end
   local panel = require("ui.panel")
   local xml = panel.xml(nil)
@@ -254,6 +276,8 @@ T.test("ARNO panel height covers its contents with a margin", function()
   for h in xml:gmatch('preferredHeight="(%d+)"') do sum = sum + tonumber(h) end
   T.ok(height >= sum + panel.MARGIN, "panel " .. height .. " vs contents " .. sum)
   T.ok(xml:find('minHeight="34" preferredHeight="34"', 1, true) ~= nil, "a wrapped line gets 2 lines of height")
+  T.ok(xml:find('#00E5FF', 1, true) == nil, "last-used slot not highlighted (owner choice)")
+  T.ok(xml:find('color="#FFFFFF" preferredWidth="62">1 ', 1, true) ~= nil, "slot 1 white like the others")
 end)
 
 T.test("any further click commits the choice", function()

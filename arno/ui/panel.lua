@@ -1,8 +1,8 @@
 -- ARNO 3.0 for "Ark Nova - Complete Scripted" (Tabletop Simulator).
 -- ARNO solo mode designed by Andre K. See NOTICE.
 --
--- The ARNO panel, visible to every seat: per bot the five action-card slots (active
--- one highlighted, upgrades marked), difficulty, CP debt, tokens, module status, the
+-- The ARNO panel, visible to every seat: per bot the five action-card slots (upgrades
+-- marked), difficulty, CP debt, tokens, module status, the
 -- last log lines and the Run / Pause / Auto controls. Rendered through the mod's own
 -- panel system (set_active_panel) so mod re-renders keep it.
 
@@ -26,7 +26,8 @@ local function contains(list, v)
   return false
 end
 
--- Shows the table order: the card ARNO used last sits in slot 1 (highlighted).
+-- Shows the table order: the card ARNO used last sits in slot 1 (no highlight: his last
+-- turn is listed below; owner choice). Upgraded cards are pink.
 local function slot_row(bot)
   local cells = {}
   local cs = bot.card_slots
@@ -36,10 +37,9 @@ local function slot_row(bot)
     local label = name and CARD_LABEL[name] or "?"
     local upgraded = name and contains(cs.upgraded, name)
     if upgraded then label = label .. " II" end
-    local active = cs ~= nil and bot.last_slot ~= nil and i == 1
     cells[#cells + 1] = string.format(
       '<Text fontSize="13" color="%s" preferredWidth="62">%d %s</Text>',
-      active and "#00E5FF" or (upgraded and "#FF9BE0" or "#FFFFFF"), i, esc(label))
+      upgraded and "#FF9BE0" or "#FFFFFF", i, esc(label))
   end
   return '<HorizontalLayout spacing="2" minHeight="20">' .. table.concat(cells) .. '</HorizontalLayout>'
 end

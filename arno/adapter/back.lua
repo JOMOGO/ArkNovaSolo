@@ -41,6 +41,17 @@ local function copy_map(t)
   return out
 end
 
+-- workers deployed now but not in the snapshot go home; the list is restored as a copy
+-- (the snapshot's fields hold the live list, which the action appended to)
+local function restore_workers(player, saved)
+  local keep = {}
+  for _, w in ipairs(saved) do keep[w.guid] = true end
+  for _, w in ipairs(player.deployed_workers or {}) do
+    if not keep[w.guid] then send_worker_home(player, w.guid) end
+  end
+  player.deployed_workers = copy_list(saved)
+end
+
 function M.capture(player, slot, sel)
   if player == nil or player.is_arno or sel == nil then return nil end
   if sel.x_token_active or sel.multiplier ~= nil or sel.hypnosis ~= nil then return nil end
@@ -59,6 +70,7 @@ function M.capture(player, slot, sel)
     fields = fields,
     persistent_rewards = copy_map(player.persistent_rewards),
     post_action_rewards = copy_list(player.post_action_rewards),
+    deployed = copy_list(player.deployed_workers),
     held_breaks = {},
   }
 end
@@ -176,14 +188,13 @@ end
 
 local function back_task(snap)
   local player, color = snap.player, snap.player.color
-  for i = #player.deployed_workers, #snap.deployed + 1, -1 do
-    send_worker_home(player, player.deployed_workers[i].guid)
-  end
+  local live = player.deployed_workers
   for k in pairs(player) do
     if snap.fields[k] == nil then player[k] = nil end
   end
   for k, v in pairs(snap.fields) do player[k] = v end
-  player.deployed_workers = snap.deployed
+  player.deployed_workers = live
+  restore_workers(player, snap.deployed)
   player.persistent_rewards = snap.persistent_rewards
   player.post_action_rewards = snap.post_action_rewards
   player.claims = snap.claims
@@ -226,7 +237,10 @@ function M.back(color)
   for k in pairs(player) do
     if snap.fields[k] == nil then player[k] = nil end
   end
+  local live = player.deployed_workers
   for k, v in pairs(snap.fields) do player[k] = v end
+  player.deployed_workers = live
+  restore_workers(player, snap.deployed or {})
   player.persistent_rewards = snap.persistent_rewards
   player.post_action_rewards = snap.post_action_rewards
   player.claims = {}
