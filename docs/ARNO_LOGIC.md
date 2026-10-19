@@ -283,25 +283,22 @@ preferences), `getDifficultyLevel.spec.ts`.
 Node `^20.19 || >=22.12`, and the machine has 20.18.0 (nvm-windows is installed). Phase 3
 prerequisite: install Node 22 LTS.
 
-## 9. Open questions (need a decision from the owner, not from me)
+## 9. Open questions → answered from the printed ARNO 3.0 rules
 
-1. **Rules version: answered, ARNO 3.0** (owner, 2026-10-19). The 2.0 reference table is
-   used only for its physical layout (yellow ARNO mat). I have still not compared the app
-   with the printed 3.0 rules. Can you share that PDF (it is on BGG)?
-2. **DONATE** (Association upgraded) has no defined cost or reward in the app. What does
-   ARNO's donation do?
-3. **Association fallback CP.** The prose says "+2 CP, break +2". The card data
-   (`Cards.ts`) gives **CONSERVATION 1**, BREAK 2, and the unit test
-   `association-upgraded-5-easy` pins CP 1. Which is right?
-4. **Scope:** Marine Worlds? The ARNO project module? Each one adds input paths, and
-   Marine Worlds changes the starting CP (−3 vs −5) and the university count.
-5. **Rerolls.** The app leaves "is this zoo/university available?" to the human, with a
-   reroll button that excludes only the current value. If automated, should the adapter
-   reroll until an available one comes up? That differs subtly from the app's
-   human-driven reroll.
-6. **"Missing most"** (zoo vs university in the fallback). Is there an exact definition?
-   Otherwise, should it be "fewer owned; tie → random d2"?
-7. **`[absent]` rules:** the order of actions within one card, a break triggered partway
-   through ARNO's turn, the case where no conservation project is possible, reputation
-   overflow past 15, ARNO's worker return at breaks, the end-game trigger for ARNO, and
-   the purpose of the kiosk count. These need the printed rules.
+The owner provided the ARNO 3.0 rulebook, cards and module PDFs (`reference/`, not
+committed). All app-vs-rules questions are resolved in `DESIGN.md` §11 (R1–R21).
+
+Findings:
+- **The app's action tables match the printed cards exactly** (every card, side and
+  level).
+- The app's prose "fallback +2 CP" is wrong. Its code (+1) matches rules and cards.
+- The rulebook's **Build II text (p6) disagrees with the printed cards**. The cards and
+  the app agree, and they are used (R21).
+- The rules add things the app doesn't model:
+  - no reputation-9 or partner-zoo cap for ARNO (R10);
+  - an impossible task moves to the next task, not to the fallback (R8);
+  - ARNO wins ties (R16);
+  - kiosk count as the reference value for card 265 (R14);
+  - discarded sponsors can trigger human effects (R18);
+  - appeal is among his bonuses (R19).
+- Still open: R6 ("lacks the most") and R13 (order of several ARNOs' break draws).
