@@ -114,12 +114,21 @@ function M.install(ARNO)
 
   -- H17: ARNO wins ties against humans (rules p10)
   wrap("H17", "game_winners", function(orig)
+    -- the mod breaks score ties by supported projects (map cubes, always 0 for ARNO), so
+    -- the score comparison must come first: any ARNO with the best score wins
     return function(...)
-      local winners = orig(...)
-      if not state.active() or #winners < 2 then return winners end
-      local bots = setup.bots(winners)
-      if #bots > 0 and #bots < #winners then return bots end
-      return winners
+      if not state.active() then return orig(...) end
+      local best = nil
+      for _, p in ipairs(players) do
+        local s = get_counter_value(p.score_counter)
+        if best == nil or s > best then best = s end
+      end
+      local bots = {}
+      for _, p in ipairs(setup.bots(players)) do
+        if get_counter_value(p.score_counter) == best then bots[#bots + 1] = p end
+      end
+      if #bots > 0 then return bots end       -- several ARNOs tied: they share the win
+      return orig(...)
     end
   end)
 

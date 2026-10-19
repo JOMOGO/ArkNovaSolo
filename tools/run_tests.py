@@ -165,6 +165,24 @@ def main(argv=None) -> int:
         if run(["dotnet", MOONRUN, suite]):
             failures.append(test_file.name)
 
+    # integration tests: the BUILT Global.lua (mod + hooks + ARNO bundle) executed headless
+    import tts_build
+    built = tts_build.arno_global(ROOT / "src", ROOT / "hooks" / "hooks.json")
+    stubs = (ROOT / "tests" / "lua" / "tts_stubs.lua").read_text(encoding="utf-8")
+    sim = (ROOT / "tests" / "lua" / "sim_lib.lua").read_text(encoding="utf-8")
+    lib = (ROOT / "tests" / "lua" / "lib.lua").read_text(encoding="utf-8")
+    for test_file in sorted((ROOT / "tests" / "lua").glob("int_*.lua")):
+        if args.k and args.k not in test_file.name:
+            continue
+        body = test_file.read_text(encoding="utf-8")
+        suite = out_dir / test_file.name
+        suite.write_text(stubs + "\n" + sim + "\n" + built + "\nsim.cnsts = cnsts\n"
+                         + 'ARNO_MODULES["tests.lib"] = function(require)\n' + lib + "\nend\n"
+                         + "do\nlocal require = arno_require\n" + body + "\nend\n",
+                         encoding="utf-8", newline="\n")
+        if run(["dotnet", MOONRUN, suite]):
+            failures.append(test_file.name)
+
     print("FAILED: " + ", ".join(failures) if failures else "ALL TESTS PASSED")
     return 1 if failures else 0
 

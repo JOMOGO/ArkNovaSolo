@@ -26,15 +26,17 @@ local function contains(list, v)
   return false
 end
 
+-- Shows the table order: the card ARNO used last sits in slot 1 (highlighted).
 local function slot_row(bot)
   local cells = {}
   local cs = bot.card_slots
+  local order = cs and require("adapter.apply").physical_order(bot) or {}
   for i = 1, 5 do
-    local name = cs and cs.slots[i]
+    local name = order[i]
     local label = name and CARD_LABEL[name] or "?"
     local upgraded = name and contains(cs.upgraded, name)
     if upgraded then label = label .. " II" end
-    local active = cs ~= nil and bot.last_slot == i
+    local active = cs ~= nil and bot.last_slot ~= nil and i == 1
     cells[#cells + 1] = string.format(
       '<Text fontSize="13" color="%s" preferredWidth="62">%d %s</Text>',
       active and "#00E5FF" or (upgraded and "#FF9BE0" or "#FFFFFF"), i, esc(label))
