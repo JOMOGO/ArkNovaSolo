@@ -75,9 +75,15 @@ blockers, score-based game end). Human-only prompts are skipped for the bot.
   automation, you'd click a manual "ARNO turn" button and handle any `[absent]` cases the
   panel flags.
 - **Rewind/undo:** ARNO state and RNG state go into `checkpoint_state()`. A new
-  `CHECKPOINT_RESUMES.arno_turn` entry takes a checkpoint at the start of ARNO's turn. A
-  rewind into ARNO's turn lands on that checkpoint and replays the turn with the same
-  seed, so you get the same decisions. Nothing is in flight outside TTS.
+  `CHECKPOINT_RESUMES.arno_turn` entry takes a checkpoint at the start of ARNO's turn.
+  Resuming from it replays the turn with the same seed, so you get the same decisions.
+  Nothing is in flight outside TTS. Caveat: every `storeRewindState` call blocks TTS's own
+  automatic stores (`Global.lua:3136–3203`, argument `true`). But the mod also stores
+  "spacer" and "heartbeat" states that carry only the `in-turn:` marker, so a rewind can
+  land on a state the mod already marks as unresumable, and you then step back further to
+  a checkpoint. Mid-turn rewinds behave this way for human turns today. Phase 2 must decide
+  whether ARNO's turn emits spacer states at all; the simplest choice is none, so his turn
+  is atomic.
 - **Fragility:** a mod update means re-extracting and re-applying the hooks, which should
   be kept small and listed in `CHANGES.md`. Helper updates are rare. The port is pinned to
   helper commit `f4cda53`, and re-running the harness against a newer helper detects
