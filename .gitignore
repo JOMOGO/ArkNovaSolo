@@ -2,3 +2,6 @@ __pycache__/
 node_modules/
 dist/
 *.pyc
+tools/moonsharp/bin/
+tools/moonsharp/obj/
+build/
