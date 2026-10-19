@@ -51,9 +51,10 @@ function M.start(player, only_action, multiplier, hypnosis)
   if M.running ~= nil or M.pending ~= nil then return end
   M.pending = player.color
   if cancel_rewind_spacer_timer then cancel_rewind_spacer_timer() end
-  checkpoint_needs_spacer = false   -- ARNO's turn emits no spacer: it replays atomically
   panel.render(nil)
-  Wait.condition(function()
+  local function ready()
+    -- ARNO's turn emits no spacer store (the checkpoint callback has just armed one)
+    checkpoint_needs_spacer = false
     if not arno_state.auto then
       state.log(player.steam_name .. " is waiting: press 'Run ARNO turn'")
       panel.render(player.color)
@@ -63,14 +64,22 @@ function M.start(player, only_action, multiplier, hypnosis)
     Wait.time(function()
       if M.pending == player.color and arno_state.auto then M.run(player) end
     end, M.AUTO_DELAY)
-  end, function() return not checkpoint_open end)
+  end
+  local started = false
+  local function once() if not started then started = true; ready() end end
+  -- the checkpoint store callback comes from TTS; never let ARNO wait forever on it
+  Wait.condition(once, function() return not checkpoint_open end, 10, function()
+    state.log("checkpoint store did not confirm; ARNO plays anyway")
+    checkpoint_open = false
+    once()
+  end)
 end
 
 -- Manual trigger / auto run. Safe to call twice: only runs for the pending ARNO.
 function M.run(player)
   player = player or current_player
   if player == nil or not player.is_arno or M.running ~= nil then return end
-  if checkpoint_open then return end
+  if checkpoint_open then return end          -- never decide before the checkpoint is stored
   M.pending = nil
   M.running = player.color
   local bot = state.bot(player.color)

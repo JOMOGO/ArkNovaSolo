@@ -28,6 +28,18 @@ T.test("setup: keeps the first 2 project cards, discards the rest, 1 scoring car
   T.ok(bot.scoring_card ~= nil)
 end)
 
+T.test("setup discards join the humans' pile even before it is in the zone (H8)", function()
+  local p, bot = base()
+  zoo_deck = sim.deck({ 401, 402, 403, 404, 405, 406, 407, 408 })
+  final_scoring_deck = sim.deck({ 1, 2 })
+  local humans_pile = sim.deck({ 201, 202, 203, 204 })
+  arno_last_discard_pile = nil
+  discard_cards_to_new_pile(players[1], {}, humans_pile)   -- the mod's call, captured by H8
+  require("adapter.apply").deal_bot_setup_cards({ p }, function() end)
+  T.eq(humans_pile.getQuantity(), 4 + 8, "all of ARNO's 8 animals went onto the same pile")
+  arno_last_discard_pile = nil
+end)
+
 T.test("break draw: first project kept, first animal on mat, rest discarded (rules p4)", function()
   local p, bot = base()
   zoo_deck = sim.deck({ 208, 401, 101, 402 })

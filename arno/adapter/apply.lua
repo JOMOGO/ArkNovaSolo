@@ -499,8 +499,13 @@ end
 -- 8 random zoo cards: keep up to the first 2 projects, discard the rest; one face-down
 -- final scoring card. Called from the H8 start_game wrapper (players already restored).
 function M.deal_bot_setup_cards(bots, done)
-  local zone = getObjectFromGUID(cnsts.discard_pile_zone)
-  local pile = getByType(zone, "Deck") or getByType(zone, "Card")
+  -- the humans' pile was built this frame by discard_cards_to_new_pile; zone contents lag
+  -- physical moves, so use the pile object it returned (captured by the wrapper below)
+  local pile = arno_last_discard_pile
+  if pile == nil then
+    local zone = getObjectFromGUID(cnsts.discard_pile_zone)
+    pile = getByType(zone, "Deck") or getByType(zone, "Card")
+  end
   for _, p in ipairs(bots) do
     local bot = bot_of(p)
     bot.setup_discards = 0
@@ -644,6 +649,15 @@ function M.install_hooks(wrap)
     end
   end)
 
+  -- remember the setup discard pile object for ARNO's own setup discards (H8)
+  wrap("H8", "discard_cards_to_new_pile", function(orig)
+    return function(...)
+      local pile = orig(...)
+      arno_last_discard_pile = pile
+      return pile
+    end
+  end)
+
   -- H12: no hand limit and no income for ARNO; his income slot runs his break draw
   wrap("H12", "break_phase_discard", function(orig)
     return function(...) return with_humans(orig, ...) end
@@ -652,9 +666,16 @@ function M.install_hooks(wrap)
     return function(player)
       if not is_bot(player) then return orig(player) end
       take_checkpoint("income", player)
-      Wait.condition(function()
+      local started = false
+      local function go()
+        if started then return end
+        started = true
         M.break_draw(player, function() advance_income_phase() end)
-      end, function() return not checkpoint_open end)
+      end
+      Wait.condition(go, function() return not checkpoint_open end, 10, function()
+        state.log("checkpoint store did not confirm; break draw continues anyway")
+        go()
+      end)
     end
   end)
 
