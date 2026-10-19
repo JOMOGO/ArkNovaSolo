@@ -123,6 +123,7 @@ change. Planned hooks (the final list goes into `CHANGES.md`):
 | H16 | hand guards: `wait_for_all_hand_counts`, `other_hand_counts`, `other_hands_unchanged`, `final_scoring_cards`, `player_hand_cards`, plus the all-player loops in `start_setup_discard`, `break_phase_discard`, `start_final_scoring` (covered by H8/H12/H14) | wrapper | ARNO has no hand. Every site that loops over all players' hands, or reads another player's hand, treats an ARNO as an empty hand that never changes. The TTS docs say hand zones are owned by the colour, so reading them unseated is probably fine, but this is not documented. The guards make the mod independent of that. Hand reads inside a player's own action (pouch, magnet, snap, digging, store, …) are unreachable for ARNO, because he never takes human actions and H11 filters draw/snap rewards. |
 | H17 | `game_winners` (13000) | wrapper | ARNO wins ties against humans (R16) |
 | H18 | the mod's Franchise Business (265) kiosk count | wrapper | ARNO's kiosk count = module tracker value, else 0 (R14) |
+| H19 | action selection panel XML (`action_selection_panel_xml`, 10082) | wrapper | **Owner request:** a hint line "Undo this action: press the rewind arrow ◀ twice" for humans. No change to game logic. |
 | H15 | `cnsts.saved_globals`, `cnsts.saved_player_fields` | text edit or bundle append (file-local `cnsts` is in scope at the bundle) | persist `arno_state` and `players[i].is_arno` |
 
 **Rule of thumb for review:** every hook is a single call into `ARNO.*`. No ARNO logic is
@@ -333,14 +334,14 @@ The PDFs stay local and are not committed. Every entry becomes a named constant 
 | R3 | Association fallback (no worker left) | CP **+1**, break +2, plus a partner zoo or university. The app's prose "+2" is wrong; its code is right. | Rules p7, Cards |
 | R4 | Scope | Marine Worlds follows the mod's setup option. ARNO −3 CP instead of −5 "if playing with the new Action cards" (in the mod, MW ⇒ draft). ARNO skips the draft. 1 human: draw 3, pick 2 (the mod's solo draft path, keyed on **humans** = 1). Several humans: draft among humans only. Project module: optional setup toggle. | Rules p3, p9 |
 | R5 | Zoo/university roll | Unavailable or already-owned results are ignored and **rerolled**, excluding every value tried. | Rules p4, p7 |
-| R6 | "Lacks the most" (fallback zoo vs university) | **OPEN, proposal:** the type he owns fewer of; tie → d2. If no partner of that type exists, this part is skipped. | Rules p7 |
+| R6 | "Lacks the most" (fallback zoo vs university) | **Owner:** the type he owns fewer of; tie → d2. If no partner of that type exists, this part is skipped. | Rules p7 |
 | R7 | Order / break mid-turn | Steps resolve in card order (the app's list order). A break caused by ARNO happens at the end of his turn as usual; he gets no income and **no X-token**. | Rules p5 |
 | R8 | Task impossible (no zoo/university available, or all projects supported) | Continue as if a worker were already on that task: the next higher free task, else the next lower one. The fallback is used **only when no worker is available**. | Rules p7 |
 | R9 | Game end | ARNO can trigger it like a human. If a human triggers it, each ARNO gets one more turn (the mod's normal rule). | Rules p10 |
 | R10 | Reputation / partner capacity | **No upgrade restrictions for ARNO:** reputation above 9 without Cards II, and always room for a 3rd and 4th partner zoo. With Marine Worlds, rep 15 + 1 → the max-reputation bonus tile if still available (then removed). Otherwise the overflow becomes appeal. | Rules p2, p9; app note |
 | R11 | Project tokens | Taken from beside his mat, so no map project bonus is uncovered. He gets the map A right-area bonuses (partner zoo / university / worker spaces). | Rules p3 step 5, p2 |
 | R12 | Which project | 0 cards on mat: an unsupported project beside the board, preferring one with no player tokens (neutral blockers ignored), else any with a free slot. 1 card: 50 % own card / 50 % board. 2+: random own card. The "N-th" order is row order; the choice is uniform, so order doesn't matter. | Rules p7–p9, app |
-| R13 | Several ARNOs' break draws | **OPEN, proposal:** in the mod's income order. | — |
+| R13 | Several ARNOs' break draws | **Owner:** in the mod's income order. | owner |
 | R14 | Kiosk count (project module) | The reference value for card **265 Franchise Business** (MW): hook the mod's kiosk count for ARNO. Without the module ARNO has 0 kiosks. | Rules p10–p11 |
 | R15 | ARNO reaching 10 CP | Triggers the final-scoring discard for the humans (base rule). | base rules |
 | R16 | Ties | **ARNO wins ties** against humans (new hook H17 on `game_winners`). | Rules p10 |
