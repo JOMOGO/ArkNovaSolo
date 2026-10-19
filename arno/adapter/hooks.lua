@@ -270,7 +270,12 @@ function M.install(ARNO)
   end)
   wrap("H20", "onObjectPickUp", function(orig)
     return function(color, obj, ...)
-      back.clear(color)
+      -- in the sponsor panel picking up a card only selects it (handle_sponsor_pickup);
+      -- the choice is committed by Confirm, so Back stays available until then
+      local snap = back.pending[color]
+      if not (snap ~= nil and snap.sponsor ~= nil and sponsor_actions[color] ~= nil) then
+        back.clear(color)
+      end
       return orig(color, obj, ...)
     end
   end)
