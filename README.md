@@ -13,8 +13,9 @@ ARNO's decisions are a tested Lua port of the
 
 ## Play
 
-1. Copy `dist/ArkNova_Scripted_ARNO.json` to
-   `C:\Users\<you>\Documents\My Games\Tabletop Simulator\Saves\`.
+1. The build installs `ArkNova_Scripted_ARNO.json` in
+   `Documents\My Games\Tabletop Simulator\Saves\` automatically (manual: copy
+   `dist/ArkNova_Scripted_ARNO.json` there).
 2. In TTS: **Games → Save & Load**, then pick **"Ark Nova - Complete Scripted + ARNO 3.0"**.
 3. Sit in a colour, click **Setup Game**. For each free colour choose
    *ARNO opponent: Level 1–10* (or Off), then *Proceed*.
@@ -38,7 +39,9 @@ The build:
 1. applies `hooks/hooks.json` (it fails if the base mod changed under an anchor);
 2. bundles `arno/`;
 3. compile-checks the result under MoonSharp (TTS's Lua);
-4. changes only the Global script and SaveName.
+4. changes only the Global script and SaveName;
+5. copies the result into the TTS Saves folder (override the folder with `ARNO_TTS_SAVES`,
+   skip the copy with `--no-install`).
 
 **Updating to a new base-mod version:**
 1. Copy the new Workshop JSON to `mods/original/`.
