@@ -288,4 +288,105 @@ T.test("any further click commits the choice", function()
   T.eq(back.pending.Red, nil)
 end)
 
+-- H21 (owner request): the mod's red Cancel buttons are Back buttons
+local function cut_down_xml() return cut_down_panel_xml("Red", { options = {} }) end
+
+T.test("a red Cancel is shown as Back (same handler); red Pass stays", function()
+  human_turn()
+  set_player_panel("Red", cut_down_xml())
+  local xml = active_panels.Red
+  T.ok(xml:find('onClick="on_cut_down_cancel_clicked(Red)"', 1, true) ~= nil, "mod's handler kept")
+  T.ok(xml:find('color="' .. back.COLOR .. '" textColor="#FFFFFF">Back</Button>', 1, true) ~= nil, "Back look")
+  T.ok(xml:find(">Cancel<", 1, true) == nil and xml:find("#C61715", 1, true) == nil, "no red Cancel")
+  set_player_panel("Red", '<Panel height="80"><VerticalLayout><Button id="x" color="#C61715" textColor="#FFFFFF">Pass</Button></VerticalLayout></Panel>')
+  T.ok(active_panels.Red:find('color="#C61715" textColor="#FFFFFF">Pass</Button>', 1, true) ~= nil, "Pass untouched")
+  show_building_placement_panel(sim.make_player("Red", false), false)
+  T.ok(active_panels.Red:find(back.COLOR .. '" textColor="#FFFFFF">Back to\nbuilding selection</Button>', 1, true) ~= nil,
+    "Go back to building selection in the Back look")
+end)
+
+T.test("while Back is offered the mod's Cancel is dropped; it returns on commit", function()
+  local p = human_turn()
+  on_action_card_button_clicked(nil, "Red_" .. slot_of(p, "AS"), nil)
+  T.ok(back.pending.Red ~= nil)
+  local base = cut_down_xml()
+  local h = tonumber(base:match('<Panel[^>]-height="(%d+)"'))
+  set_player_panel("Red", base)
+  local xml = active_panels.Red
+  T.ok(xml:find("on_cut_down_cancel_clicked", 1, true) == nil, "Cancel dropped")
+  T.eq(select(2, xml:gsub("<Button ", "")), 1, "one way back")
+  T.ok(xml:find('id="arnoBack_Red"', 1, true) ~= nil, "our Back")
+  T.eq(tonumber(xml:match('<Panel[^>]-height="(%d+)"')), h - 34 - 6 + back.EXTRA_HEIGHT, "height adjusted")
+  note_player_interaction()
+  xml = active_panels.Red
+  T.ok(xml:find('id="arnoBack_Red"', 1, true) == nil, "our Back gone")
+  T.ok(xml:find("on_cut_down_cancel_clicked", 1, true) ~= nil, "mod's Back(Cancel) is back")
+  T.eq(tonumber(xml:match('<Panel[^>]-height="(%d+)"')), h)
+end)
+
+local function cards_turn(upgraded)
+  local p = human_turn()
+  p.cards_flipped = upgraded or nil
+  players[2] = sim.make_player("Blue", false)
+  break_current_val = 9
+  placeholder_card = sim.fake("placeholder")
+  sim.record("move_break_token")
+  on_action_card_button_clicked(nil, "Red_" .. slot_of(p, "CA"), nil)
+  note_player_interaction()                        -- the click on Snap/Draw commits the action
+  return p
+end
+
+T.test("Cards: Snap a card has Back to Cards choice (no Back to action choice after it)", function()
+  local p = cards_turn(true)
+  T.eq(break_current_val, 7, "break applied on commit")
+  local choices = #p.claims[#p.claims]
+  on_claim_button_clicked(nil, "Red_" .. claim_index(p, "Snap a card"), nil)
+  T.ok(snap_player == p, "snap armed")
+  T.eq(back.pending.Red and back.pending.Red.label, "Back to Cards choice")
+  T.ok(active_panels.Red:find("Back to Cards choice", 1, true) ~= nil, "button in the snap prompt")
+  arno_back_clicked(nil, "Red", nil)
+  T.eq(snap_player, nil, "snap disarmed")
+  T.eq(#p.claims[#p.claims], choices, "Snap / Draw choice is back")
+  T.ok(claim_index(p, "Draw 2 cards") ~= nil)
+  T.eq(back.pending.Red, nil, "no Back to action choice: the break already moved")
+  T.eq(break_current_val, 7)
+end)
+
+T.test("Cards II: Draw from reputation range has Back to Cards choice", function()
+  local p = cards_turn(true)
+  on_claim_button_clicked(nil, "Red_" .. claim_index(p, "Draw 2 cards"), nil)
+  T.ok(rep_draw_player == p, "rep-range draw armed")
+  T.eq(back.pending.Red and back.pending.Red.label, "Back to Cards choice")
+  arno_back_clicked(nil, "Red", nil)
+  T.eq(rep_draw_player, nil)
+  T.eq(placeholder_card.interactable, false)
+  T.ok(claim_index(p, "Snap a card") ~= nil, "choice is back")
+end)
+
+T.test("Cards I: Draw deals at once, so no Back", function()
+  local p = cards_turn(false)
+  sim.record("deal_cards_to_hand")
+  on_claim_button_clicked(nil, "Red_" .. claim_index(p, "Draw 2 cards, discard 1"), nil)
+  T.eq(#sim.calls.deal_cards_to_hand, 1)
+  T.eq(back.pending.Red, nil)
+end)
+
+T.test("bonus build from the action panel: going back returns to the action panel", function()
+  local p = human_turn()
+  sim.record("end_player_turn")
+  p.engineer_builds = { { key = "engineer_1", text = "Build a Kiosk\n(Engineer)", search_name = "KIOSK",
+                          price = 2, money_source = "Kiosk (Engineer bonus build)" } }
+  p.persistent_rewards.engineer_1 = true
+  sim.record("start_bonus_build", function(_, pl, extra)
+    pl.persistent_rewards[extra.key] = nil
+    pl.pending_building = { tile_guid = sim.fake("kiosk tile").getGUID(), bonus = extra.key }
+  end)
+  on_persistent_reward_button_clicked(nil, "Red|engineer_1|action", nil)
+  T.eq(#sim.calls.start_bonus_build, 1)
+  on_building_placement_go_back(nil, "Red", nil)
+  T.eq(p.persistent_rewards.engineer_1, true, "bonus build still available")
+  T.eq(#sim.calls.create_action_selection_panel, 1, "action panel shown again")
+  T.eq(#sim.calls.end_player_turn, 0, "turn not ended")
+end)
+
 T.finish("integration back")

@@ -19,7 +19,11 @@ M.pending = {}          -- color -> snapshot (transient: rewind/load clears it, 
 M.recent = {}           -- color -> action-level snapshot just committed by a click
 M.task_started = nil    -- set while an Association task 3/4/5 click is being handled
 M.capturing = nil       -- player whose break moves are being held back during the click
+M.raw = {}              -- color -> panel XML as the mod rendered it (before our edits)
+M.shown = {}            -- color -> that panel as we put it on screen
 M.EXTRA_HEIGHT = 46
+M.COLOR = "#8A6D1F"
+local CANCEL_RED = "#C61715"
 
 local function copy_list(t)
   local out = {}
@@ -92,9 +96,72 @@ function M.add_button(color, xml)
   end
   if pos == nil then return xml end
   local button = string.format(
-    '<Button %s onClick="arno_back_clicked(%s)" fontSize="16" minHeight="38" preferredHeight="38" color="#8A6D1F" textColor="#FFFFFF">%s</Button>',
-    marker(color), color, (M.pending[color] and M.pending[color].label) or "Back")
+    '<Button %s onClick="arno_back_clicked(%s)" fontSize="16" minHeight="38" preferredHeight="38" color="%s" textColor="#FFFFFF">%s</Button>',
+    marker(color), color, M.COLOR, (M.pending[color] and M.pending[color].label) or "Back")
   return string.sub(grown, 1, pos - 1) .. button .. string.sub(grown, pos)
+end
+
+-- Owner request: the mod's red "Cancel" buttons only ever go back one step, so they look
+-- and read like Back (same handler); "Go back to building selection" gets the Back colour.
+-- Red "Pass" buttons stay: passing is a game choice, not a way back.
+-- (plain finds: TTS's MoonSharp rejects patterns like <Button[^>]-...[^>]*>)
+
+-- each <Button ...>...</Button> passed to fn; a string result replaces it
+local function map_buttons(xml, fn)
+  local out, start = {}, 1
+  while true do
+    local i = xml:find("<Button ", start, true)
+    local j = i and xml:find("</Button>", i, true)
+    if j == nil then break end
+    j = j + #"</Button>" - 1
+    local b = string.sub(xml, i, j)
+    out[#out + 1] = string.sub(xml, start, i - 1)
+    out[#out + 1] = fn(b) or b
+    start = j + 1
+  end
+  out[#out + 1] = string.sub(xml, start)
+  return table.concat(out)
+end
+
+local RED = 'color="' .. CANCEL_RED .. '"'
+local function red_cancel(b) return b:find(RED, 1, true) and b:find(">Cancel</Button>", 1, true) end
+
+local function recolor(b) return (b:gsub(RED, 'color="' .. M.COLOR .. '"', 1)) end
+
+function M.restyle(xml)
+  if type(xml) ~= "string" then return xml end
+  return map_buttons(xml, function(b)
+    if red_cancel(b) then
+      return (recolor(b):gsub(">Cancel</Button>", ">Back</Button>", 1))
+    end
+    if b:find('id="buildingPlacementGoBackButton_', 1, true) and b:find(RED, 1, true) then
+      return (recolor(b):gsub(">Go back to", ">Back to", 1))
+    end
+  end)
+end
+
+-- while our Back is offered the mod's Cancel would be a second (and weaker) way back:
+-- drop it and give its height back to the panel
+local function drop_cancel(xml)
+  local freed = 0
+  local out = map_buttons(xml, function(b)
+    if freed == 0 and red_cancel(b) then
+      freed = (tonumber(b:match(' height="(%d+)"')) or 34) + 6
+      return ""
+    end
+  end)
+  if freed == 0 then return xml end
+  return (out:gsub('(<Panel[^>]-height=")(%d+)(")',
+    function(head, ph, tail) return head .. (tonumber(ph) - freed) .. tail end, 1))
+end
+
+-- the panel as shown: restyled, and with our Back (in place of the mod's Cancel) if offered
+function M.decorate(color, xml)
+  if type(xml) ~= "string" then return xml end
+  if M.pending[color] ~= nil then xml = drop_cancel(xml) end
+  xml = M.restyle(xml)
+  if M.pending[color] ~= nil then xml = M.add_button(color, xml) end
+  return xml
 end
 
 function M.strip_button(color, xml)
@@ -111,7 +178,13 @@ local function rerender(color, transform)
   if active_panels == nil or set_active_panel == nil then return end
   local xml = active_panels[color]
   if xml == nil then return end
-  local new = transform(color, xml)
+  local new
+  if xml == M.shown[color] and M.raw[color] ~= nil then
+    new = M.decorate(color, M.raw[color])   -- rebuilt from the mod's XML: brings Cancel back
+    M.shown[color] = new
+  else
+    new = transform(color, xml)
+  end
   if new ~= xml then set_active_panel(color, new) end
 end
 
@@ -186,8 +259,40 @@ function M.capture_task(player)
   }
 end
 
+-- the Cards action's grouped "Snap a card / Draw N cards" choice (owner request: Snap, and
+-- Cards II's Draw from reputation range, only arm a pick-up, so Back can return to it)
+function M.cards_choice(player, idx)
+  local sub = player.claims and player.claims[#player.claims]
+  if sub == nil or not sub.grouped or sub[idx] == nil then return false end
+  local draw = false
+  for _, c in ipairs(sub) do
+    local text = resolve_claim_text(c)
+    if type(text) ~= "string" then return false end
+    if text:find("^Draw %d+ cards") then
+      draw = true
+    elseif not text:find("^Snap ") then
+      return false
+    end
+  end
+  return draw
+end
+
+-- what Snap / Draw armed (nothing has been taken yet: a pick-up commits)
+local function disarm_cards(player)
+  if snap_player == player then
+    snap_player, snap_remaining, snap_refill = nil, 0, false
+    snap_card_type, snap_max_size, snap_callback = nil, nil, nil
+  end
+  if rep_draw_player == player then
+    rep_draw_player, rep_draw_remaining, rep_draw_callback, rep_draw_lookup = nil, 0, nil, nil
+    if placeholder_card ~= nil then placeholder_card.interactable = false end
+  end
+  lock_display_cards()
+end
+
 local function back_task(snap)
   local player, color = snap.player, snap.player.color
+  if snap.cards then disarm_cards(player) end
   local live = player.deployed_workers
   for k in pairs(player) do
     if snap.fields[k] == nil then player[k] = nil end
@@ -216,7 +321,8 @@ local function back_task(snap)
   active_claim = nil
   claims_players[color] = nil
   clear_player_panel(color)
-  printToAll(player.steam_name .. " takes back their " .. (snap.sponsor and "sponsor" or "association task") .. " choice.")
+  local what = snap.cards and "Cards" or (snap.sponsor and "sponsor" or "association task")
+  printToAll(player.steam_name .. " takes back their " .. what .. " choice.")
   if snap.parent ~= nil then M.pending[color] = snap.parent end
   render_claims_table(player)
 end

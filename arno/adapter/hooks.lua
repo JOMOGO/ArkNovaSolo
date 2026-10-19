@@ -190,19 +190,30 @@ function M.install(ARNO)
   -- Association tasks 3/4/5 get their own Back (to the task list), owner request
   wrap("H20", "on_claim_button_clicked", function(orig)
     return function(p, value, id)
-      local color = tostring(value):match("^(%a+)_")
+      local color, idx = tostring(value):match("^(%a+)_(%d+)")
       local player = color and claims_players[color]
-      local snap = nil
-      if player ~= nil and not is_bot(player)
-          and (association_actions[color] ~= nil or sponsor_actions[color] ~= nil) then
-        snap = back.capture_task(player)
+      local snap, cards = nil, false
+      if player ~= nil and not is_bot(player) then
+        cards = back.cards_choice(player, tonumber(idx))
+        if cards or association_actions[color] ~= nil or sponsor_actions[color] ~= nil then
+          snap = back.capture_task(player)
+        end
       end
       back.task_started = nil
       local ok, r = pcall(orig, p, value, id)
       local started = back.task_started
       back.task_started = nil
       if not ok then error(r, 0) end
-      if snap ~= nil and started ~= nil then
+      if cards then
+        -- only Snap and Cards II's Draw just arm a pick-up; Cards I's Draw deals at once.
+        -- The Cards break was applied when this click committed the action, so no
+        -- "Back to action choice" after this one.
+        if snap_player == player or rep_draw_player == player then
+          snap.label, snap.cards, snap.parent = "Back to Cards choice", true, nil
+          snap.assoc, snap.sponsor = nil, nil
+          back.offer(snap)
+        end
+      elseif snap ~= nil and started ~= nil then
         if started == "sponsor" then
           snap.label = "Back to sponsor choice"
           snap.assoc = nil
@@ -255,11 +266,29 @@ function M.install(ARNO)
       return orig(n, player, ...)
     end
   end)
-  -- panels shown while Back is available get the button too
+  -- panels shown while Back is available get the button too (in place of the mod's
+  -- Cancel); H21: the mod's red Cancel buttons are shown as Back
   wrap("H20", "set_player_panel", function(orig)
     return function(color, xml, refresh)
-      if back.pending[color] ~= nil then xml = back.add_button(color, xml) end
+      back.raw[color] = xml
+      xml = back.decorate(color, xml)
+      back.shown[color] = xml
       return orig(color, xml, refresh)
+    end
+  end)
+
+  -- H21: a bonus build (Engineer) started from the action panel returns there afterwards
+  -- (Back, a failed start or Confirm) like the mod's trade and marketing do; it used to
+  -- reach an empty claims table, which ends the turn before the action was taken
+  wrap("H21", "on_persistent_reward_button_clicked", function(orig)
+    return function(p, value, id)
+      local color, reward, source = tostring(value):match("^(%a+)|([%w_]+)|(%a+)$")
+      local player = color and find_player_by_color(color)
+      if player ~= nil and source == "action"
+          and (build_extra_reward(reward) or engineer_build(player, reward)) then
+        resume_action_panel_after_claims(player, "action")
+      end
+      return orig(p, value, id)
     end
   end)
   -- any further interaction commits the choice (the Back handler itself is not on_*,
