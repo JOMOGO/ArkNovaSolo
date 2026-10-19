@@ -566,14 +566,18 @@ function M.install_hooks(wrap)
   local setup = require("adapter.setup")
   local is_bot = setup.is_bot
 
+  -- Runs a mod function with `players` = humans only. Returns exactly the original's return
+  -- values: a padded tuple (true, nil, nil) is rejected by TTS's Wait.condition
+  -- ("condition_function does not return bool", found in play).
+  local function pack(...) return { n = select("#", ...), ... } end
   local function with_humans(orig, ...)
     if not state.active() then return orig(...) end
     local saved = players
     players = setup.humans(players)
-    local ok, a, b, c = pcall(orig, ...)
+    local r = pack(pcall(orig, ...))
     players = saved
-    if not ok then error(a, 0) end
-    return a, b, c
+    if not r[1] then error(r[2], 0) end
+    return (table.unpack or unpack)(r, 2, r.n)
   end
 
   -- H10: ARNO's claims are claimed in order; never a panel, never end_player_turn

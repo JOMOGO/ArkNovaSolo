@@ -59,6 +59,15 @@ T.test("leftover action-card decks: ARNO's empty zone is skipped (H6, found in p
   for _, guid in ipairs(decks) do T.eq(sim.objects[guid], nil, "deck destroyed") end
 end)
 
+T.test("human hand waits through the H16 wrappers return a single boolean (found in play)", function()
+  base()
+  Player = setmetatable({}, { __index = function() return { getHandObjects = function() return {} end } end })
+  local fired = false
+  wait_for_cards_out_of_hand(players[1], 1, { sim.fake("discarded card") }, function() fired = true end)
+  sim.pump()
+  T.ok(fired)
+end)
+
 T.test("break draw: first project kept, first animal on mat, rest discarded (rules p4)", function()
   local p, bot = base()
   zoo_deck = sim.deck({ 208, 401, 101, 402 })

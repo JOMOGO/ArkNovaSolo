@@ -19,7 +19,16 @@ function sim.pump(limit)
   while true do
     local progressed = false
     for _, item in ipairs(sim.queue) do
-      if not item.dead and not item.done and (item.cond == nil or item.cond()) then
+      local ready = item.cond == nil
+      if not ready and not item.dead and not item.done then
+        -- as strict as TTS: a condition must return exactly one boolean
+        local r = { n = select("#", item.cond()), item.cond() }
+        if r.n ~= 1 or type(r[1]) ~= "boolean" then
+          error("Wait.condition: condition_function does not return bool (" .. r.n .. " values)")
+        end
+        ready = r[1]
+      end
+      if not item.dead and not item.done and ready then
         item.done = true
         progressed = true
         item.fn()
