@@ -28,6 +28,7 @@ The Global script is the base script plus:
 |---|---|---|
 | H1 | `game_setup_panel_xml` | adds a row per unseated colour (ARNO Off / Level 1–10) and the project-module toggle |
 | H5 | `setup_player_maps` | ARNO gets map A and his base action cards, CP debt is set, then a **humans-only window** opens for the map, Marine Worlds draft and setup-discard prompts |
+| H6 | `destruct_action_card_decks` | skips colours whose action-card deck is already gone (ARNO's cards were dealt during his own setup); fixes the setup crash before the discard prompt |
 | H8 | `start_game` | closes the window (full turn order back), deals ARNO's 8 cards (keep ≤ 2 projects, discard the rest) and his face-down final scoring card |
 | H8 | `discard_cards_to_new_pile` | remembers the setup discard pile, so ARNO's setup discards join the same pile (zone contents lag physical moves) |
 | H9 | `create_action_selection_panel` | an ARNO turn starts here (after the mod's own `"turn"` checkpoint); human-only prompts (multiplier, hypnosis) are ignored for ARNO |

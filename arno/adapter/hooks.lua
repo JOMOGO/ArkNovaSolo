@@ -62,6 +62,22 @@ function M.install(ARNO)
     end
   end)
 
+  -- H6: ARNO's action cards were dealt from his colour's zone earlier (prepare_bot), so that
+  -- zone is empty when the mod removes the leftover decks; skip missing decks
+  -- (found in play: "attempt to index a nil value" in destruct_action_card_decks)
+  wrap("H6", "destruct_action_card_decks", function(orig)
+    return function(...)
+      if not state.active() then return orig(...) end
+      for _, zones in pairs(cnsts.action_card_init_zones) do
+        for _, guid in pairs(zones) do
+          local zone = getObjectFromGUID(guid)
+          local deck = zone and getDeck(zone)
+          if deck ~= nil then deck.destruct() end
+        end
+      end
+    end
+  end)
+
   -- H9: ARNO's turn starts where a human would get the action panel
   wrap("H9", "create_action_selection_panel", function(orig)
     return function(player, only_action, multiplier, hypnosis)

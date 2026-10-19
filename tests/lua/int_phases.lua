@@ -40,6 +40,25 @@ T.test("setup discards join the humans' pile even before it is in the zone (H8)"
   arno_last_discard_pile = nil
 end)
 
+T.test("leftover action-card decks: ARNO's empty zone is skipped (H6, found in play)", function()
+  base()
+  local decks = {}
+  for _, set in pairs(cnsts.action_card_init_zones) do
+    for color, guid in pairs(set) do
+      local zone = sim.fake("zone " .. color, nil, guid)
+      if color ~= "Yellow" then
+        local deck = sim.fake("deck " .. color); deck.tag = "Deck"
+        decks[#decks + 1] = deck.getGUID()
+        zone.getObjects = function() return { deck } end
+      else
+        zone.getObjects = function() return {} end   -- ARNO's cards were already dealt
+      end
+    end
+  end
+  destruct_action_card_decks()
+  for _, guid in ipairs(decks) do T.eq(sim.objects[guid], nil, "deck destroyed") end
+end)
+
 T.test("break draw: first project kept, first animal on mat, rest discarded (rules p4)", function()
   local p, bot = base()
   zoo_deck = sim.deck({ 208, 401, 101, 402 })
