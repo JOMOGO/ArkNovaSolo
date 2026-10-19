@@ -176,6 +176,12 @@ function M.prepare_bot(player)
   apply_map_choice(player, "map_A", data.image)
   local zones = marine_worlds_enabled and cnsts.action_card_init_zones.mw or cnsts.action_card_init_zones.base
   deal_action_cards(player, zones[player.color])
+  -- ARNO doesn't draft (rules p9); the mod only removes a player's drafting box when that
+  -- player finishes the draft, so remove his here (it covered his action cards, found in play)
+  if marine_worlds_enabled then
+    local box = getObjectFromGUID(cnsts.drafting_boxes[player.color])
+    if box ~= nil then box.destruct() end
+  end
   local debt = marine_worlds_enabled and rulings.START_CP_DEBT_MW or rulings.START_CP_DEBT
   debt = debt - (bot.extra_cp or 0)
   bot.cp_debt = math.max(0, debt)

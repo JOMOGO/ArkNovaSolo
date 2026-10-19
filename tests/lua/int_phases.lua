@@ -96,6 +96,19 @@ T.test("two ARNOs are prepared one after another (kiosk template is async, found
   T.eq(#sim.calls.show_map_setup_panel, 1, "the humans' map setup continued")
 end)
 
+T.test("Marine Worlds: ARNO's drafting box is removed in his setup (found in play)", function()
+  local p = base()
+  marine_worlds_enabled = true
+  sim.record("apply_map_choice")
+  sim.record("deal_action_cards")
+  local box = sim.fake("drafting box", nil, cnsts.drafting_boxes.Yellow)
+  ARNO.setup.prepare_bot(p)
+  T.eq(sim.objects[cnsts.drafting_boxes.Yellow], nil, "box destroyed")
+  T.eq(sim.calls.deal_action_cards[1][2], cnsts.action_card_init_zones.mw.Yellow, "his regular cards from his own zone")
+  T.eq(arno_state.bots.Yellow.cp_debt, 3, "-3 CP with the new action cards (rules p9)")
+  marine_worlds_enabled = false
+end)
+
 T.test("break draw: first project kept, first animal on mat, rest discarded (rules p4)", function()
   local p, bot = base()
   zoo_deck = sim.deck({ 208, 401, 101, 402 })
