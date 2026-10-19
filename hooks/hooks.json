@@ -1,0 +1,23 @@
+{
+  "_comment": "Anchored text edits to src/Global.lua, applied by tools/tts_build.py --arno. Each 'find' must occur exactly once, otherwise the build fails (protects against silent mis-patching after a base-mod update). Keep every edit to a single call into ARNO.*; prefer wrappers in arno/adapter/hooks.lua whenever possible. Listed in CHANGES.md.",
+  "hooks": [
+    {
+      "id": "H2",
+      "why": "Add ARNO bots to `players` before setup_game builds per-colour components, so bot colours keep their boards, counters and tokens.",
+      "find": "    table.insert(players, { color = player.color, steam_name = player.steam_name })\n  end\n",
+      "replace": "    table.insert(players, { color = player.color, steam_name = player.steam_name })\n  end\n  if ARNO then ARNO.setup.add_bots(players) end\n"
+    },
+    {
+      "id": "H3",
+      "why": "ARNO 3.0: a human player is always the starting player.",
+      "find": "  local starting_player = players[math.random(#players)]\n",
+      "replace": "  local starting_player = (ARNO and ARNO.setup.starting_player(players)) or players[math.random(#players)]\n"
+    },
+    {
+      "id": "H8",
+      "why": "start_game waits for 4 discards per player; humans discard 4, ARNO discards his setup cards (not 4).",
+      "find": "  local expected_discards = 4 * #players\n",
+      "replace": "  local expected_discards = (ARNO and ARNO.setup.expected_discards(players)) or 4 * #players\n"
+    }
+  ]
+}

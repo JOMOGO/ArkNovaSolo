@@ -8,7 +8,9 @@ The base save is only read.
 Serialisation mimics TTS (2-space indent, CRLF, non-ASCII kept, each float written
 with its original text), so an unchanged extract rebuilds byte-identically.
 
-Later phases add ARNO bundling and hooks on top of this; see docs/DESIGN.md.
+With --arno, Global.lua additionally gets the anchored edits from hooks/hooks.json and
+the bundled arno/ modules (inserted before the mod's on_* interaction wrapper), and the
+result is compile-checked under MoonSharp. See docs/DESIGN.md §3-4.
 """
 from __future__ import annotations
 
@@ -66,16 +68,69 @@ def build(base: Path, src: Path, overrides: dict[str, str] | None = None,
     return dump_save(doc, newline)
 
 
+ROOT = Path(__file__).resolve().parents[1]
+BUNDLE_ANCHOR = "\nlocal handler_names = {}\n"
+ARNO_SAVE_NAME = "Ark Nova - Complete Scripted + ARNO 3.0"
+
+
+def apply_hooks(text: str, hooks_file: Path) -> tuple[str, list[str]]:
+    """Apply anchored edits; each `find` must occur exactly once."""
+    spec = json.loads(hooks_file.read_text(encoding="utf-8"))
+    applied = []
+    for hook in spec["hooks"]:
+        count = text.count(hook["find"])
+        if count != 1:
+            raise SystemExit(f"hook {hook['id']}: anchor found {count} times (expected 1); "
+                             "the base mod changed - update hooks/hooks.json")
+        text = text.replace(hook["find"], hook["replace"])
+        applied.append(hook["id"])
+    return text, applied
+
+
+def arno_global(src: Path, hooks_file: Path) -> str:
+    """Base Global.lua + hooks + ARNO bundle."""
+    sys.path.insert(0, str(ROOT / "tools"))
+    import lua_bundle
+    with open(src / "Global.lua", encoding="utf-8", newline="") as f:
+        text = f.read()
+    text, _ = apply_hooks(text, hooks_file)
+    if text.count(BUNDLE_ANCHOR) != 1:
+        raise SystemExit("bundle anchor (local handler_names = {}) not found exactly once")
+    bundle = lua_bundle.bundle(packages=("core", "adapter", "ui", "main"),
+                               epilogue='ARNO = arno_require("main")\nARNO.install()\n')
+    return text.replace(BUNDLE_ANCHOR, "\n" + bundle + BUNDLE_ANCHOR, 1)
+
+
+def compile_check(lua_text: str) -> None:
+    moonrun = ROOT / "tools" / "moonsharp" / "bin" / "out" / "moonrun.dll"
+    if not moonrun.exists():
+        print("note: MoonSharp runner not built; skipping compile check (python tools/run_tests.py builds it)")
+        return
+    out = ROOT / "build" / "Global.arno.lua"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(lua_text, encoding="utf-8", newline="")
+    import subprocess
+    if subprocess.call(["dotnet", str(moonrun), "--compile-only", str(out)]) != 0:
+        raise SystemExit("generated Global.lua does not compile under MoonSharp")
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("base", type=Path, help="base save JSON (the one src/ was extracted from)")
     ap.add_argument("--src", type=Path, default=Path("src"), help="extracted script dir (default: src)")
     ap.add_argument("--out", type=Path, required=True, help="output save JSON")
     ap.add_argument("--save-name", help="override SaveName")
+    ap.add_argument("--arno", action="store_true", help="add ARNO (hooks + bundle) to Global.lua")
+    ap.add_argument("--hooks", type=Path, default=ROOT / "hooks" / "hooks.json")
     args = ap.parse_args(argv)
     if args.out.resolve() == args.base.resolve():
         raise SystemExit("refusing to overwrite the base save")
-    data = build(args.base, args.src, save_name=args.save_name)
+    overrides, save_name = {}, args.save_name
+    if args.arno:
+        overrides["Global.lua"] = arno_global(args.src, args.hooks)
+        compile_check(overrides["Global.lua"])
+        save_name = save_name or ARNO_SAVE_NAME
+    data = build(args.base, args.src, overrides=overrides, save_name=save_name)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_bytes(data)
     print(f"wrote {args.out} ({len(data)} bytes)")
