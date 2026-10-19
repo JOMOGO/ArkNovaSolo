@@ -389,4 +389,26 @@ T.test("bonus build from the action panel: going back returns to the action pane
   T.eq(#sim.calls.end_player_turn, 0, "turn not ended")
 end)
 
+T.test("bonus build from the action panel: after Confirm the action panel returns, once", function()
+  local p = human_turn()
+  sim.record("end_player_turn")
+  p.engineer_builds = { { key = "engineer_1", text = "Build a Kiosk\n(Engineer)", search_name = "KIOSK",
+                          price = 2, money_source = "Kiosk (Engineer bonus build)" } }
+  p.persistent_rewards.engineer_1 = true
+  sim.record("start_bonus_build", function(_, pl, extra) pl.persistent_rewards[extra.key] = nil end)
+  on_persistent_reward_button_clicked(nil, "Red|engineer_1|action", nil)
+  create_claims_from_reward_groups(p, {}, false)   -- how Confirm ends (claim_placement_rewards)
+  T.eq(#sim.calls.create_action_selection_panel, 1, "action panel shown again")
+  T.eq(#sim.calls.end_player_turn, 0, "turn not ended")
+  T.eq(p.on_claims_empty, nil, "nothing left to fire after the real action")
+end)
+
+T.test("other action-panel rewards (trade) are not affected", function()
+  local p = human_turn()
+  sim.record("show_trade_panel")
+  on_persistent_reward_button_clicked(nil, "Red|sponsor_1_trade|action", nil)
+  T.eq(#sim.calls.show_trade_panel, 1)
+  T.eq(p.on_claims_empty, nil)
+end)
+
 T.finish("integration back")
