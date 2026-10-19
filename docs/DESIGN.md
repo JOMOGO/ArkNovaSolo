@@ -169,7 +169,9 @@ human turn … finish_player_turn → refill, game-end check, break check → af
   `printToAll`.
 - **Physical ARNO action cards:** the mod deals 5 action cards to every `players` entry.
   ARNO's are reused to **show** his slot order and upgrades (`move_action_card_to_front`,
-  `*_flipped`). That matches ARNO's own mechanics: Animals starts in slot 1, the used card
+  `*_flipped`), and since the owner's request they show the real ARNO cards
+  (`adapter/cards.lua` swaps them at setup; images from `tools/arno_cards.py`). That
+  matches ARNO's own mechanics: Animals starts in slot 1, the used card
   moves to slot 1, and the side flips on upgrade. The core state is the source of truth;
   the cards are only re-synced to it.
 

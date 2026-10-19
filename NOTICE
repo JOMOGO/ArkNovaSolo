@@ -22,7 +22,11 @@ A.R.N.O. 3.0, unofficial solo mode for Ark Nova:
 
 Ark Nova is a game by Mathias Wigge, published by Feuerland Spiele / Capstone Games.
 Ark Nova names, card art and card text belong to their respective owners. This project
-adds no card art or card text.
+adds no Ark Nova card art or card text.
+
+The ARNO action-card images are not part of this repository. The build cuts them from
+the ARNO 3.0 cards PDF by Andre K. (reference/, not committed) for the owner's local
+use; sharing them needs the designer's permission.
 
 The base Tabletop Simulator mod "Ark Nova - Complete Scripted" belongs to its author;
 this project builds a modified version of it. Credit to that author is kept in the

@@ -21,6 +21,8 @@ import re
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
 _FLOAT_TAG = "\x00F:"
 _FLOAT_RE = re.compile(r'"\\u0000F:([^"]*)"')
 
@@ -101,8 +103,8 @@ def apply_hooks(text: str, hooks_file: Path) -> tuple[str, list[str]]:
     return text, applied
 
 
-def arno_global(src: Path, hooks_file: Path) -> str:
-    """Base Global.lua + hooks + ARNO bundle."""
+def arno_global(src: Path, hooks_file: Path, card_images: str = "") -> str:
+    """Base Global.lua + hooks + ARNO bundle (+ the ARNO card image table, if any)."""
     sys.path.insert(0, str(ROOT / "tools"))
     import lua_bundle
     with open(src / "Global.lua", encoding="utf-8", newline="") as f:
@@ -111,7 +113,7 @@ def arno_global(src: Path, hooks_file: Path) -> str:
     if text.count(BUNDLE_ANCHOR) != 1:
         raise SystemExit("bundle anchor (local handler_names = {}) not found exactly once")
     bundle = lua_bundle.bundle(packages=("core", "adapter", "ui", "main"),
-                               epilogue='ARNO = arno_require("main")\nARNO.install()\n')
+                               epilogue=card_images + 'ARNO = arno_require("main")\nARNO.install()\n')
     return text.replace(BUNDLE_ANCHOR, "\n" + bundle + BUNDLE_ANCHOR, 1)
 
 
@@ -143,7 +145,14 @@ def main(argv=None) -> int:
         raise SystemExit("refusing to overwrite the base save")
     overrides, save_name = {}, args.save_name
     if args.arno:
-        overrides["Global.lua"] = arno_global(args.src, args.hooks)
+        import os
+        import arno_cards
+        saves = Path(os.environ.get("ARNO_TTS_SAVES", DEFAULT_TTS_SAVES))
+        # images next to the Saves folder when installing (TTS loads them from there)
+        local = (ROOT / "build" / "arno_cards") if args.no_install or not saves.is_dir()             else saves.parent / "ARNO_cards"
+        urls = arno_cards.card_urls(local)
+        overrides["Global.lua"] = arno_global(args.src, args.hooks,
+                                              arno_cards.lua_table(urls) if urls else "")
         compile_check(overrides["Global.lua"])
         save_name = save_name or ARNO_SAVE_NAME
     data = build(args.base, args.src, overrides=overrides, save_name=save_name)
@@ -151,8 +160,7 @@ def main(argv=None) -> int:
     args.out.write_bytes(data)
     print(f"wrote {args.out} ({len(data)} bytes)")
     if args.arno and not args.no_install:
-        import os
-        install_to_saves(args.out, Path(os.environ.get("ARNO_TTS_SAVES", DEFAULT_TTS_SAVES)))
+        install_to_saves(args.out, saves)
     return 0
 
 

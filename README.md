@@ -28,7 +28,7 @@ the base mod. The original Workshop file is not modified.
 
 ## Build
 
-Requires Python 3.11+ and the .NET SDK 9+.
+Requires Python 3.11+ with Pillow, and the .NET SDK 9+.
 
 ```
 python tools/tts_extract.py mods/original/3812420704.json --out src     # only after a base-mod update
@@ -40,7 +40,12 @@ The build:
 2. bundles `arno/`;
 3. compile-checks the result under MoonSharp (TTS's Lua);
 4. changes only the Global script and SaveName;
-5. copies the result into the TTS Saves folder (override the folder with `ARNO_TTS_SAVES`,
+5. cuts ARNO's real action cards from `reference/ARNO_3.0_Cards_EN.pdf` into
+   `Documents\My Games\Tabletop Simulator\ARNO_cards\` (local `file:///` images, visible on
+   this PC only). For hosted images (for example Steam Cloud, so other players see them),
+   put their URLs in `tools/arno_card_urls.json` (`{"animals_g": {"face": ..., "back": ...}, ...}`,
+   keys as in `tools/arno_cards.py`). Without the PDF, ARNO keeps the mod's action cards;
+6. copies the result into the TTS Saves folder (override the folder with `ARNO_TTS_SAVES`,
    skip the copy with `--no-install`).
 
 **Updating to a new base-mod version:**

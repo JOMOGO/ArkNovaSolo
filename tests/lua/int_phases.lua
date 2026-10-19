@@ -109,6 +109,65 @@ T.test("Marine Worlds: ARNO's drafting box is removed in his setup (found in pla
   marine_worlds_enabled = false
 end)
 
+local function fake_images()
+  local t = {}
+  for _, k in ipairs(require("adapter.cards").IMAGES) do t[k] = { face = k .. "_1.jpg", back = k .. "_2.jpg" } end
+  return t
+end
+
+local function face_of(p, slot)
+  local data = getObjectFromGUID(p.action_cards[slot].guid)._s.data
+  if data == nil then return nil end
+  local _, deck = next(data.CustomDeck)
+  return deck.FaceURL, deck.BackURL, data
+end
+
+T.test("setup: ARNO's action cards are the real ARNO cards, green up to level 3 (owner request)", function()
+  local p, bot = base()
+  bot.level = 3
+  sim.record("apply_map_choice")
+  sim.record("deal_action_cards")
+  ARNO_CARD_IMAGES = fake_images()
+  local old = p.action_cards[1].guid
+  getObjectFromGUID(old).addTag("action_card")
+  ARNO.setup.prepare_bot(p)
+  T.eq(sim.objects[old], nil, "the mod's card is gone")
+  local faces = {}
+  for slot = 1, 5 do faces[slot] = face_of(p, slot) end
+  T.eq(faces, { "animals_g_1.jpg", "cards_g_1.jpg", "build_g_1.jpg", "sponsors_1.jpg", "association_1.jpg" })
+  local face, back, data = face_of(p, 1)
+  T.eq(back, "animals_g_2.jpg", "side II on the back")
+  T.eq(data.Nickname, "ANIMALS 0", "same name: the mod finds it by name")
+  T.ok(getObjectFromGUID(p.action_cards[1].guid).hasTag("action_card"), "same tags")
+  T.ok(tonumber((next(data.CustomDeck))) > 2537, "deck id above the base save's")
+  T.eq(action_card_slot_named(p, "BUILD"), 3)
+  ARNO_CARD_IMAGES = nil
+end)
+
+T.test("setup: red ARNO cards from level 4 (and L7+)", function()
+  for _, level in ipairs({ 4, 9 }) do
+    local p, bot = base()
+    bot.level = level
+    sim.record("apply_map_choice")
+    sim.record("deal_action_cards")
+    ARNO_CARD_IMAGES = fake_images()
+    ARNO.setup.prepare_bot(p)
+    T.eq(face_of(p, 1), "animals_r_1.jpg")
+    T.eq(face_of(p, 2), "cards_r_1.jpg")
+    T.eq(face_of(p, 4), "sponsors_1.jpg")
+    ARNO_CARD_IMAGES = nil
+  end
+end)
+
+T.test("setup: without card images ARNO keeps the mod's cards", function()
+  local p = base()
+  sim.record("apply_map_choice")
+  sim.record("deal_action_cards")
+  local old = p.action_cards[1].guid
+  ARNO.setup.prepare_bot(p)
+  T.eq(p.action_cards[1].guid, old)
+end)
+
 T.test("break draw: first project kept, first animal on mat, rest discarded (rules p4)", function()
   local p, bot = base()
   zoo_deck = sim.deck({ 208, 401, 101, 402 })

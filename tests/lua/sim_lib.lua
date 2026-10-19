@@ -84,6 +84,14 @@ function sim.fake(name, pos, guid)
   return o
 end
 
+-- spawnObjectData: a fake with the data's name and tags; the data is kept in o._s.data
+function spawnObjectData(params)
+  local o = sim.fake(params.data.Nickname, params.position)
+  for _, t in ipairs(params.data.Tags or {}) do o.addTag(t) end
+  o._s.data = params.data
+  return o
+end
+
 function getObjectFromGUID(guid)
   if guid == nil then return nil end
   return sim.objects[guid] or sim.fake("auto " .. tostring(guid), nil, guid)
