@@ -94,10 +94,10 @@ by name, so **re-assigning a global function from the bundle hooks every call si
 touching mod code**:
 
 ```lua
-local orig_start_player_turn = start_player_turn
-start_player_turn = function(player)
-  if ARNO.is_bot(player) then return ARNO.turn.start(player) end
-  return orig_start_player_turn(player)
+local orig_panel = create_action_selection_panel
+create_action_selection_panel = function(player, only_action, multiplier, hypnosis)
+  if ARNO.is_bot(player) then return ARNO.turn.start(player, only_action, multiplier, hypnosis) end
+  return orig_panel(player, only_action, multiplier, hypnosis)
 end
 ```
 
@@ -114,7 +114,7 @@ change. Planned hooks (the final list goes into `CHANGES.md`):
 | H6 | `start_action_card_draft` (7422) | wrapper | ARNO skips the MW draft (base action cards) |
 | H7 | `finish_player_action_cards` (7055) | wrapper | ARNO: of the 8 zoo cards keep ≤ 2 project cards on his mat, discard the rest; 1 final-scoring card face-down on mat; never deal to his hand |
 | H8 | `start_setup_discard` (8252) wrapper; `start_game` **text edit** at 8346 (`local expected_discards = 4 * #players` → `ARNO.setup.expected_discards(players)`) | wrapper + text edit (1 line) | ARNO is not asked to discard; the expected discard count accounts for ARNO's setup discards |
-| H9 | `start_player_turn` (8365) | wrapper | after the mod's `"turn"` checkpoint, run ARNO's turn instead of the action panel (§5) |
+| H9 | `create_action_selection_panel` (10162) | wrapper | ARNO's turn starts where a human would get the action panel. `start_player_turn` (8365) runs unchanged first: it sets `current_player`, takes the `"turn"` checkpoint, increments `turns_taken`, and resets persistent rewards. The other call sites (`only_action`/`multiplier`/`hypnosis`: 8398, 8405, 8908, 10177, 12679, 12692) are human-only mechanics; for a bot they are logged and ignored (§5) |
 | H10 | `render_claims_table` (13574) | wrapper | ARNO claims → `adapter/claims.lua` policy, never a panel |
 | H11 | `apply_reward_string`, `update_money`, `update_x_token` | wrapper | ARNO gets no money or X tokens; other rewards filtered to CP / reputation / upgrade / worker / appeal (ARNO_LOGIC §2.5) |
 | H12 | `break_phase_discard` (12165), `start_income_phase` (12313) | wrapper | ARNO has no hand limit and no income; ARNO's income slot runs his **break draw** (OUT-15) |
@@ -129,8 +129,12 @@ written into mod functions.
 
 ```
 human turn … finish_player_turn → refill, game-end check, break check → after_turn
-→ start_player_turn(next)            ← mod takes checkpoint "turn" here
-   └─ next.is_arno → ARNO.turn.start(next)
+→ start_player_turn(next)            ← mod: current_player, checkpoint "turn", turns_taken
+   └─ create_action_selection_panel(next)
+        └─ next.is_arno → ARNO.turn.start(next)
+        0. Wait.condition(…, function() return not checkpoint_open end)
+           -- nothing in arno_state may change before the checkpoint store
+           -- has finished, otherwise the checkpoint would hold post-decision state
         1. panel: "ARNO (Yellow) is playing…" with [Pause] for 2 s
            (auto mode; in manual mode it waits for [Run ARNO turn])
         2. facts = snapshot(next)                      -- pure tables
@@ -248,9 +252,14 @@ player…" effects fire (ARNO_LOGIC §2.7).
     log={…} }
   ```
 - `players[i].is_arno` / `arno_index` go into the saved player fields.
-- **No new resume entry is needed**: ARNO turns begin inside `start_player_turn`, after
-  the mod's own `"turn"` checkpoint. Resume re-enters `start_player_turn` →
-  `ARNO.turn.start`. ARNO's break draw runs in the income slot, which is checkpointed
+- **No new resume entry is needed**: ARNO turns begin inside `start_player_turn` (through
+  the H9 panel wrapper), after the mod's own `"turn"` checkpoint. Resume re-enters
+  `start_player_turn` → `create_action_selection_panel` → `ARNO.turn.start`.
+- **Ordering rule:** `onSave` serialises `arno_state` during `storeRewindState`. ARNO
+  therefore must not advance the RNG or change `arno_state` until
+  `checkpoint_open == false` (§5 step 0). Otherwise the checkpoint would hold the
+  post-decision state, and a resume would replay a different turn. The same rule applies
+  to the break draw in the `"income"` slot. ARNO's break draw runs in the income slot, which is checkpointed
   (`"income"`) the same way.
 - ARNO's turn is **atomic from the checkpoint's point of view**. The adapter cancels the
   mod's spacer timer (`cancel_rewind_spacer_timer`) while ARNO plays. If a heartbeat or
@@ -285,8 +294,9 @@ Effects:
 - Interactive effects follow the **human** count (H4).
 - Start player is a random human (H3). Starting appeal by position comes from the mod
   (4247), which is the ARNO rule (S5).
-- ARNO: CP debt 5, or 3 with Marine Worlds (S4), plus the level 7+ extra CP. Shown in the
-  panel. CP gains repay the debt before `apply_cp`, so ARNO's track and score stay
+- ARNO: CP debt = 5, or 3 with Marine Worlds (S4), **minus** the level 7+ extra CP
+  (+1 CP per level above 6). Extra CP beyond the debt is applied as real CP at setup.
+  Shown in the panel. CP gains repay the debt before `apply_cp`, so ARNO's track and score stay
   consistent.
 - ARNO's 8 cards, final-scoring card, map A, workers and player tokens as in S6–S8 (H5–H8).
   ARNO's sponsor discards at setup are counted automatically (IN-01).
@@ -321,7 +331,7 @@ with "(ruling Rn)".
 | R8 | No project possible | skip, log | — |
 | R9 | ARNO can trigger the game end by score | yes | base rules |
 | R10 | ARNO reputation cap / over 15 | mod rule (`max_reputation`, overflow as for humans; Cards upgrade raises the cap) | **needs 3.0 rules** |
-| R11 | ARNO's project tokens | taken "next to his mat", so no map project-bonus uncovering; reward = slot reward only | `setupARNO.playerTokens` |
+| R11 | ARNO's project tokens | taken "next to his mat", so no map project-bonus uncovering; reward = slot reward only. ARNO **does** get the map A right-area bonuses the prose refers to (`Global.lua:1709–1713`): partner zoos 2/3/4 → card flip / unlock worker / 2 CP; universities 2/3 → card flip / 2 CP; 3rd worker → 2 CP. "Card flip" means an ARNO upgrade, or a worker once he has ≥ 2 CP. To confirm with the 3.0 rules. | `setupARNO.playerTokens`, `aboutARNO.rightArea` |
 | R12 | "N-th project" order | base projects in row order, then added projects in row order | — |
 | R13 | Several ARNOs' break draws | in income order (the mod's break order) | — |
 | R14 | Kiosk count (project module) | displayed only, as in the app | app |
@@ -338,11 +348,19 @@ with "(ruling Rn)".
     `ProjectModuleTracker.spec`, `getDifficultyLevel.spec`;
   - RNG known-answer tests;
   - state round trip.
-- **Differential harness:** `tests/harness/` runs the **original TypeScript** with
-  `Math.random` replaced by mulberry32(seed). It covers thousands of random scenarios
-  (level, slot states, upgrades, token counts, project counts, rerolls) and writes JSON.
-  The Lua core runs the same scenarios, and the decisions must match exactly. This needs
-  **Node ≥ 20.19** (you have 20.18).
+- **Differential harness:** `tests/harness/` runs thousands of random scenarios (level,
+  slot states, upgrades, token counts, project counts, rerolls) with `Math.random`
+  replaced by mulberry32(seed), writes JSON, and the Lua core must match exactly. Two
+  levels of evidence:
+  - **`services/*` and `NavigationState.getBotRound`: the original TypeScript, unchanged.**
+  - **Component-level dice** (`BotActions.vue` display d6, `GainPartnerZoo/University.vue`,
+    `BonusTile.vue`, `ActionCards.vue upgradeCard`, `PickConservationProject.vue`): these
+    are Vue component methods and can't run headless. The harness carries a TypeScript
+    transcription, with each function citing the source file and lines.
+
+  Matching call order is a **Lua-vs-harness reproducibility rule**, not equivalence to
+  the app, which rolls unseeded when a page renders. The harness needs **Node ≥ 20.19**
+  (you have 20.18).
 - **Adapter:** Lua tests against a fake mod (fake `players`, display, projects and
   primitives recording calls).
 - **In TTS:** your `TESTING.md` checklist covers setup variants (1H+1A, 1H+2A, 2H+1A,
@@ -359,6 +377,8 @@ with "(ruling Rn)".
 | Mid-turn async (mod Waits) vs ARNO plan | Plan steps run sequentially with completion callbacks. The turn finishes only after the last callback. |
 | MoonSharp numerics | Integer-safe PRNG, known-answer tests run in MoonSharp itself. |
 | `[absent]` rules | Rulings register with explicit constants and panel markers. |
+| ARNO's break draw runs in the income slot; an animal he stacks can fire human hooks, which open human prompts in the middle of the income phase | Run the draw before handing over to the next income player. TESTING.md has a case for it. |
+| ARNO wrappers called with `only_action`/`multiplier`/`hypnosis` (human-only mechanics) | Log and ignore for bots. A test asserts it can't happen in ARNO games. |
 
 ## 14. Licensing and credits
 
