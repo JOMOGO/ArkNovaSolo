@@ -1,0 +1,4 @@
+mods/** -text
+src/** -text
+reference/** -text
+dist/** -text
