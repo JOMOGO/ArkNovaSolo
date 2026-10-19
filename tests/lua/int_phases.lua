@@ -109,17 +109,17 @@ T.test("Marine Worlds: ARNO's drafting box is removed in his setup (found in pla
   marine_worlds_enabled = false
 end)
 
+local ORDER = { "animals_g", "animals_r", "association", "build_g", "sponsors", "cards_g", "cards_r", "build_r" }
 local function fake_images()
-  local t = {}
-  for _, k in ipairs(require("adapter.cards").IMAGES) do t[k] = { face = k .. "_1.jpg", back = k .. "_2.jpg" } end
-  return t
+  return { face = "sheet_1.jpg", back = "sheet_2.jpg", width = 4, height = 2, order = ORDER }
 end
 
+-- the card's image (from its position on the sheet), its deck entry and its data
 local function face_of(p, slot)
   local data = getObjectFromGUID(p.action_cards[slot].guid)._s.data
   if data == nil then return nil end
-  local _, deck = next(data.CustomDeck)
-  return deck.FaceURL, deck.BackURL, data
+  local id, deck = next(data.CustomDeck)
+  return ORDER[data.CardID - tonumber(id) * 100 + 1], deck, data
 end
 
 T.test("setup: ARNO's action cards are the real ARNO cards, green up to level 3 (owner request)", function()
@@ -133,10 +133,11 @@ T.test("setup: ARNO's action cards are the real ARNO cards, green up to level 3 
   ARNO.setup.prepare_bot(p)
   T.eq(sim.objects[old], nil, "the mod's card is gone")
   local faces = {}
-  for slot = 1, 5 do faces[slot] = face_of(p, slot) end
-  T.eq(faces, { "animals_g_1.jpg", "cards_g_1.jpg", "build_g_1.jpg", "sponsors_1.jpg", "association_1.jpg" })
-  local face, back, data = face_of(p, 1)
-  T.eq(back, "animals_g_2.jpg", "side II on the back")
+  for slot = 1, 5 do faces[slot] = (face_of(p, slot)) end
+  T.eq(faces, { "animals_g", "cards_g", "build_g", "sponsors", "association" })
+  local _, deck, data = face_of(p, 1)
+  T.eq({ deck.FaceURL, deck.BackURL, deck.NumWidth, deck.NumHeight, deck.UniqueBack },
+       { "sheet_1.jpg", "sheet_2.jpg", 4, 2, true }, "side II sheet on the back, per card")
   T.eq(data.Nickname, "ANIMALS 0", "same name: the mod finds it by name")
   T.ok(getObjectFromGUID(p.action_cards[1].guid).hasTag("action_card"), "same tags")
   T.ok(tonumber((next(data.CustomDeck))) > 2537, "deck id above the base save's")
@@ -152,9 +153,9 @@ T.test("setup: red ARNO cards from level 4 (and L7+)", function()
     sim.record("deal_action_cards")
     ARNO_CARD_IMAGES = fake_images()
     ARNO.setup.prepare_bot(p)
-    T.eq(face_of(p, 1), "animals_r_1.jpg")
-    T.eq(face_of(p, 2), "cards_r_1.jpg")
-    T.eq(face_of(p, 4), "sponsors_1.jpg")
+    T.eq((face_of(p, 1)), "animals_r")
+    T.eq((face_of(p, 2)), "cards_r")
+    T.eq((face_of(p, 4)), "sponsors")
     ARNO_CARD_IMAGES = nil
   end
 end)

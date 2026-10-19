@@ -40,11 +40,13 @@ The build:
 2. bundles `arno/`;
 3. compile-checks the result under MoonSharp (TTS's Lua);
 4. changes only the Global script and SaveName;
-5. cuts ARNO's real action cards from `reference/ARNO_3.0_Cards_EN.pdf` into
+5. cuts ARNO's real action cards from `reference/ARNO_3.0_Cards_EN.pdf` into two 4x2
+   sheets (`arno_cards_1.jpg` = side I, `arno_cards_2.jpg` = side II) in
    `Documents\My Games\Tabletop Simulator\ARNO_cards\` (local `file:///` images, visible on
-   this PC only). For hosted images (for example Steam Cloud, so other players see them),
-   put their URLs in `tools/arno_card_urls.json` (`{"animals_g": {"face": ..., "back": ...}, ...}`,
-   keys as in `tools/arno_cards.py`). Without the PDF, ARNO keeps the mod's action cards;
+   this PC only). For hosted sheets (for example Steam Cloud, so other players see them),
+   upload those two files and put their URLs in `tools/arno_card_urls.json`
+   (`{"face": "...", "back": "..."}`). Without the PDF, ARNO keeps the mod's action cards.
+   A copy of the sheets is kept in `assets/arno_cards/` (not used by the build);
 6. copies the result into the TTS Saves folder (override the folder with `ARNO_TTS_SAVES`,
    skip the copy with `--no-install`).
 
