@@ -34,7 +34,6 @@ M.OFFSETS = {
   projects = { -3.63, 0.3, -12.87 },     -- column 2: kept conservation project cards,
   project_step = { 0, 0.05, -1.3 },      --   fanned downwards like played cards
   animals = { -0.03, 0.3, -12.87 },      -- column 3: pile of his animal cards
-  notepad_token = { 2.9, 0.4, -12.87 },  -- column 4: notepad tokens, +0.45 x per token
   reveal = { -6.0, 2.0, 7.0 },           -- break draw reveal row, +2.6 x per card
 }
 
@@ -296,8 +295,19 @@ S["break"] = function(p, step, continue)
   continue()
 end
 
+-- Notepad tokens lie on his notepad like a human's X-tokens (owner choice): the five
+-- x_token_N_home spots of the board (ARNO never has X-tokens); more than five stack up.
+local function notepad_position(p, index)
+  local spot = ((index - 1) % 5) + 1
+  local layer = math.floor((index - 1) / 5)
+  local pos = board_relative_world_position(p.player_board.getPosition(), "x_token_" .. spot .. "_home")
+  return { x = pos.x, y = pos.y + 0.5 + 0.35 * layer, z = pos.z }
+end
+
 local function token_cube(p, key, index)
-  local pos = at(p, key, 0.45 * (index - 1), 0, 0)
+  local pos
+  if key == "notepad_token" then pos = notepad_position(p, index)
+  else pos = at(p, key, 0.45 * (index - 1), 0, 0) end
   local cube = take_player_cube(p, pos)
   local bot = bot_of(p)
   bot.token_cubes = bot.token_cubes or {}
