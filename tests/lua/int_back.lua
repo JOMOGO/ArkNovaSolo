@@ -152,6 +152,39 @@ T.test("Sponsors: Play a Sponsor Card has Back to the sponsor choice", function(
   T.eq(back.pending.Red and back.pending.Red.kind, "action", "Back to action choice available again")
 end)
 
+T.test("Build: after 'Go back to building selection' the action Back returns", function()
+  local p = human_turn()
+  sim.record("offer_build_choices", function(_, pl)
+    table.insert(pl.claims, { grouped = true, { button_text = "Build a Kiosk", async = true, function_call = function() end } })
+    return true
+  end)
+  on_action_card_button_clicked(nil, "Red_" .. slot_of(p, "BU"), nil)
+  T.ok(back.pending.Red ~= nil)
+  note_player_interaction()                           -- choosing a building commits
+  T.eq(back.pending.Red, nil)
+  p.pending_building = { tile_guid = sim.fake("kiosk tile").getGUID() }
+  on_building_placement_go_back(nil, "Red", nil)
+  T.eq(back.pending.Red and back.pending.Red.kind, "action", "Back to action choice offered again")
+  T.ok(active_panels.Red:find("Back to action choice", 1, true) ~= nil, "in the building list panel")
+  arno_back_clicked(nil, "Red", nil)
+  T.eq(build_actions.Red, nil)
+  T.eq(#sim.calls.create_action_selection_panel, 1)
+end)
+
+T.test("Build: no action Back after something was built", function()
+  local p = human_turn()
+  sim.record("offer_build_choices", function(_, pl)
+    table.insert(pl.claims, { grouped = true, { button_text = "Build a Kiosk", async = true, function_call = function() end } })
+    return true
+  end)
+  on_action_card_button_clicked(nil, "Red_" .. slot_of(p, "BU"), nil)
+  note_player_interaction()
+  build_actions.Red.built = { "kiosk" }
+  p.pending_building = { tile_guid = sim.fake("tile").getGUID() }
+  on_building_placement_go_back(nil, "Red", nil)
+  T.eq(back.pending.Red, nil)
+end)
+
 T.test("ARNO panel height covers its contents with a margin", function()
   printToAll = function() end
   arno_setup = { levels = { Yellow = 3, Blue = 5 }, project_module = true }

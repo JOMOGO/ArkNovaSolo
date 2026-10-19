@@ -227,6 +227,21 @@ function M.install(ARNO)
     end
   end)
 
+  -- Build: after the mod's "Go back to building selection", nothing has happened yet if no
+  -- building was built in this action, so "Back to action choice" is offered again
+  wrap("H20", "on_building_placement_go_back", function(orig)
+    return function(p, color, id)
+      local parent = back.recent[color]
+      local r = orig(p, color, id)
+      local state = build_actions[color]
+      if parent ~= nil and parent.kind == "action" and state ~= nil
+          and #(state.built or {}) == 0 then
+        back.offer(parent)
+      end
+      return r
+    end
+  end)
+
   -- Cards moves the break token on choosing; hold that back until the choice is committed
   wrap("H20", "break_x", function(orig)
     return function(n, player, ...)
