@@ -56,7 +56,7 @@ function M.start(player, only_action, multiplier, hypnosis)
     -- ARNO's turn emits no spacer store (the checkpoint callback has just armed one)
     checkpoint_needs_spacer = false
     if not arno_state.auto then
-      state.log(player.steam_name .. " is waiting: press 'Run ARNO turn'")
+      state.chat(player.steam_name .. " is waiting: press 'Run ARNO turn'")
       panel.render(player.color)
       return
     end
@@ -88,8 +88,10 @@ function M.run(player)
   local facts = require("adapter.snapshot").facts(player, bot, record)
   local steps = plan.build(record, r, facts)
   state.put_rng(r)
-  state.log(string.format("%s: slot %d, %s%s", player.steam_name, record.slot,
-    record.card, record.upgraded and " (II)" or ""))
+  local CARD = { animals = "Animals", association = "Association", sponsors = "Sponsors",
+                 build = "Build", cards = "Cards" }
+  state.new_turn(player, string.format("Turn %d: slot %d, %s %s", bot.turns, record.slot,
+    CARD[record.card] or record.card, record.upgraded and "II" or "I"))
   require("adapter.apply").run(player, steps, describe, function()
     M.finish(player)
   end)

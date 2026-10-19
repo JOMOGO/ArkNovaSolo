@@ -51,7 +51,36 @@ function M.put_rng(r)
   arno_state.rng = { hi = math.floor(r.s / 65536), lo = r.s % 65536 }
 end
 
--- Append a log line to the persistent log (shown in the panel) and to chat.
+M.COLOR_HEX = { White = "#FFFFFF", Red = "#E5484D", Blue = "#3B9BFF", Yellow = "#EBD717" }
+local CHAT_RGB = { White = { 1, 1, 1 }, Red = { 0.9, 0.28, 0.3 }, Blue = { 0.23, 0.61, 1 }, Yellow = { 0.92, 0.84, 0.09 } }
+
+-- Chat only (not in the panel).
+function M.chat(text)
+  if printToAll then printToAll("[ARNO] " .. text, { 0.92, 0.84, 0.09 }) end
+end
+
+-- What an ARNO did: kept as his "last turn" lines (shown in the panel in his colour),
+-- added to the history log and printed to chat in his colour.
+function M.note(player, text)
+  local color = type(player) == "table" and player.color or player
+  local bot = M.bot(color)
+  if bot ~= nil then
+    bot.last_turn = bot.last_turn or {}
+    bot.last_turn[#bot.last_turn + 1] = text
+    while #bot.last_turn > 14 do table.remove(bot.last_turn, 1) end
+  end
+  local name = bot and bot.name or "ARNO"
+  M.log(name .. ": " .. text, CHAT_RGB[color])
+end
+
+-- Start a fresh "last turn" list for this ARNO.
+function M.new_turn(player, header)
+  local bot = M.bot(player.color)
+  if bot ~= nil then bot.last_turn = {} end
+  M.note(player, header)
+end
+
+-- History log (persisted, not shown in the panel) and chat.
 function M.log(text, color)
   local log = arno_state and arno_state.log
   if log ~= nil then

@@ -41,7 +41,7 @@ end
 function on_arno_auto_clicked()
   if arno_state == nil then return end
   arno_state.auto = not arno_state.auto
-  ARNO.state.log("automatic ARNO turns " .. (arno_state.auto and "on" or "off"))
+  ARNO.state.chat("automatic ARNO turns " .. (arno_state.auto and "on" or "off"))
   require("ui.panel").render(ARNO.turn.pending)
 end
 

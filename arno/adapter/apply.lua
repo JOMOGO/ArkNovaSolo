@@ -70,7 +70,6 @@ local function next_step(run)
     return
   end
   run.insert_at = 1
-  if run.describe and not step.internal then state.log("  " .. run.describe(step)) end
   local handler = M.STEPS[step.kind]
   local finished = false
   local function continue()
@@ -79,13 +78,13 @@ local function next_step(run)
     Wait.frames(function() next_step(run) end, 1)
   end
   if handler == nil then
-    state.log("  (no handler for step " .. tostring(step.kind) .. ")")
+    state.note(run.player, "(no handler for step " .. tostring(step.kind) .. ")")
     return continue()
   end
   local ok, err = pcall(handler, run.player, step, continue)
   if not ok then
-    state.log("  ERROR in step " .. tostring(step.kind) .. ": " .. tostring(err) ..
-      " (use 'Run ARNO turn' after fixing the table, or rewind)", { 1, 0.3, 0.3 })
+    state.note(run.player, "ERROR in step " .. tostring(step.kind) .. ": " .. tostring(err) ..
+      " (rewind, or use 'Run ARNO turn')")
     run.player.on_claims_empty = nil
     return continue()
   end
@@ -115,13 +114,18 @@ end
 function M.gain_cp(player, n, source)
   local bot = bot_of(player)
   local pay = math.min(n, bot.cp_debt or 0)
-  if pay > 0 then
-    bot.cp_debt = bot.cp_debt - pay
-    state.log(string.format("  %d CP pays off starting debt (%d left)", pay, bot.cp_debt))
-  end
+  if pay > 0 then bot.cp_debt = bot.cp_debt - pay end
   local surplus = n - pay
-  if surplus <= 0 then return end
+  if surplus <= 0 then
+    state.note(player, string.format("Conservation +%d pays off his starting debt (%d left)", n, bot.cp_debt))
+    return
+  end
   local applied, old, new = apply_cp(player, surplus)
+  if pay > 0 then
+    state.note(player, string.format("Conservation +%d (%d pay off the debt) -> %d CP", n, pay, new))
+  else
+    state.note(player, string.format("Conservation +%d -> %d CP", n, new))
+  end
   print_track_change(player, applied, "conservation point", source or "ARNO")
   -- checkpoints, in the order the mod offers them (4549-4580)
   if old < 2 and new >= 2 then M.queue(player, { kind = "cp_bonus_2" }) end
@@ -140,6 +144,7 @@ function M.gain_rep(player, n, source)
   set_counter(player.rep_counter, new, cnsts.counter_style.rep)
   move_when_settled(player.reputation_token.getGUID(), get_rep_zone_position(new))
   print_track_change(player, new - old, "reputation", source or "ARNO")
+  state.note(player, string.format("Reputation +%d -> %d", new - old, new))
   local overflow = old + n - new
   if overflow > 0 then
     if marine_worlds_enabled and rep_max_bonus ~= nil then
@@ -147,11 +152,15 @@ function M.gain_rep(player, n, source)
       local reward = bonus_tile_reward(tile)
       rep_max_bonus = nil
       set_tile_face(tile, true)
-      state.log("  takes the maximum-reputation bonus tile (" .. tostring(reward) .. ")")
+      state.note(player, "Takes the maximum-reputation bonus tile (" .. tostring(reward) .. ")")
       M.queue(player, { kind = "tile_reward", reward = reward })
-      if overflow > 1 then update_appeal(player, overflow - 1, "maxing reputation") end
+      if overflow > 1 then
+        update_appeal(player, overflow - 1, "maxing reputation")
+        state.note(player, string.format("Reputation maxed: +%d appeal", overflow - 1))
+      end
     else
       update_appeal(player, overflow, "maxing reputation")
+      state.note(player, string.format("Reputation maxed: +%d appeal", overflow))
     end
   end
   for v = old + 1, new do                     -- reputation track rewards (R19)
@@ -159,7 +168,7 @@ function M.gain_rep(player, n, source)
     if r == "card flip" then M.queue(player, { kind = "upgrade" })
     elseif r == "unlock worker" then M.queue(player, { kind = "unlock_worker" })
     elseif r ~= nil and r:match("^%d+ cp$") then M.gain_cp(player, tonumber(r:match("^(%d+)")), "the reputation track")
-    elseif r ~= nil and r ~= "" then state.log("  ignores reputation reward '" .. r .. "'")
+    elseif r ~= nil and r ~= "" then state.log("ignores reputation reward '" .. r .. "'")
     end
   end
 end
@@ -185,11 +194,11 @@ function M.upgrade(player)
   local name = decide.upgrade(bot, r)
   state.put_rng(r)
   if name == nil then
-    state.log("  already has 3 upgraded cards: no upgrade")
+    state.note(player, "Card upgrade earned, but 3 cards are already upgraded")
     return
   end
   M.flip_physical(player, name)
-  state.log("  upgrades the " .. name .. " card")
+  state.note(player, "Upgrades his " .. string.upper(name) .. " card")
 end
 
 -- Order after the used card moved to slot 1 (what the table shows between ARNO turns).
@@ -233,14 +242,14 @@ function M.place_animal(player, obj, data)
   -- icons count as ARNO's (reference values) and fire human "whenever any player" hooks;
   -- ARNO's own hook rewards (returned) are ignored (rules p2)
   add_remove_icons(player, data.icons or {})
-  state.log("  " .. card_name(obj) .. " goes onto ARNO's mat (icons: " .. table.concat(data.icons or {}, ", ") .. ")")
+  state.note(player, "  " .. card_name(obj) .. " goes on his mat (" .. table.concat(data.icons or {}, ", ") .. ")")
 end
 
 function M.keep_project(player, obj)
   local bot = bot_of(player)
   bot.mat_projects[#bot.mat_projects + 1] = obj.getGUID()
   M.layout_projects(player)
-  state.log("  keeps conservation project " .. card_name(obj))
+  state.note(player, "  keeps project " .. card_name(obj) .. " on his mat")
 end
 
 function M.layout_projects(player)
@@ -271,7 +280,11 @@ end
 M.STEPS = {}
 local S = M.STEPS
 
-S.appeal = function(p, step, continue) update_appeal(p, step.n, "ARNO"); continue() end
+S.appeal = function(p, step, continue)
+  update_appeal(p, step.n, "ARNO")
+  state.note(p, string.format("Appeal +%d -> %d", step.n, get_counter_value(p.appeal_counter)))
+  continue()
+end
 S.reputation = function(p, step, continue) M.gain_rep(p, step.n, "ARNO"); continue() end
 S.conservation = function(p, step, continue) M.gain_cp(p, step.n, "ARNO"); continue() end
 
@@ -279,6 +292,7 @@ S["break"] = function(p, step, continue)
   local before = break_current_val or 0
   break_x(step.n, nil)                               -- nil: ARNO gets no X-token (R7)
   printToAll(string.format("%s advances the break token %d space(s).", p.steam_name, before - (break_current_val or 0)))
+  state.note(p, string.format("Break token +%d (%d left before the break)", before - (break_current_val or 0), break_current_val or 0))
   continue()
 end
 
@@ -293,12 +307,14 @@ end
 S.token_scoring = function(p, step, continue)
   -- the count was added when the card was drawn (decide.turn); this is the visual token
   token_cube(p, "scoring_token", math.min(bot_of(p).tokens_scoring, 8))
+  state.note(p, string.format("Token on his final scoring card (%d now)", bot_of(p).tokens_scoring))
   continue()
 end
 
 S.token_notepad = function(p, step, continue)
   local bot = bot_of(p)
   for i = 1, step.n do token_cube(p, "notepad_token", bot.tokens_notepad - step.n + i) end
+  state.note(p, string.format("%d token(s) on his notepad (%d now)", step.n, bot.tokens_notepad))
   continue()
 end
 
@@ -306,15 +322,17 @@ S.take_display = function(p, step, continue)
   local k = step.position
   local obj = display_cards[k]
   if obj == nil then
-    state.log("  display slot " .. k .. " is empty")
+    state.note(p, "Display slot " .. k .. " is empty: no card")
     return continue()
   end
   local data = card_data_for(obj.getName())
+  state.note(p, string.format("Takes display card #%d: %s", k, card_name(obj)))
   resolve_display_mark(k, false)                      -- a marking player is paid (§3 step 5)
   display_cards[k] = nil
   if data.type == "animal" then
     M.place_animal(p, obj, data)
   elseif data.type == "sponsor" then
+    state.note(p, "  sponsor card: discarded")
     M.discard_sponsor(p, obj, data)
   else
     M.keep_project(p, obj)
@@ -325,17 +343,20 @@ end
 S.worker = function(p, step, continue)
   if available_workers(p) >= 1 then
     deploy_workers_to_task(p, step.task, 1)
+    local TASK = { [2] = "Reputation", [3] = "Partner zoo", [4] = "University", [5] = "Conservation project" }
+    state.note(p, string.format("Places a worker on the %s task", TASK[step.task] or tostring(step.task)))
   else
-    state.log("  no free worker (unexpected)")
+    state.note(p, "No free worker (unexpected)")
   end
   continue()
 end
 
 local function take_zoo(p, zoo, continue)
   if zoo == nil or not contains(available_partner_zoos(p, false), zoo) then
-    state.log("  partner zoo " .. tostring(zoo) .. " not available")
+    state.note(p, "Partner zoo " .. tostring(zoo) .. " not available")
     return continue()
   end
+  state.note(p, "Gains the " .. partner_zoo_label(zoo))
   p.on_claims_empty = continue
   take_partner_zoo(p, zoo, false)
 end
@@ -343,9 +364,11 @@ end
 local function take_uni(p, name, species, continue)
   local key = (name == "species") and species or name
   if key == nil or not contains(available_universities(p, false), key) then
-    state.log("  university " .. tostring(key) .. " not available")
+    state.note(p, "University " .. tostring(key) .. " not available")
     return continue()
   end
+  local spec = cnsts.universities[key]
+  state.note(p, "Gains the " .. (spec and spec.label or tostring(key)))
   p.on_claims_empty = continue
   take_university(p, key, false)
 end
@@ -367,7 +390,7 @@ S.project = function(p, step, continue)
     for i, guid in ipairs(bot.mat_projects) do
       if guid == step.id then table.remove(bot.mat_projects, i) break end
     end
-    if obj == nil then state.log("  project card missing"); return continue() end
+    if obj == nil then state.note(p, "Project card missing"); return continue() end
     obj.locked = false
     add_project_to_row(obj)
     entry = added_projects[#added_projects]
@@ -377,22 +400,23 @@ S.project = function(p, step, continue)
     obj = entry and getObjectFromGUID(entry[1])
   end
   if entry == nil or obj == nil or step.place_slot == nil then
-    state.log("  no project slot available"); return continue()
+    state.note(p, "No project slot available"); return continue()
   end
   local data = card_data_for(obj.getName())
   local s = step.place_slot
-  if entry[2][s] ~= nil then state.log("  slot " .. s .. " is taken"); return continue() end
+  if entry[2][s] ~= nil then state.note(p, "Project slot is taken"); return continue() end
   local pos = project_slot_world_position(obj, data.project, s)
   local cube = take_player_cube(p, { x = pos.x, y = pos.y + cnsts.drop_height, z = pos.z })
   entry[2][s] = cube.getGUID()
-  state.log("  supports " .. card_name(obj))
+  local SLOT_NAME = { "left", "middle", "right" }
+  state.note(p, string.format("Supports project %s (%s condition)", card_name(obj), SLOT_NAME[s] or tostring(s)))
   local source = "supporting " .. card_name(obj)
   for _, r in ipairs(project_slot_awards(p, data, step.reward_slot or s) or {}) do
     if r:match("^%d+ cp$") then M.gain_cp(p, tonumber(r:match("^(%d+)")), source)
     elseif r:match("^%d+ rep$") then M.gain_rep(p, tonumber(r:match("^(%d+)")), source)
     elseif r:match("^%d+ appeal$") then update_appeal(p, tonumber(r:match("^(%d+)")), source)
     elseif r == "management rep" then M.gain_rep(p, management_rep_amount(p), source)
-    else state.log("  ignores project reward '" .. r .. "'") end
+    else state.log("ignores project reward '" .. r .. "'") end
   end
   continue()
 end
@@ -404,11 +428,15 @@ S.donate = function(p, step, continue)
   else
     take_player_cube(p, donation_12_position(donation_12_count() + 1))
   end
+  state.note(p, "Donates (token on the next donation spot)")
   M.gain_cp(p, step.cp or rulings.DONATE_CP, "the donation")
   continue()
 end
 
-S.skip = function(_, _, continue) continue() end
+S.skip = function(p, step, continue)
+  state.note(p, "Skipped: " .. tostring(step.reason))
+  continue()
+end
 
 -- sub-steps -------------------------------------------------------------------------
 
@@ -416,9 +444,10 @@ S.upgrade = function(p, _, continue) M.upgrade(p); continue() end
 
 S.unlock_worker = function(p, _, continue)
   if (p.worker_count or 1) >= 4 then
-    state.log("  all workers already unlocked")
+    state.note(p, "Worker earned, but all 4 are already unlocked")
     return continue()
   end
+  state.note(p, "Unlocks an association worker")
   p.on_claims_empty = continue
   unlock_worker(p, "ARNO")
 end
@@ -436,7 +465,7 @@ S.bonus_tile = function(p, step, continue)
   local sides = {}
   for side = 1, 2 do if pool[side] ~= nil then sides[#sides + 1] = side end end
   if #sides == 0 then
-    state.log("  no " .. step.cp .. "-CP bonus tile left")
+    state.note(p, "No " .. step.cp .. "-CP bonus tile left")
     return continue()
   end
   local side = sides[1]
@@ -449,7 +478,8 @@ S.bonus_tile = function(p, step, continue)
   local reward = bonus_tile_reward(tile)
   pool[side] = nil
   set_tile_face(tile, true)
-  state.log(string.format("  takes the %s bonus tile (%s)", side == 1 and "left" or "right", tostring(reward)))
+  local tile_text = tostring(reward):gsub("^BONUS: ", ""):gsub("^TOKEN: ", "")
+  state.note(p, string.format("%d CP: takes the %s bonus tile (%s)", step.cp, side == 1 and "left" or "right", tile_text))
   return S.tile_reward(p, { reward = reward }, continue)
 end
 
@@ -471,12 +501,12 @@ S.tile_reward = function(p, step, continue)
     return take_uni(p, name, species, continue)
   end
   state.put_rng(r)
-  state.log("  cannot use bonus '" .. tostring(reward) .. "' (removed)")
+  state.note(p, "  he cannot use it; the tile is removed")
   continue()
 end
 
 S.humans_discard_final_scoring = function(p, _, continue)
-  state.log("  10 CP: every human discards a final scoring card")
+  state.note(p, "10 CP: every human discards a final scoring card")
   p.on_claims_empty = continue
   start_final_scoring_discard(p)
 end
@@ -530,7 +560,7 @@ function M.deal_bot_setup_cards(bots, done)
     local scoring = final_scoring_deck.takeObject({ position = at(p, "scoring"), rotation = { 0, 180, 180 }, smooth = false })
     scoring.locked = true
     bot.scoring_card = scoring.getGUID()
-    state.log(string.format("%s keeps %d project card(s), discards %d card(s)", p.steam_name, kept, bot.setup_discards))
+    state.note(p, string.format("Setup: keeps %d project card(s), discards %d card(s)", kept, bot.setup_discards))
   end
   done()
 end
@@ -541,7 +571,7 @@ function M.break_draw(player, done)
   local bot = bot_of(player)
   local n = math.min(3, #zoo_deck.getObjects())
   local got_project, got_animal = false, false
-  state.log(player.steam_name .. " break: draws " .. n .. " card(s)")
+  state.note(player, "Break: draws " .. n .. " card(s)")
   for i = 1, n do
     local card = zoo_deck.takeObject({ position = at(player, "reveal", 2.6 * (i - 1), 0, 0), rotation = { 0, 180, 0 }, smooth = false })
     card.addTag("zoo_card")
@@ -553,8 +583,10 @@ function M.break_draw(player, done)
       got_animal = true
       M.place_animal(player, card, data)
     elseif data.type == "sponsor" then
+      state.note(player, "  discards sponsor " .. card_name(card))
       M.discard_sponsor(player, card, data)
     else
+      state.note(player, "  discards " .. card_name(card))
       report_discard(player, { card }, true)
       discard_pile.putObject(card)
     end
@@ -595,7 +627,7 @@ function M.install_hooks(wrap)
         if #sub == 0 then
           table.remove(player.claims)
         elseif sub.grouped then
-          state.log("  passes a choice (" .. tostring(resolve_claim_text(sub[1])) .. ")")
+          state.log("passes a choice (" .. tostring(resolve_claim_text(sub[1])) .. ")")
           table.remove(player.claims)
         else
           local claim = sub[1]
@@ -636,7 +668,7 @@ function M.install_hooks(wrap)
       elseif reward == "card flip" or reward == "card flip b" then M.queue(player, { kind = "upgrade" })
       elseif reward == "unlock worker" then M.queue(player, { kind = "unlock_worker" })
       else
-        state.log("  ignores reward '" .. tostring(reward) .. "'")
+        state.log("ignores reward '" .. tostring(reward) .. "'")
       end
       if not is_reward_sync(reward) then render_claims_table(player) end
     end
@@ -709,7 +741,7 @@ function M.install_hooks(wrap)
       local cp = decide.final_cp(bot)
       local pay = math.min(cp, bot.cp_debt or 0)
       bot.cp_debt = (bot.cp_debt or 0) - pay
-      state.log(string.format("%s final scoring: %d CP from tokens (%d pay off debt)", player.steam_name, cp, pay))
+      state.note(player, string.format("Final scoring: %d CP from his tokens (%d pay off the debt)", cp, pay))
       if cp - pay > 0 then award_final_score(player, cp - pay, "cp", "ARNO's final scoring tokens") end
     end
   end)

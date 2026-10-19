@@ -76,8 +76,8 @@ T.test("60 automatic ARNO turns end cleanly, no step errors", function()
   T.ok(#p.deployed_workers <= p.worker_count)
   T.eq(get_counter_value(p.money_counter), 25, "ARNO never gets money")
   T.ok(get_counter_value(p.appeal_counter) > 0, "ARNO scored appeal")
-  T.ok(log:find("association worker", 1, true) ~= nil, "association turns happened")
-  T.ok(log:find("takes display card", 1, true) ~= nil, "display snaps happened")
+  T.ok(log:find("Places a worker on the", 1, true) ~= nil, "association turns happened")
+  T.ok(log:find("Takes display card", 1, true) ~= nil, "display snaps happened")
 end)
 
 T.test("replay determinism: same state and table give identical turns", function()
@@ -110,6 +110,20 @@ T.test("human-only prompts (multiplier, hypnosis) are ignored for ARNO", functio
   create_action_selection_panel(p, "build", nil, nil)
   sim.pump()
   T.eq(bot.turns, 0)
+end)
+
+T.test("panel: last turn per ARNO in his colour, no credit line, no auto-toggle line", function()
+  local p, bot = table_setup(31)
+  play_turns(p, 3)
+  T.ok(#bot.last_turn >= 2, "header plus at least one outcome")
+  T.ok(bot.last_turn[1]:find("^Turn 3: slot %d") ~= nil, bot.last_turn[1])
+  local before = #bot.last_turn
+  on_arno_auto_clicked()
+  T.eq(#bot.last_turn, before, "auto toggle is not a last-turn line")
+  local xml = require("ui.panel").xml(nil)
+  T.ok(xml:find("Andre K", 1, true) == nil, "no credit line")
+  T.ok(xml:find('color="#EBD717" alignment="MiddleLeft" minHeight="15">' .. bot.last_turn[2]:gsub("&", "&amp;"):gsub("<", "&lt;"):gsub(">", "&gt;"), 1, true) ~= nil,
+    "outcome line in Yellow's colour")
 end)
 
 T.finish("integration turns")
