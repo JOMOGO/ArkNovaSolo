@@ -68,6 +68,34 @@ T.test("human hand waits through the H16 wrappers return a single boolean (found
   T.ok(fired)
 end)
 
+T.test("two ARNOs are prepared one after another (kiosk template is async, found in play)", function()
+  local p = base()
+  local second = sim.make_player("Blue", true)
+  second.steam_name = "ARNO 2"
+  table.insert(players, second)
+  arno_state.bots.Blue = { name = "ARNO 2", level = 2, extra_cp = 0, mat_projects = {} }
+  arno_state.order[#arno_state.order + 1] = "Blue"
+  building_parents = {}
+  local kiosks_in_bag, order = 1, {}
+  local real_prepare = ARNO.setup.prepare_bot
+  ARNO.setup.prepare_bot = function(player)       -- emulates building_clone_source (4654)
+    if building_parents["KIOSK"] == nil then
+      if kiosks_in_bag == 0 then error("no KIOSK in the building bag to clone") end
+      kiosks_in_bag = 0
+      Wait.frames(function() building_parents["KIOSK"] = "kiosk-template" end, 1)
+    end
+    order[#order + 1] = player.color
+  end
+  sim.record("count_player_maps", function() return 0 end)
+  sim.record("show_map_setup_panel")
+  setup_player_maps()
+  sim.pump()
+  ARNO.setup.prepare_bot = real_prepare
+  ARNO.setup.close_window()
+  T.eq(order, { "Yellow", "Blue" })
+  T.eq(#sim.calls.show_map_setup_panel, 1, "the humans' map setup continued")
+end)
+
 T.test("break draw: first project kept, first animal on mat, rest discarded (rules p4)", function()
   local p, bot = base()
   zoo_deck = sim.deck({ 208, 401, 101, 402 })

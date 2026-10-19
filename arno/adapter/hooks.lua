@@ -39,12 +39,25 @@ function M.install(ARNO)
 
   -- H5-H7: ARNO's own setup, then the humans-only window for the simultaneous prompts
   wrap("H5", "setup_player_maps", function(orig)
+    -- ARNOs are prepared one after another: map A's start kiosk is cloned from a template
+    -- that building_clone_source takes out of the bag asynchronously, so a second ARNO in
+    -- the same frame finds the bag empty ("no KIOSK in the building bag", found in play)
     return function(...)
-      if state.active() and not setup.window_open then
-        for _, p in ipairs(setup.bots(players)) do setup.prepare_bot(p) end
-        setup.open_window()
+      if not state.active() or setup.window_open or setup.preparing then return orig(...) end
+      local args = { ... }
+      local bots = setup.bots(players)
+      setup.preparing = true
+      local function prepare(i)
+        if i > #bots then
+          setup.preparing = false
+          setup.open_window()
+          return orig((table.unpack or unpack)(args))
+        end
+        setup.prepare_bot(bots[i])
+        local function next_bot() prepare(i + 1) end
+        Wait.condition(next_bot, function() return building_parents["KIOSK"] ~= nil end, 10, next_bot)
       end
-      return orig(...)
+      prepare(1)
     end
   end)
 
