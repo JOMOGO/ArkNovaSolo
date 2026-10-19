@@ -12,9 +12,18 @@ local function human_turn()
   action_selection_state = { Red = { player = p, x_tokens_used = 0, x_token_active = false } }
   association_actions, build_actions, animal_actions, sponsor_actions = {}, {}, {}, {}
   zones = setmetatable({}, { __index = function(t, k)
-    local z = sim.fake("zone " .. k); z.getObjects = function() return {} end
+    local z = sim.fake("zone " .. k)
+    local contents = {}
+    if k:find("_partner") then                     -- a partner zoo tile lies on the board
+      local tile = sim.fake("partner tile " .. k); tile.addTag("partner"); contents = { tile }
+    end
+    z.getObjects = function() return contents end
     rawset(t, k, z); return z
   end })
+  sim.record("send_worker_to_task", function(_, pl, guid, task)
+    pl.deployed_workers[#pl.deployed_workers + 1] = { guid = guid, task = task }
+  end)
+  sim.record("send_worker_home")
   sim.record("action_strength", function() return 3 end)
   sim.record("arm_multiplier_offer")
   sim.record("seat_action_card")
@@ -89,6 +98,53 @@ T.test("the button sits inside the action panel, which grows to fit", function()
     "inside the layout")
   note_player_interaction()
   T.ok(active_panels.Red == nil or active_panels.Red:find('arnoBack_Red', 1, true) == nil, "removed on commit")
+end)
+
+local function claim_index(p, label)
+  local sub = p.claims[#p.claims]
+  for i, c in ipairs(sub) do
+    local text = type(c.button_text) == "function" and c.button_text() or c.button_text
+    if text == label then return i end
+  end
+end
+
+T.test("Association task 3: Back returns to the task list, worker goes home", function()
+  local p = human_turn()
+  on_action_card_button_clicked(nil, "Red_" .. slot_of(p, "AS"), nil)
+  local tasks = #p.claims[#p.claims]
+  local i = claim_index(p, "Take a Partner Zoo")
+  T.ok(i ~= nil, "task 3 offered")
+  note_player_interaction()                        -- the mod's wrapper does this on every click
+  on_claim_button_clicked(nil, "Red_" .. i, nil)
+  T.eq(#p.deployed_workers, 1, "worker placed on task 3")
+  T.eq(back.pending.Red and back.pending.Red.kind, "task", "task-level Back offered")
+  T.ok(active_panels.Red:find("Back to association tasks", 1, true) ~= nil, "button in the zoo picker")
+  arno_back_clicked(nil, "Red", nil)
+  T.eq(#p.deployed_workers, 0, "worker went home")
+  T.eq(#sim.calls.send_worker_home, 1)
+  T.eq(association_actions.Red.taken[3], nil, "task 3 not taken")
+  T.eq(#p.claims[#p.claims], tasks, "the full task list is back")
+  T.eq(back.pending.Red and back.pending.Red.kind, "action", "Back to action choice available again")
+  T.ok(active_panels.Red:find("Back to action choice", 1, true) ~= nil)
+end)
+
+T.test("ARNO panel height covers its contents with a margin", function()
+  printToAll = function() end
+  arno_setup = { levels = { Yellow = 3, Blue = 5 }, project_module = true }
+  local list = { sim.make_player("Red", false) }
+  ARNO.setup.add_bots(list)
+  for _, color in ipairs({ "Blue", "Yellow" }) do
+    local bot = arno_state.bots[color]
+    bot.last_turn = {}
+    for i = 1, 9 do bot.last_turn[i] = string.rep("a long outcome line ", 4) .. i end
+  end
+  local panel = require("ui.panel")
+  local xml = panel.xml(nil)
+  local height = tonumber(xml:match('id="arnoPanel"[^>]-height="(%d+)"'))
+  local sum = 0
+  for h in xml:gmatch('preferredHeight="(%d+)"') do sum = sum + tonumber(h) end
+  T.ok(height >= sum + panel.MARGIN, "panel " .. height .. " vs contents " .. sum)
+  T.ok(xml:find('minHeight="34" preferredHeight="34"', 1, true) ~= nil, "a wrapped line gets 2 lines of height")
 end)
 
 T.test("any further click commits the choice", function()

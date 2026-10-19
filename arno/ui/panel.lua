@@ -44,57 +44,75 @@ local function slot_row(bot)
   return '<HorizontalLayout spacing="2" minHeight="20">' .. table.concat(cells) .. '</HorizontalLayout>'
 end
 
+-- Text element sized for its wrapped line count, so the panel height always fits.
+-- Width 420 minus padding leaves ~404 px; average glyph widths are estimated generously.
+M.WIDTH = 420
+local CHARS_PER_LINE = { [12] = 54, [15] = 44, [16] = 42 }
+
+local function text(content, size, color, bold)
+  local per_line = CHARS_PER_LINE[size] or 50
+  local lines = math.max(1, math.ceil(#content / per_line))
+  local h = lines * (size + 5)
+  return string.format(
+    '<Text fontSize="%d"%s color="%s" alignment="UpperLeft" minHeight="%d" preferredHeight="%d">%s</Text>',
+    size, bold and ' fontStyle="Bold"' or "", color, h, h, esc(content)), h
+end
+
 -- one ARNO: header, slots, status and what he did in his last turn, all in his colour
 local function bot_block(color, bot)
   local hex = state.COLOR_HEX[color] or "#FFFFFF"
-  local lines = {}
-  lines[#lines + 1] = string.format(
-    '<Text fontSize="15" fontStyle="Bold" color="%s" alignment="MiddleLeft" minHeight="20">%s  -  Level %d%s  -  CP debt %d</Text>',
-    hex, esc(bot.name or ("ARNO " .. color)), bot.level,
-    (bot.extra_cp or 0) > 0 and (" (+" .. bot.extra_cp .. ")") or "", bot.cp_debt or 0)
-  lines[#lines + 1] = slot_row(bot)
+  local parts, height, count = {}, 0, 0
+  local function add(xml, h) parts[#parts + 1] = xml; height = height + h; count = count + 1 end
+  add(text(string.format("%s  -  Level %d%s  -  CP debt %d", bot.name or ("ARNO " .. color), bot.level,
+    (bot.extra_cp or 0) > 0 and (" (+" .. bot.extra_cp .. ")") or "", bot.cp_debt or 0), 15, hex, true))
+  add(slot_row(bot), 20)
   local extra = string.format("Scoring-card tokens %d, notepad %d, end CP now %d",
     bot.tokens_scoring or 0, bot.tokens_notepad or 0, require("core.decide").final_cp(bot))
   if arno_state.project_module then
     local pos = tracker.position(bot.sponsor_discards or 0)
     extra = extra .. string.format("  |  module: %s, kiosks %d", tracker.slot(pos), tracker.kiosk_count(pos))
   end
-  lines[#lines + 1] = '<Text fontSize="12" color="#CCCCCC" alignment="MiddleLeft" minHeight="16">' .. esc(extra) .. '</Text>'
-  local last = bot.last_turn or {}
-  for _, text in ipairs(last) do
-    lines[#lines + 1] = string.format(
-      '<Text fontSize="12" color="%s" alignment="MiddleLeft" minHeight="15">%s</Text>', hex, esc(text))
-  end
-  return table.concat(lines), 64 + 15 * #last
+  add(text(extra, 12, "#CCCCCC"))
+  for _, line in ipairs(bot.last_turn or {}) do add(text(line, 12, hex)) end
+  return table.concat(parts), height, count
 end
+
+M.SPACING = 2
+M.PADDING_TOP, M.PADDING_BOTTOM = 8, 8
+M.CONTROLS_HEIGHT = 30
+M.MARGIN = 16
 
 function M.xml(running_color)
   local st = state.get()
   if st == nil or not state.active() then return nil end
   if M.collapsed then
     return [[<Panel id="arnoPanel" rectAlignment="UpperLeft" offsetXY="70 -10" width="120" height="34" color="#1B2B3AEE">
-      <Button onClick="on_arno_panel_toggle" fontSize="14" color="#2E5D7A" textColor="#FFFFFF">ARNO ▸</Button></Panel>]]
+      <Button onClick="on_arno_panel_toggle" fontSize="14" color="#2E5D7A" textColor="#FFFFFF">ARNO</Button></Panel>]]
   end
-  local blocks, height = {}, 62
+  local title, title_h = text("A.R.N.O. 3.0  (seed " .. tostring(st.seed or "?") .. ")", 16, "#EBD717")
+  local blocks, height, count = {}, title_h, 1
   for _, color in ipairs(st.order) do
-    local xml, h = bot_block(color, st.bots[color])
+    local xml, h, n = bot_block(color, st.bots[color])
     blocks[#blocks + 1] = xml
-    height = height + h
+    height, count = height + h, count + n
   end
   local controls = string.format([[
-        <HorizontalLayout spacing="6" minHeight="28">
+        <HorizontalLayout spacing="6" minHeight="%d" preferredHeight="%d">
           <Button onClick="on_arno_run_clicked" interactable="%s" fontSize="13" color="#3A7D44" textColor="#FFFFFF">Run ARNO turn</Button>
           <Button onClick="on_arno_auto_clicked" fontSize="13" color="#2E5D7A" textColor="#FFFFFF">Auto: %s</Button>
           <Button onClick="on_arno_panel_toggle" fontSize="13" color="#555555" textColor="#FFFFFF">Hide</Button>
-        </HorizontalLayout>]], running_color and "true" or "false", st.auto and "on" or "off")
+        </HorizontalLayout>]], M.CONTROLS_HEIGHT, M.CONTROLS_HEIGHT,
+    running_color and "true" or "false", st.auto and "on" or "off")
+  count = count + 1
+  height = height + M.CONTROLS_HEIGHT + M.SPACING * count + M.PADDING_TOP + M.PADDING_BOTTOM + M.MARGIN
   return string.format([[
-    <Panel id="arnoPanel" rectAlignment="UpperLeft" offsetXY="70 -10" width="420" height="%d" color="#1B2B3AEE">
-      <VerticalLayout spacing="2" padding="8 8 6 6" childForceExpandHeight="false">
-        <Text fontSize="16" color="#EBD717" alignment="MiddleLeft" minHeight="20">A.R.N.O. 3.0  (seed %s)</Text>
+    <Panel id="arnoPanel" rectAlignment="UpperLeft" offsetXY="70 -10" width="%d" height="%d" color="#1B2B3AEE">
+      <VerticalLayout spacing="%d" padding="8 8 %d %d" childForceExpandHeight="false">
+%s
 %s
 %s
       </VerticalLayout>
-    </Panel>]], height, esc(st.seed or "?"), table.concat(blocks), controls)
+    </Panel>]], M.WIDTH, height, M.SPACING, M.PADDING_TOP, M.PADDING_BOTTOM + M.MARGIN, title, table.concat(blocks), controls)
 end
 
 function M.render(running_color)

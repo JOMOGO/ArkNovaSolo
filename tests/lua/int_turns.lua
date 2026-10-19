@@ -122,8 +122,11 @@ T.test("panel: last turn per ARNO in his colour, no credit line, no auto-toggle 
   T.eq(#bot.last_turn, before, "auto toggle is not a last-turn line")
   local xml = require("ui.panel").xml(nil)
   T.ok(xml:find("Andre K", 1, true) == nil, "no credit line")
-  T.ok(xml:find('color="#EBD717" alignment="MiddleLeft" minHeight="15">' .. bot.last_turn[2]:gsub("&", "&amp;"):gsub("<", "&lt;"):gsub(">", "&gt;"), 1, true) ~= nil,
-    "outcome line in Yellow's colour")
+  local line = bot.last_turn[2]
+  local at = xml:find(line, 1, true)
+  T.ok(at ~= nil, "outcome line shown")
+  local tag_start = xml:sub(1, at):match(".*()<Text")
+  T.ok(xml:sub(tag_start, at):find('color="#EBD717"', 1, true) ~= nil, "outcome line in Yellow's colour")
 end)
 
 T.finish("integration turns")

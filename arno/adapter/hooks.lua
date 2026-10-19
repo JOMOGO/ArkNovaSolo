@@ -185,6 +185,32 @@ function M.install(ARNO)
       return r
     end
   end)
+  -- Association tasks 3/4/5 get their own Back (to the task list), owner request
+  wrap("H20", "on_claim_button_clicked", function(orig)
+    return function(p, value, id)
+      local color = tostring(value):match("^(%a+)_")
+      local player = color and claims_players[color]
+      local snap = nil
+      if player ~= nil and not is_bot(player) and association_actions[color] ~= nil then
+        snap = back.capture_task(player)
+      end
+      back.recent[color or ""] = nil
+      back.task_started = nil
+      local ok, r = pcall(orig, p, value, id)
+      local started = back.task_started
+      back.task_started = nil
+      if not ok then error(r, 0) end
+      if snap ~= nil and started ~= nil then back.offer(snap) end
+      return r
+    end
+  end)
+  wrap("H20", "take_association_task", function(orig)
+    return function(player, task, ...)
+      if task == 3 or task == 4 or task == 5 then back.task_started = task end
+      return orig(player, task, ...)
+    end
+  end)
+
   -- Cards moves the break token on choosing; hold that back until the choice is committed
   wrap("H20", "break_x", function(orig)
     return function(n, player, ...)

@@ -16,6 +16,8 @@
 local M = {}
 
 M.pending = {}          -- color -> snapshot (transient: rewind/load clears it, which is fine)
+M.recent = {}           -- color -> action-level snapshot just committed by a click
+M.task_started = nil    -- set while an Association task 3/4/5 click is being handled
 M.capturing = nil       -- player whose break moves are being held back during the click
 M.EXTRA_HEIGHT = 46
 
@@ -48,6 +50,8 @@ function M.capture(player, slot, sel)
   local fields = {}
   for k, v in pairs(player) do fields[k] = v end
   return {
+    kind = "action",
+    label = "Back to action choice",
     player = player,
     slot = slot,
     x_used = sel.x_tokens_used or 0,
@@ -75,8 +79,8 @@ function M.add_button(color, xml)
   end
   if pos == nil then return xml end
   local button = string.format(
-    '<Button %s onClick="arno_back_clicked(%s)" fontSize="16" minHeight="38" preferredHeight="38" color="#8A6D1F" textColor="#FFFFFF">Back to action choice</Button>',
-    marker(color), color)
+    '<Button %s onClick="arno_back_clicked(%s)" fontSize="16" minHeight="38" preferredHeight="38" color="#8A6D1F" textColor="#FFFFFF">%s</Button>',
+    marker(color), color, (M.pending[color] and M.pending[color].label) or "Back")
   return string.sub(grown, 1, pos - 1) .. button .. string.sub(grown, pos)
 end
 
@@ -108,8 +112,9 @@ function M.clear(color)
   local snap = M.pending[color]
   if snap == nil then return end
   M.pending[color] = nil
+  M.recent[color] = snap
   rerender(color, M.strip_button)
-  for _, n in ipairs(snap.held_breaks) do break_x(n, snap.player) end
+  for _, n in ipairs(snap.held_breaks or {}) do break_x(n, snap.player) end
 end
 
 function M.clear_all()
@@ -118,9 +123,79 @@ end
 
 -- ---------------------------------------------------------------- Back
 
+-- Association tasks 3/4/5: snapshot taken before the task button is handled (owner request)
+function M.capture_task(player)
+  local color = player.color
+  local claims = {}
+  for i, sub in ipairs(player.claims or {}) do
+    local c = {}
+    for k, v in pairs(sub) do c[k] = v end
+    claims[i] = c
+  end
+  local a = association_actions[color]
+  local assoc = nil
+  if a ~= nil then
+    assoc = {}
+    for k, v in pairs(a) do assoc[k] = v end
+    assoc.taken = copy_map(a.taken)
+  end
+  local fields = {}
+  for k, v in pairs(player) do fields[k] = v end
+  local parent = M.recent[color]
+  if parent ~= nil and parent.kind ~= "action" then parent = nil end
+  return {
+    kind = "task",
+    label = "Back to association tasks",
+    player = player,
+    fields = fields,
+    claims = claims,
+    assoc = assoc,
+    persistent_rewards = copy_map(player.persistent_rewards),
+    post_action_rewards = copy_list(player.post_action_rewards),
+    deployed = copy_list(player.deployed_workers),
+    parent = parent,
+    held_breaks = {},
+  }
+end
+
+local function back_task(snap)
+  local player, color = snap.player, snap.player.color
+  for i = #player.deployed_workers, #snap.deployed + 1, -1 do
+    send_worker_home(player, player.deployed_workers[i].guid)
+  end
+  for k in pairs(player) do
+    if snap.fields[k] == nil then player[k] = nil end
+  end
+  for k, v in pairs(snap.fields) do player[k] = v end
+  player.deployed_workers = snap.deployed
+  player.persistent_rewards = snap.persistent_rewards
+  player.post_action_rewards = snap.post_action_rewards
+  player.claims = snap.claims
+  player.on_claims_empty = nil
+  -- restore in place: the task buttons' validity closures hold the original table
+  local live = association_actions[color]
+  if live ~= nil and snap.assoc ~= nil then
+    for k in pairs(live) do live[k] = nil end
+    for k, v in pairs(snap.assoc) do live[k] = v end
+  else
+    association_actions[color] = snap.assoc
+  end
+  if project_supports ~= nil then project_supports[color] = nil end
+  active_claim = nil
+  claims_players[color] = nil
+  clear_player_panel(color)
+  printToAll(player.steam_name .. " takes back their association task choice.")
+  if snap.parent ~= nil then M.pending[color] = snap.parent end
+  render_claims_table(player)
+end
+
 function M.back(color)
   local snap = M.pending[color]
   if snap == nil then return end
+  if snap.kind == "task" then
+    M.pending[color] = nil
+    return back_task(snap)
+  end
   M.pending[color] = nil                  -- held breaks are dropped: the action never happened
   local player = snap.player
   clear_build_action_state(player)
