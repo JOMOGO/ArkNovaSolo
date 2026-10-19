@@ -56,11 +56,39 @@ T.test("Back refunds spent X-tokens", function()
   T.eq(calls[2][2], 2, "refunded on Back")
 end)
 
-T.test("Cards: no Back (the break token already moved)", function()
+T.test("Cards: Back offered; the break moves only when the choice is committed", function()
   local p = human_turn()
-  sim.record("cards_action")
+  players[2] = sim.make_player("Blue", false)     -- break_x is a no-op in 1-player games
+  break_current_val = 9
+  sim.record("move_break_token")
   on_action_card_button_clicked(nil, "Red_" .. slot_of(p, "CA"), nil)
-  T.eq(back.pending.Red, nil)
+  T.ok(back.pending.Red ~= nil, "Back offered for Cards")
+  T.eq(break_current_val, 9, "break token not moved yet")
+  note_player_interaction()                      -- e.g. clicking "Draw 1 cards"
+  T.eq(break_current_val, 7, "break +2 applied on commit")
+end)
+
+T.test("Cards: Back drops the held break move", function()
+  local p = human_turn()
+  players[2] = sim.make_player("Blue", false)
+  break_current_val = 9
+  sim.record("move_break_token")
+  on_action_card_button_clicked(nil, "Red_" .. slot_of(p, "CA"), nil)
+  arno_back_clicked(nil, "Red", nil)
+  T.eq(break_current_val, 9)
+  T.eq(#p.claims, 0)
+  T.eq(#sim.calls.create_action_selection_panel, 1)
+end)
+
+T.test("the button sits inside the action panel, which grows to fit", function()
+  local p = human_turn()
+  on_action_card_button_clicked(nil, "Red_" .. slot_of(p, "AS"), nil)
+  local xml = active_panels.Red
+  T.ok(xml ~= nil and xml:find('id="arnoBack_Red"', 1, true) ~= nil, "button in the Red panel")
+  T.ok(xml:find('arnoBack_Red', 1, true) < select(1, xml:find("</VerticalLayout>", xml:find('arnoBack_Red', 1, true), true)),
+    "inside the layout")
+  note_player_interaction()
+  T.ok(active_panels.Red == nil or active_panels.Red:find('arnoBack_Red', 1, true) == nil, "removed on commit")
 end)
 
 T.test("any further click commits the choice", function()

@@ -177,9 +177,30 @@ function M.install(ARNO)
       local color, slot = tostring(value):match("^(%a+)_(%d+)$")
       local sel = color and action_selection_state[color]
       local snap = sel and back.capture(sel.player, tonumber(slot), sel)
-      local r = orig(p, value, id)
+      back.capturing = snap
+      local ok, r = pcall(orig, p, value, id)
+      back.capturing = nil
+      if not ok then error(r, 0) end
       if snap ~= nil then back.offer(snap) end
       return r
+    end
+  end)
+  -- Cards moves the break token on choosing; hold that back until the choice is committed
+  wrap("H20", "break_x", function(orig)
+    return function(n, player, ...)
+      local snap = back.capturing
+      if snap ~= nil and player == snap.player then
+        snap.held_breaks[#snap.held_breaks + 1] = n
+        return
+      end
+      return orig(n, player, ...)
+    end
+  end)
+  -- panels shown while Back is available get the button too
+  wrap("H20", "set_player_panel", function(orig)
+    return function(color, xml, refresh)
+      if back.pending[color] ~= nil then xml = back.add_button(color, xml) end
+      return orig(color, xml, refresh)
     end
   end)
   -- any further interaction commits the choice (the Back handler itself is not on_*,
