@@ -71,6 +71,20 @@ def build(base: Path, src: Path, overrides: dict[str, str] | None = None,
 ROOT = Path(__file__).resolve().parents[1]
 BUNDLE_ANCHOR = "\nlocal handler_names = {}\n"
 ARNO_SAVE_NAME = "Ark Nova - Complete Scripted + ARNO 3.0"
+# Owner preference: every ARNO build is also copied to the TTS Saves folder.
+# Override with ARNO_TTS_SAVES; disable with --no-install.
+DEFAULT_TTS_SAVES = Path.home() / "Documents" / "My Games" / "Tabletop Simulator" / "Saves"
+
+
+def install_to_saves(built: Path, saves_dir: Path) -> Path | None:
+    """Copy the build into the TTS Saves folder (only our own file name is written)."""
+    if not saves_dir.is_dir():
+        print(f"note: TTS Saves folder not found ({saves_dir}); not installed")
+        return None
+    target = saves_dir / built.name
+    target.write_bytes(built.read_bytes())
+    print(f"installed {target}")
+    return target
 
 
 def apply_hooks(text: str, hooks_file: Path) -> tuple[str, list[str]]:
@@ -122,6 +136,8 @@ def main(argv=None) -> int:
     ap.add_argument("--save-name", help="override SaveName")
     ap.add_argument("--arno", action="store_true", help="add ARNO (hooks + bundle) to Global.lua")
     ap.add_argument("--hooks", type=Path, default=ROOT / "hooks" / "hooks.json")
+    ap.add_argument("--no-install", action="store_true",
+                    help="with --arno: do not copy the result to the TTS Saves folder")
     args = ap.parse_args(argv)
     if args.out.resolve() == args.base.resolve():
         raise SystemExit("refusing to overwrite the base save")
@@ -134,6 +150,9 @@ def main(argv=None) -> int:
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_bytes(data)
     print(f"wrote {args.out} ({len(data)} bytes)")
+    if args.arno and not args.no_install:
+        import os
+        install_to_saves(args.out, Path(os.environ.get("ARNO_TTS_SAVES", DEFAULT_TTS_SAVES)))
     return 0
 
 
