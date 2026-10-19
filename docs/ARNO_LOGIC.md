@@ -285,9 +285,9 @@ prerequisite: install Node 22 LTS.
 
 ## 9. Open questions (need a decision from the owner, not from me)
 
-1. **Rules version.** The app implements A.R.N.O. **3.0**. The reference TTS table is
-   **2.0**. Which one do you play? I have not compared the app with the printed 3.0 rules.
-   Can you share that PDF (it is on BGG)?
+1. **Rules version: answered, ARNO 3.0** (owner, 2026-10-19). The 2.0 reference table is
+   used only for its physical layout (yellow ARNO mat). I have still not compared the app
+   with the printed 3.0 rules. Can you share that PDF (it is on BGG)?
 2. **DONATE** (Association upgraded) has no defined cost or reward in the app. What does
    ARNO's donation do?
 3. **Association fallback CP.** The prose says "+2 CP, break +2". The card data

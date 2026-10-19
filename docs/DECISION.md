@@ -244,6 +244,19 @@ Proposed stages, each one playable on its own:
 3. **Cards:** display snap, break draws, animal hooks for your effects.
 4. **End:** game end and scoring.
 
+### Sharing (owner wants to share it if it works well)
+
+The ARNO port is shareable: Apache-2.0 with NOTICE and credits, and no Feuerland
+content. The scripted mod's Lua (no stated licence) and the card art it references are
+**not ours to republish**. So the shareable deliverable is **an add-on, not a modified
+save**: the ARNO Lua module, a hooks file, and `tools/tts_build.py`. Each user applies
+them to their own subscribed copy of the mod. `dist/` output, `mods/` and `src/` stay out
+of any public repo. Second route: offer the add-on to the mod's author to merge upstream,
+which would also remove the mod-update fragility. Design consequences for Phase 2:
+- ARNO code goes in separate files.
+- Hooks are small, named and anchored to function names rather than line numbers.
+- The build tool applies them to a freshly extracted mod.
+
 ### Before Phase 2, please decide or answer
 
 1. **Choose an option** (my recommendation is A).
