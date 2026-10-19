@@ -29,9 +29,12 @@ M.OFFSETS = {
   animals = { -6.2, 0.9, 1.2 },        -- pile of animal cards
   projects = { -2.6, 0.9, 3.0 },       -- column of conservation project cards
   project_step = { 0, 0.05, -1.25 },
-  scoring = { -2.6, 0.9, -2.8 },       -- face-down final scoring card
-  scoring_token = { -3.3, 1.3, -2.8 }, -- cubes on it, +0.45 x per token
-  notepad_token = { -3.3, 1.3, -4.1 },
+  -- owner choice: the final scoring card lies beside the mat, not on it. Boards are only
+  -- ~2 units apart sideways, so it goes in front of the mat in ARNO's (unused) played-cards
+  -- row (base offset played_cards_col_1 = -7.23, -0.03, -12.87)
+  scoring = { -7.23, 0.3, -12.87 },      -- face-down final scoring card
+  scoring_token = { -8.1, 0.7, -12.87 }, -- cubes on it, +0.45 x per token
+  notepad_token = { -4.5, 0.4, -12.87 }, -- notepad tokens next to it, +0.45 x per token
   reveal = { -6.0, 2.0, 7.0 },         -- break draw reveal row, +2.6 x per card
 }
 
