@@ -403,3 +403,27 @@ The PDFs stay local and are not committed. Every entry becomes a named constant 
 - The base mod's author is credited in `SaveName`/description, and the mod's own credits
   are kept.
 - No new card content.
+
+## 15. Implementation notes (Phase 3)
+
+Where the implementation differs from the plan above, or adds to it:
+- **Setup uses a humans-only window** (H5/H8) instead of separate wrappers for the map,
+  draft and discard prompts. ARNO gets map A and his action cards first; then `players`
+  is temporarily set to the humans, so the mod's own map, Marine Worlds draft (solo
+  "draw 3, pick 2" when one human) and setup-discard flows run unchanged. `start_game`
+  restores the full turn order.
+- **H4 needs no change.** The mod already locks interactive effects when exactly one seat is
+  taken, and ARNO never takes a seat.
+- **H9 hooks `create_action_selection_panel`**, not `start_player_turn`. The mod's
+  `"turn"` checkpoint, `current_player` and `turns_taken` all happen first.
+- **The claims engine** is driven by the H10 bot branch and the H11 reward dispatcher
+  (`docs/MOD_PRIMITIVES.md` §1.6). ARNO's steps use the mod's quiet primitives. A step that
+  must render continues through `on_claims_empty`. Rewards earned during a step are queued
+  as sub-steps.
+- **MoonSharp quirks** found by the headless tests:
+  - `bit32` is wrong for values ≥ 2^31 (the RNG works on 16-bit halves);
+  - `table.remove(t, 1)` errors on an empty table.
+- **The RNG state is persisted as two 16-bit halves** (JSON safety).
+- **Tests:** `tests/lua/int_*.lua` execute the *built* Global.lua with TTS stubs, a scripted
+  `Wait` scheduler and fake objects, so the real mod code (claims, tracks, scoring) runs
+  with ARNO.
