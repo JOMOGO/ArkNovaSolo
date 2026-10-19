@@ -26,16 +26,16 @@ M.current = nil            -- the active run (transient)
 -- ARNO only uses the right area of his mat; the left area holds his zoo cards and his
 -- final scoring card (rules p2, p3). Boards are axis aligned: world = board + offset.
 M.OFFSETS = {
-  animals = { -6.2, 0.9, 1.2 },        -- pile of animal cards
-  projects = { -2.6, 0.9, 3.0 },       -- column of conservation project cards
-  project_step = { 0, 0.05, -1.25 },
-  -- owner choice: the final scoring card lies beside the mat, not on it. Boards are only
-  -- ~2 units apart sideways, so it goes in front of the mat in ARNO's (unused) played-cards
-  -- row (base offset played_cards_col_1 = -7.23, -0.03, -12.87)
-  scoring = { -7.23, 0.3, -12.87 },      -- face-down final scoring card
-  scoring_token = { -8.1, 0.7, -12.87 }, -- cubes on it, +0.45 x per token
-  notepad_token = { -4.5, 0.4, -12.87 }, -- notepad tokens next to it, +0.45 x per token
-  reveal = { -6.0, 2.0, 7.0 },         -- break draw reveal row, +2.6 x per card
+  -- owner choice: everything ARNO receives lies in front of his mat, in his (unused)
+  -- played-cards row (base mod: played_cards_col_1 = -7.23, -0.03, -12.87; columns 3.6
+  -- apart). Boards are only ~2 units apart sideways, so nothing goes beside the mat.
+  scoring = { -7.23, 0.3, -12.87 },      -- column 1: face-down final scoring card
+  scoring_token = { -8.1, 0.7, -12.87 }, --   its tokens, +0.45 x per token
+  projects = { -3.63, 0.3, -12.87 },     -- column 2: kept conservation project cards,
+  project_step = { 0, 0.05, -1.3 },      --   fanned downwards like played cards
+  animals = { -0.03, 0.3, -12.87 },      -- column 3: pile of his animal cards
+  notepad_token = { 2.9, 0.4, -12.87 },  -- column 4: notepad tokens, +0.45 x per token
+  reveal = { -6.0, 2.0, 7.0 },           -- break draw reveal row, +2.6 x per card
 }
 
 local function at(player, key, dx, dy, dz)
