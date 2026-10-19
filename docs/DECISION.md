@@ -244,18 +244,21 @@ Proposed stages, each one playable on its own:
 3. **Cards:** display snap, break draws, animal hooks for your effects.
 4. **End:** game end and scoring.
 
-### Sharing (owner wants to share it if it works well)
+### Sharing (owner decision, 2026-10-19)
 
-The ARNO port is shareable: Apache-2.0 with NOTICE and credits, and no Feuerland
-content. The scripted mod's Lua (no stated licence) and the card art it references are
-**not ours to republish**. So the shareable deliverable is **an add-on, not a modified
-save**: the ARNO Lua module, a hooks file, and `tools/tts_build.py`. Each user applies
-them to their own subscribed copy of the mod. `dist/` output, `mods/` and `src/` stay out
-of any public repo. Second route: offer the add-on to the mod's author to merge upstream,
-which would also remove the mod-update fragility. Design consequences for Phase 2:
-- ARNO code goes in separate files.
-- Hooks are small, named and anchored to function names rather than line numbers.
-- The build tool applies them to a freshly extracted mod.
+The owner will publish the result as **a new version of the mod**
+(`dist/ArkNova_Scripted_ARNO.json`), not as a separate add-on. Notes recorded with that
+decision:
+- The ARNO port is Apache-2.0: ship NOTICE and credits for Andre K (ARNO design) and
+  Stefan Seifert (helper app).
+- The base mod's Lua has no stated licence, which means all rights reserved by default,
+  and its card art belongs to Feuerland/Capstone. Recommended, not required: ask the base
+  mod's author before publishing, and credit them in the Workshop description and in-game.
+- Design consequences, kept anyway for maintainability:
+  - ARNO code goes in separate files.
+  - Hooks are small, named, and anchored to function names.
+  - `tools/tts_build.py` rebuilds the new version from a fresh extract, so base-mod
+    updates can be absorbed quickly.
 
 ### Before Phase 2, please decide or answer
 
