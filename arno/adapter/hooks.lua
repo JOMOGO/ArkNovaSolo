@@ -161,12 +161,13 @@ function M.install(ARNO)
     end
   end)
 
-  -- H19 (owner request): undo hint in the human action panel
+  -- H19 (owner request): undo hint in the human action panel, which sits flush right
   wrap("H19", "action_selection_panel_xml", function(orig)
     return function(...)
       local xml = orig(...)
       if type(xml) ~= "string" then return xml end
-      return require("ui.hint").add_undo_hint(xml)
+      local hint = require("ui.hint")
+      return hint.flush_right(hint.add_undo_hint(xml))
     end
   end)
 

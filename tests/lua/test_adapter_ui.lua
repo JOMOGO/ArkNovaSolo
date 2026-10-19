@@ -72,4 +72,12 @@ T.test("undo hint grows the action panel and adds one line", function()
   T.eq(hint.add_undo_hint("<Panel id=\"other\"/>"), "<Panel id=\"other\"/>")
 end)
 
+T.test("action panel sits flush right like the mod's other panels (owner request)", function()
+  local xml = [[<Panel id="actionSelectionPanel_Red" visibility="Red" rectAlignment="MiddleRight" offsetXY="-60 0" width="260" height="300">
+      <VerticalLayout><Button offsetXY="-60 0"/></VerticalLayout></Panel>]]
+  local out = hint.flush_right(xml)
+  T.ok(out:find('<Panel id="actionSelectionPanel_Red" visibility="Red" rectAlignment="MiddleRight" offsetXY="0 0"', 1, true) ~= nil)
+  T.ok(out:find('<Button offsetXY="-60 0"/>', 1, true) ~= nil, "only the panel itself moves")
+end)
+
 T.finish("adapter ui")

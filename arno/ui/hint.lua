@@ -25,4 +25,10 @@ function M.add_undo_hint(xml)
   return string.sub(grown, 1, pos - 1) .. hint .. string.sub(grown, pos)
 end
 
+-- Owner request: the base mod places only this panel 60 px in from the right edge
+-- (offsetXY="-60 0"); every other panel sits flush right. Move it flush right too.
+function M.flush_right(xml)
+  return (xml:gsub('(<Panel id="actionSelectionPanel_[^"]*"[^>]-offsetXY=")%-60 0(")', "%10 0%2", 1))
+end
+
 return M
