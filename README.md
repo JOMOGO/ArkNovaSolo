@@ -13,6 +13,9 @@ ARNO's decisions are a tested Lua port of the
 
 ## Play
 
+Steam Workshop: https://steamcommunity.com/sharedfiles/filedetails/?id=3822969956
+(subscribe, then pick it in TTS under Games → Workshop). Or from a local build:
+
 1. The build installs `ArkNova_Scripted_ARNO.json` in
    `Documents\My Games\Tabletop Simulator\Saves\` automatically (manual: copy
    `dist/ArkNova_Scripted_ARNO.json` there).
