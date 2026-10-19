@@ -4,7 +4,8 @@
 -- Installs ARNO's wrappers around mod functions (docs/DESIGN.md §4). Runs once when the
 -- bundle loads, after every mod function is defined and before the mod's on_* interaction
 -- wrapper (so ARNO's on_* handlers are wrapped too). Every wrapper is a no-op unless an
--- ARNO is in the game (state.active()), so a game without ARNO behaves like the base mod.
+-- ARNO is in the game (state.active()), so a game without ARNO behaves like the base mod,
+-- except the human conveniences H19/H20 (owner requests), which apply in every game.
 -- Each wrapper is listed in CHANGES.md.
 
 local state = require("adapter.state")

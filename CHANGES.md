@@ -11,8 +11,10 @@ The Global script is the base script plus:
 2. the **ARNO bundle** (`arno/**/*.lua`), inserted just before the base mod's `on_*`
    interaction wrapper (`local handler_names = {}`);
 3. **wrappers** that the bundle installs at load time around existing global functions. No
-   base function body is edited. Every wrapper does nothing unless an ARNO is in the game,
-   so a game without ARNO behaves exactly like the base mod.
+   base function body is edited. Every ARNO wrapper does nothing unless an ARNO is in the
+   game. The human conveniences H19 (undo hint, action panel flush right) and H20 (Back
+   buttons) apply in **every** game, also without ARNO; otherwise a game without ARNO
+   behaves exactly like the base mod.
 
 ## 1. Text edits (`hooks/hooks.json`)
 
