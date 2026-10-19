@@ -1,0 +1,16 @@
+Africa=1
+America=0
+Asia=0
+Australia=0
+Europe=0
+Bird=0
+Herbivore=0
+Predator=0
+Primate=0
+Reptile=0
+Bear=0
+Petting=0
+Research=0
+Water=0
+Rock=0
+Income=0

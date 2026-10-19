@@ -1,0 +1,570 @@
+{
+  "source": "mods/original/3812420704.json",
+  "source_sha256": "a146cd52aab33580e08298990d7f13e902349f41d4eafb2d29546891397680ff",
+  "save_name": "Ark Nova - Complete Scripted",
+  "tts_version": "v14.2.2",
+  "has_global_script_state": false,
+  "files": [
+    {
+      "file": "Global.lua",
+      "json_path": [
+        "LuaScript"
+      ],
+      "guid": null,
+      "nickname": null,
+      "sha256": "05a78e3681ff7ce738012fff27bd82156fc827c647576cc22bd4766a4bc0dfb4",
+      "chars": 623363
+    },
+    {
+      "file": "Global.xml",
+      "json_path": [
+        "XmlUI"
+      ],
+      "guid": null,
+      "nickname": null,
+      "sha256": "e44b098ee2f24655ce6a693a0b1c3718a1237d5cc0f5818ab17467743cf150cc",
+      "chars": 81
+    },
+    {
+      "file": "objects/The_Kraken_Table_0b2ed0.lua",
+      "json_path": [
+        "ObjectStates",
+        0,
+        "LuaScript"
+      ],
+      "guid": "0b2ed0",
+      "nickname": "The Kraken Table",
+      "name": "Custom_Assetbundle",
+      "sha256": "95a30058a979145ebaf01292c6f347fbeb41a671e6c228bd5bfe4b68d8dd4bd8",
+      "chars": 54
+    },
+    {
+      "file": "objects/American_Partner_Zoo_0092f7.lua",
+      "json_path": [
+        "ObjectStates",
+        253,
+        "ContainedObjects",
+        0,
+        "LuaScript"
+      ],
+      "guid": "0092f7",
+      "nickname": "American Partner Zoo",
+      "name": "Custom_Model",
+      "sha256": "608847c6b045268b7bc3dc8b60e829a74f762d67c83fb2c11a1c88db2747e931",
+      "chars": 165
+    },
+    {
+      "file": "objects/American_Partner_Zoo_81b34a.lua",
+      "json_path": [
+        "ObjectStates",
+        253,
+        "ContainedObjects",
+        1,
+        "LuaScript"
+      ],
+      "guid": "81b34a",
+      "nickname": "American Partner Zoo",
+      "name": "Custom_Model",
+      "sha256": "608847c6b045268b7bc3dc8b60e829a74f762d67c83fb2c11a1c88db2747e931",
+      "chars": 165
+    },
+    {
+      "file": "objects/American_Partner_Zoo_b6f3cd.lua",
+      "json_path": [
+        "ObjectStates",
+        253,
+        "ContainedObjects",
+        2,
+        "LuaScript"
+      ],
+      "guid": "b6f3cd",
+      "nickname": "American Partner Zoo",
+      "name": "Custom_Model",
+      "sha256": "608847c6b045268b7bc3dc8b60e829a74f762d67c83fb2c11a1c88db2747e931",
+      "chars": 165
+    },
+    {
+      "file": "objects/American_Partner_Zoo_d33b3d.lua",
+      "json_path": [
+        "ObjectStates",
+        253,
+        "ContainedObjects",
+        3,
+        "LuaScript"
+      ],
+      "guid": "d33b3d",
+      "nickname": "American Partner Zoo",
+      "name": "Custom_Model",
+      "sha256": "608847c6b045268b7bc3dc8b60e829a74f762d67c83fb2c11a1c88db2747e931",
+      "chars": 165
+    },
+    {
+      "file": "objects/European_Partner_Zoo_3771ef.lua",
+      "json_path": [
+        "ObjectStates",
+        254,
+        "ContainedObjects",
+        0,
+        "LuaScript"
+      ],
+      "guid": "3771ef",
+      "nickname": "European Partner Zoo",
+      "name": "Custom_Model",
+      "sha256": "6ef62a5aed6fa4e255e33e4bf977c4be6edba57c63c45df5faf8dee091f99853",
+      "chars": 165
+    },
+    {
+      "file": "objects/European_Partner_Zoo_6bc410.lua",
+      "json_path": [
+        "ObjectStates",
+        254,
+        "ContainedObjects",
+        1,
+        "LuaScript"
+      ],
+      "guid": "6bc410",
+      "nickname": "European Partner Zoo",
+      "name": "Custom_Model",
+      "sha256": "6ef62a5aed6fa4e255e33e4bf977c4be6edba57c63c45df5faf8dee091f99853",
+      "chars": 165
+    },
+    {
+      "file": "objects/European_Partner_Zoo_b4d450.lua",
+      "json_path": [
+        "ObjectStates",
+        254,
+        "ContainedObjects",
+        2,
+        "LuaScript"
+      ],
+      "guid": "b4d450",
+      "nickname": "European Partner Zoo",
+      "name": "Custom_Model",
+      "sha256": "6ef62a5aed6fa4e255e33e4bf977c4be6edba57c63c45df5faf8dee091f99853",
+      "chars": 165
+    },
+    {
+      "file": "objects/European_Partner_Zoo_0eb941.lua",
+      "json_path": [
+        "ObjectStates",
+        254,
+        "ContainedObjects",
+        3,
+        "LuaScript"
+      ],
+      "guid": "0eb941",
+      "nickname": "European Partner Zoo",
+      "name": "Custom_Model",
+      "sha256": "6ef62a5aed6fa4e255e33e4bf977c4be6edba57c63c45df5faf8dee091f99853",
+      "chars": 165
+    },
+    {
+      "file": "objects/Asian_Partner_Zoo_93be03.lua",
+      "json_path": [
+        "ObjectStates",
+        255,
+        "ContainedObjects",
+        0,
+        "LuaScript"
+      ],
+      "guid": "93be03",
+      "nickname": "Asian Partner Zoo",
+      "name": "Custom_Model",
+      "sha256": "d3f1e1fd3be6772f42b0da4fd9db4678e056501c5c5ea72c5e5a2bd6cbb52165",
+      "chars": 165
+    },
+    {
+      "file": "objects/Asian_Partner_Zoo_806a8d.lua",
+      "json_path": [
+        "ObjectStates",
+        255,
+        "ContainedObjects",
+        1,
+        "LuaScript"
+      ],
+      "guid": "806a8d",
+      "nickname": "Asian Partner Zoo",
+      "name": "Custom_Model",
+      "sha256": "d3f1e1fd3be6772f42b0da4fd9db4678e056501c5c5ea72c5e5a2bd6cbb52165",
+      "chars": 165
+    },
+    {
+      "file": "objects/Asian_Partner_Zoo_2dd621.lua",
+      "json_path": [
+        "ObjectStates",
+        255,
+        "ContainedObjects",
+        2,
+        "LuaScript"
+      ],
+      "guid": "2dd621",
+      "nickname": "Asian Partner Zoo",
+      "name": "Custom_Model",
+      "sha256": "d3f1e1fd3be6772f42b0da4fd9db4678e056501c5c5ea72c5e5a2bd6cbb52165",
+      "chars": 165
+    },
+    {
+      "file": "objects/Asian_Partner_Zoo_2ef0db.lua",
+      "json_path": [
+        "ObjectStates",
+        255,
+        "ContainedObjects",
+        3,
+        "LuaScript"
+      ],
+      "guid": "2ef0db",
+      "nickname": "Asian Partner Zoo",
+      "name": "Custom_Model",
+      "sha256": "d3f1e1fd3be6772f42b0da4fd9db4678e056501c5c5ea72c5e5a2bd6cbb52165",
+      "chars": 165
+    },
+    {
+      "file": "objects/African_Partner_Zoo_f03e47.lua",
+      "json_path": [
+        "ObjectStates",
+        256,
+        "ContainedObjects",
+        0,
+        "LuaScript"
+      ],
+      "guid": "f03e47",
+      "nickname": "African Partner Zoo",
+      "name": "Custom_Model",
+      "sha256": "ddacb78b6086adbc107a6c705c6bff001500b0a32608ef572a46a3e733091921",
+      "chars": 165
+    },
+    {
+      "file": "objects/African_Partner_Zoo_99de06.lua",
+      "json_path": [
+        "ObjectStates",
+        256,
+        "ContainedObjects",
+        1,
+        "LuaScript"
+      ],
+      "guid": "99de06",
+      "nickname": "African Partner Zoo",
+      "name": "Custom_Model",
+      "sha256": "ddacb78b6086adbc107a6c705c6bff001500b0a32608ef572a46a3e733091921",
+      "chars": 165
+    },
+    {
+      "file": "objects/African_Partner_Zoo_7fc4a9.lua",
+      "json_path": [
+        "ObjectStates",
+        256,
+        "ContainedObjects",
+        2,
+        "LuaScript"
+      ],
+      "guid": "7fc4a9",
+      "nickname": "African Partner Zoo",
+      "name": "Custom_Model",
+      "sha256": "ddacb78b6086adbc107a6c705c6bff001500b0a32608ef572a46a3e733091921",
+      "chars": 165
+    },
+    {
+      "file": "objects/African_Partner_Zoo_746732.lua",
+      "json_path": [
+        "ObjectStates",
+        256,
+        "ContainedObjects",
+        3,
+        "LuaScript"
+      ],
+      "guid": "746732",
+      "nickname": "African Partner Zoo",
+      "name": "Custom_Model",
+      "sha256": "ddacb78b6086adbc107a6c705c6bff001500b0a32608ef572a46a3e733091921",
+      "chars": 165
+    },
+    {
+      "file": "objects/Australian_Partner_Zoo_4bd4d5.lua",
+      "json_path": [
+        "ObjectStates",
+        257,
+        "ContainedObjects",
+        0,
+        "LuaScript"
+      ],
+      "guid": "4bd4d5",
+      "nickname": "Australian Partner Zoo",
+      "name": "Custom_Model",
+      "sha256": "a6e206e04a5837ef369302ed8584f5a4613c6cbce32188f1c5c9a0d999db3ba5",
+      "chars": 165
+    },
+    {
+      "file": "objects/Australian_Partner_Zoo_d9bc8d.lua",
+      "json_path": [
+        "ObjectStates",
+        257,
+        "ContainedObjects",
+        1,
+        "LuaScript"
+      ],
+      "guid": "d9bc8d",
+      "nickname": "Australian Partner Zoo",
+      "name": "Custom_Model",
+      "sha256": "a6e206e04a5837ef369302ed8584f5a4613c6cbce32188f1c5c9a0d999db3ba5",
+      "chars": 165
+    },
+    {
+      "file": "objects/Australian_Partner_Zoo_b7dbc3.lua",
+      "json_path": [
+        "ObjectStates",
+        257,
+        "ContainedObjects",
+        2,
+        "LuaScript"
+      ],
+      "guid": "b7dbc3",
+      "nickname": "Australian Partner Zoo",
+      "name": "Custom_Model",
+      "sha256": "a6e206e04a5837ef369302ed8584f5a4613c6cbce32188f1c5c9a0d999db3ba5",
+      "chars": 165
+    },
+    {
+      "file": "objects/Australian_Partner_Zoo_914a39.lua",
+      "json_path": [
+        "ObjectStates",
+        257,
+        "ContainedObjects",
+        3,
+        "LuaScript"
+      ],
+      "guid": "914a39",
+      "nickname": "Australian Partner Zoo",
+      "name": "Custom_Model",
+      "sha256": "a6e206e04a5837ef369302ed8584f5a4613c6cbce32188f1c5c9a0d999db3ba5",
+      "chars": 165
+    },
+    {
+      "file": "objects/Double-Research_University_91db9f.lua",
+      "json_path": [
+        "ObjectStates",
+        259,
+        "ContainedObjects",
+        0,
+        "LuaScript"
+      ],
+      "guid": "91db9f",
+      "nickname": "Double-Research University",
+      "name": "Custom_Model",
+      "sha256": "b845a6d2fea42a793ed90592d7c897c2c85c0e65e784a51042f032a5bde9168a",
+      "chars": 165
+    },
+    {
+      "file": "objects/Double-research_University_3bd188.lua",
+      "json_path": [
+        "ObjectStates",
+        259,
+        "ContainedObjects",
+        1,
+        "LuaScript"
+      ],
+      "guid": "3bd188",
+      "nickname": "Double-research University",
+      "name": "Custom_Model",
+      "sha256": "b845a6d2fea42a793ed90592d7c897c2c85c0e65e784a51042f032a5bde9168a",
+      "chars": 165
+    },
+    {
+      "file": "objects/Double-research_University_88fcf3.lua",
+      "json_path": [
+        "ObjectStates",
+        259,
+        "ContainedObjects",
+        2,
+        "LuaScript"
+      ],
+      "guid": "88fcf3",
+      "nickname": "Double-research University",
+      "name": "Custom_Model",
+      "sha256": "b845a6d2fea42a793ed90592d7c897c2c85c0e65e784a51042f032a5bde9168a",
+      "chars": 165
+    },
+    {
+      "file": "objects/Double-research_University_a74507.lua",
+      "json_path": [
+        "ObjectStates",
+        259,
+        "ContainedObjects",
+        3,
+        "LuaScript"
+      ],
+      "guid": "a74507",
+      "nickname": "Double-research University",
+      "name": "Custom_Model",
+      "sha256": "b845a6d2fea42a793ed90592d7c897c2c85c0e65e784a51042f032a5bde9168a",
+      "chars": 165
+    },
+    {
+      "file": "objects/Double-Reputation_University_49b0c4.lua",
+      "json_path": [
+        "ObjectStates",
+        260,
+        "ContainedObjects",
+        0,
+        "LuaScript"
+      ],
+      "guid": "49b0c4",
+      "nickname": "Double-Reputation University",
+      "name": "Custom_Model",
+      "sha256": "db62d8140a8ad0648c7d2516176ada474c34a188877199aa9ba02c9afbd527cb",
+      "chars": 165
+    },
+    {
+      "file": "objects/Double-reputation_University_d96510.lua",
+      "json_path": [
+        "ObjectStates",
+        260,
+        "ContainedObjects",
+        1,
+        "LuaScript"
+      ],
+      "guid": "d96510",
+      "nickname": "Double-reputation University",
+      "name": "Custom_Model",
+      "sha256": "db62d8140a8ad0648c7d2516176ada474c34a188877199aa9ba02c9afbd527cb",
+      "chars": 165
+    },
+    {
+      "file": "objects/Double-reputation_University_8eb265.lua",
+      "json_path": [
+        "ObjectStates",
+        260,
+        "ContainedObjects",
+        2,
+        "LuaScript"
+      ],
+      "guid": "8eb265",
+      "nickname": "Double-reputation University",
+      "name": "Custom_Model",
+      "sha256": "db62d8140a8ad0648c7d2516176ada474c34a188877199aa9ba02c9afbd527cb",
+      "chars": 165
+    },
+    {
+      "file": "objects/Double-reputation_University_4ce782.lua",
+      "json_path": [
+        "ObjectStates",
+        260,
+        "ContainedObjects",
+        3,
+        "LuaScript"
+      ],
+      "guid": "4ce782",
+      "nickname": "Double-reputation University",
+      "name": "Custom_Model",
+      "sha256": "db62d8140a8ad0648c7d2516176ada474c34a188877199aa9ba02c9afbd527cb",
+      "chars": 165
+    },
+    {
+      "file": "objects/Herbivore_University_da6892.lua",
+      "json_path": [
+        "ObjectStates",
+        270,
+        "LuaScript"
+      ],
+      "guid": "da6892",
+      "nickname": "Herbivore University",
+      "name": "Custom_Model",
+      "sha256": "cfca261d7cee546797a7a5aab9752588a89ac8a144960fa6bdadbd635dd2d609",
+      "chars": 165
+    },
+    {
+      "file": "objects/Bird_University_eaffc5.lua",
+      "json_path": [
+        "ObjectStates",
+        271,
+        "LuaScript"
+      ],
+      "guid": "eaffc5",
+      "nickname": "Bird University",
+      "name": "Custom_Model",
+      "sha256": "c50d96dce04973ace3327f0ab2a56a12c4d4e4665c3bee2a4387c2bb7649ff20",
+      "chars": 165
+    },
+    {
+      "file": "objects/Reptile_University_439584.lua",
+      "json_path": [
+        "ObjectStates",
+        272,
+        "LuaScript"
+      ],
+      "guid": "439584",
+      "nickname": "Reptile University",
+      "name": "Custom_Model",
+      "sha256": "61617f30d5858a347b17f08861a5a58bb0bf0501439960ec9f7ee3727aa4ef6f",
+      "chars": 165
+    },
+    {
+      "file": "objects/Primate_University_dfc3a0.lua",
+      "json_path": [
+        "ObjectStates",
+        273,
+        "LuaScript"
+      ],
+      "guid": "dfc3a0",
+      "nickname": "Primate University",
+      "name": "Custom_Model",
+      "sha256": "6eea9713ed2a0b30d07a3ef33399a58bb91e96cd405c2503c5ea5e7537e8d065",
+      "chars": 165
+    },
+    {
+      "file": "objects/Sea_Creature_University_e7c8a2.lua",
+      "json_path": [
+        "ObjectStates",
+        274,
+        "LuaScript"
+      ],
+      "guid": "e7c8a2",
+      "nickname": "Sea Creature University",
+      "name": "Custom_Model",
+      "sha256": "a79145e3dc06f7e8b1790b7a690f7ad34997e846dca46602b39dfd0ba3a77e06",
+      "chars": 170
+    },
+    {
+      "file": "objects/Predator_University_d090fe.lua",
+      "json_path": [
+        "ObjectStates",
+        275,
+        "LuaScript"
+      ],
+      "guid": "d090fe",
+      "nickname": "Predator University",
+      "name": "Custom_Model",
+      "sha256": "7058fc13ee3abdf2591d6aed0cbf23f657107366d599ae65f9503ea1b95e4348",
+      "chars": 165
+    },
+    {
+      "file": "objects/LARGE_AQUARIUM_c81d2c.lua",
+      "json_path": [
+        "ObjectStates",
+        390,
+        "ContainedObjects",
+        2,
+        "LuaScript"
+      ],
+      "guid": "c81d2c",
+      "nickname": "LARGE AQUARIUM",
+      "name": "Custom_Token",
+      "sha256": "0040f9e29c021065be65de0de0c13ce9157f53d836216303026e51b0c3864dbc",
+      "chars": 9
+    },
+    {
+      "file": "objects/SMALL_AQUARIUM_c63872.lua",
+      "json_path": [
+        "ObjectStates",
+        390,
+        "ContainedObjects",
+        3,
+        "LuaScript"
+      ],
+      "guid": "c63872",
+      "nickname": "SMALL AQUARIUM",
+      "name": "Custom_Model",
+      "sha256": "0040f9e29c021065be65de0de0c13ce9157f53d836216303026e51b0c3864dbc",
+      "chars": 9
+    }
+  ]
+}

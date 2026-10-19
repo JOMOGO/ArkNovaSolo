@@ -1,0 +1,42 @@
+{
+  "source": "mods/original/2960339961.json",
+  "source_sha256": "c4aa2eb04fc7f0b9e6564f802e7a20afc7557a2ff103aecad6860b32c6db4b41",
+  "save_name": "Ark Nova - ARNO 2.0 Solo Setup",
+  "tts_version": "v13.2.2",
+  "has_global_script_state": false,
+  "files": [
+    {
+      "file": "Global.lua",
+      "json_path": [
+        "LuaScript"
+      ],
+      "guid": null,
+      "nickname": null,
+      "sha256": "2d54397d0034ef295074b84040f16cf3be1201cdd4d3cea711dfba1bfbf704a9",
+      "chars": 20684
+    },
+    {
+      "file": "Global.xml",
+      "json_path": [
+        "XmlUI"
+      ],
+      "guid": null,
+      "nickname": null,
+      "sha256": "e44b098ee2f24655ce6a693a0b1c3718a1237d5cc0f5818ab17467743cf150cc",
+      "chars": 81
+    },
+    {
+      "file": "objects/Flex_Table_Control_bd69bd.lua",
+      "json_path": [
+        "ObjectStates",
+        8,
+        "LuaScript"
+      ],
+      "guid": "bd69bd",
+      "nickname": "Flex Table Control",
+      "name": "Chinese_Checkers_Piece",
+      "sha256": "af83a266dbd8b168807673c9fa87043f64a52aab247a7825c8f39c091b00113b",
+      "chars": 16320
+    }
+  ]
+}
