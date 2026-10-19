@@ -54,8 +54,9 @@ The Global script is the base script plus:
 - **ARNO's action cards (owner request):** in ARNO's setup his 5 dealt action cards are
   replaced by spawned cards showing the real ARNO 3.0 cards (same names and tags; face =
   side I, back = side II; Animals, Build and Cards green for levels 1-3, red for 4+;
-  one 4x2 sheet per side, CustomDeck id 7701 with unique backs). The sheets come from the
-  build (`ARNO_CARD_IMAGES`, see README); without them the mod's cards stay.
+  one 4x2 sheet per side, CustomDeck id 7701 with unique backs). The sheets are on Steam Cloud
+  (`tools/arno_card_urls.json`, set by the build as `ARNO_CARD_IMAGES`, see README);
+  without them the mod's cards stay.
 - `cnsts.saved_globals` += `"arno_state"`: ARNO's state is saved in every checkpoint.
 - `cnsts.saved_player_fields` += `"is_arno"`, `"arno_index"`.
 - New globals: `ARNO` (module), `arno_state` (persistent), `arno_setup` (setup choices),
