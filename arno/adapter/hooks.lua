@@ -195,7 +195,6 @@ function M.install(ARNO)
           and (association_actions[color] ~= nil or sponsor_actions[color] ~= nil) then
         snap = back.capture_task(player)
       end
-      back.recent[color or ""] = nil
       back.task_started = nil
       local ok, r = pcall(orig, p, value, id)
       local started = back.task_started
@@ -232,9 +231,10 @@ function M.install(ARNO)
   wrap("H20", "on_building_placement_go_back", function(orig)
     return function(p, color, id)
       local parent = back.recent[color]
+      local player = find_player_by_color(color)
       local r = orig(p, color, id)
       local state = build_actions[color]
-      if parent ~= nil and parent.kind == "action" and state ~= nil
+      if player ~= nil and back.same_turn(parent, player) and state ~= nil
           and #(state.built or {}) == 0 then
         back.offer(parent)
       end
@@ -272,10 +272,13 @@ function M.install(ARNO)
     return function(color, obj, ...)
       -- in the sponsor panel picking up a card only selects it (handle_sponsor_pickup);
       -- the choice is committed by Confirm, so Back stays available until then
+      -- ... and the same for choosing an animal (handle_animal_pickup)
       local snap = back.pending[color]
-      if not (snap ~= nil and snap.sponsor ~= nil and sponsor_actions[color] ~= nil) then
-        back.clear(color)
-      end
+      local selecting = snap ~= nil and (
+        (snap.sponsor ~= nil and sponsor_actions[color] ~= nil)
+        or (snap.kind == "action" and animal_actions[color] ~= nil
+            and animal_actions[color].phase == "pick"))
+      if not selecting then back.clear(color) end
       return orig(color, obj, ...)
     end
   end)

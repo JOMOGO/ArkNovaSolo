@@ -52,6 +52,7 @@ function M.capture(player, slot, sel)
   return {
     kind = "action",
     label = "Back to action choice",
+    turn = player.turns_taken,
     player = player,
     slot = slot,
     x_used = sel.x_tokens_used or 0,
@@ -123,6 +124,12 @@ end
 
 -- ---------------------------------------------------------------- Back
 
+-- An action-level snapshot committed earlier in THIS turn of this player (never older).
+function M.same_turn(snap, player)
+  return snap ~= nil and snap.kind == "action" and snap.player == player
+    and snap.turn == player.turns_taken and current_player == player
+end
+
 -- Association tasks 3/4/5 and Sponsors "Play a Sponsor Card": snapshot taken before the
 -- button is handled (owner request); Back returns to that choice
 function M.capture_task(player)
@@ -150,7 +157,7 @@ function M.capture_task(player)
   local fields = {}
   for k, v in pairs(player) do fields[k] = v end
   local parent = M.recent[color]
-  if parent ~= nil and parent.kind ~= "action" then parent = nil end
+  if not M.same_turn(parent, player) then parent = nil end
   return {
     kind = "task",
     label = "Back to association tasks",
@@ -228,6 +235,7 @@ function M.back(color)
   claims_players[color] = nil
   if snap.x_used > 0 then update_x_token(player, snap.x_used, "taking back their action choice") end
   seat_action_card(player, snap.slot)
+  if lock_display_cards then lock_display_cards() end   -- Animals/Sponsors II unlock display cards
   clear_player_panel(color)
   printToAll(player.steam_name .. " takes back their action choice.")
   create_action_selection_panel(player)

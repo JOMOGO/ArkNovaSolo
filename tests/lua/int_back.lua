@@ -12,6 +12,7 @@ local function human_turn()
   action_selection_state = { Red = { player = p, x_tokens_used = 0, x_token_active = false } }
   association_actions, build_actions, animal_actions, sponsor_actions = {}, {}, {}, {}
   display_cards = {}
+  Player = setmetatable({}, { __index = function() return { getHandObjects = function() return {} end } end })
   zones = setmetatable({}, { __index = function(t, k)
     local z = sim.fake("zone " .. k)
     local contents = {}
@@ -159,22 +160,66 @@ T.test("Sponsors: Play a Sponsor Card has Back to the sponsor choice", function(
   T.eq(back.pending.Red and back.pending.Red.kind, "action", "Back to action choice available again")
 end)
 
-T.test("Build: after 'Go back to building selection' the action Back returns", function()
-  local p = human_turn()
+local function build_choices_stub()
   sim.record("offer_build_choices", function(_, pl)
-    table.insert(pl.claims, { grouped = true, { button_text = "Build a Kiosk", async = true, function_call = function() end } })
+    table.insert(pl.claims, { grouped = true,
+      { button_text = "Build a Kiosk", async = true, function_call = function()
+          pl.pending_building = { tile_guid = sim.fake("kiosk tile").getGUID() }
+          set_player_panel(pl.color, '<Panel id="buildingPlacementPanel" height="120"><VerticalLayout><Text>Place</Text></VerticalLayout></Panel>')
+        end },
+      { button_text = "Build a Pavilion", async = true, function_call = function() end } })
     return true
   end)
+end
+
+T.test("Build: after 'Go back to building selection' the action Back returns", function()
+  local p = human_turn()
+  p.turns_taken = 4
+  build_choices_stub()
   on_action_card_button_clicked(nil, "Red_" .. slot_of(p, "BU"), nil)
   T.ok(back.pending.Red ~= nil)
-  note_player_interaction()                           -- choosing a building commits
-  T.eq(back.pending.Red, nil)
-  p.pending_building = { tile_guid = sim.fake("kiosk tile").getGUID() }
+  note_player_interaction()                           -- the mod's wrapper on every click
+  on_claim_button_clicked(nil, "Red_" .. claim_index(p, "Build a Kiosk"), nil)
+  T.eq(back.pending.Red, nil, "choosing a building commits")
+  T.ok(p.pending_building ~= nil)
+  note_player_interaction()
   on_building_placement_go_back(nil, "Red", nil)
   T.eq(back.pending.Red and back.pending.Red.kind, "action", "Back to action choice offered again")
   T.ok(active_panels.Red:find("Back to action choice", 1, true) ~= nil, "in the building list panel")
   arno_back_clicked(nil, "Red", nil)
   T.eq(build_actions.Red, nil)
+  T.eq(#sim.calls.create_action_selection_panel, 1)
+end)
+
+T.test("Build: no stale Back from an earlier turn", function()
+  local p = human_turn()
+  p.turns_taken = 4
+  build_choices_stub()
+  on_action_card_button_clicked(nil, "Red_" .. slot_of(p, "BU"), nil)
+  note_player_interaction()
+  p.turns_taken = 5                                   -- a later turn
+  p.pending_building = { tile_guid = sim.fake("tile").getGUID() }
+  on_building_placement_go_back(nil, "Red", nil)
+  T.eq(back.pending.Red, nil)
+end)
+
+T.test("Animals: selecting an animal card keeps Back until Confirm", function()
+  local p = human_turn()
+  sim.record("set_animal_action", function(_, pl)
+    animal_actions[pl.color] = { player = pl, phase = "pick", offers = {} }
+  end)
+  sim.record("render_animal_panel", function(_, pl)
+    set_player_panel(pl.color, '<Panel id="animalPanel" height="140"><VerticalLayout><Text>pick an animal</Text></VerticalLayout></Panel>')
+  end)
+  on_action_card_button_clicked(nil, "Red_" .. slot_of(p, "AN"), nil)
+  T.ok(back.pending.Red ~= nil)
+  local card = sim.fake("#401 animal")
+  handle_animal_pickup("Red", card)
+  onObjectPickUp("Red", card)
+  T.ok(back.pending.Red ~= nil, "still offered after selecting an animal")
+  T.ok(active_panels.Red:find("Back to action choice", 1, true) ~= nil, "button in the animal panel")
+  arno_back_clicked(nil, "Red", nil)
+  T.eq(animal_actions.Red, nil)
   T.eq(#sim.calls.create_action_selection_panel, 1)
 end)
 
