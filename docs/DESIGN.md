@@ -42,9 +42,8 @@ arno/
   ui/panel.lua            ARNO panel + log (via set_active_panel)
   main.lua                builds the global ARNO table, installs wrappers
   NOTICE.lua              Apache-2.0 header text reused by every arno/ file
-hooks/hooks.json          anchored text edits to Global.lua (inside function bodies, static panel text, data)
 tools/tts_extract.py      (done)  save → src/
-tools/tts_build.py        (done)  src/ → save; Phase 3 adds --arno/--hooks
+tools/tts_build.py        (done)  src/ → save; Phase 3 adds --arno
 tools/moonsharp/          tiny .NET runner using MoonSharp (TTS's interpreter) for tests
 tests/                    python (tools), lua (core + adapter fakes), harness (node vs TS)
 dist/                     build output (git-ignored)
@@ -72,10 +71,10 @@ dist/                     build output (git-ignored)
    (`Global.lua:18045`). At that point the file-local tables (`cnsts`,
    `CHECKPOINT_RESUMES`, `BREAK_RESUMES`, `HexBoard`) are in scope, and ARNO's `on_*`
    button handlers still get the mod's `note_player_interaction` wrapper.
-4. **Apply hooks** from `hooks/hooks.json`. Each hook is
-   `{id, why, find, replace}` against `Global.lua`, and `find` must match **exactly
-   once**, otherwise the build fails and names the hook. A mod update that moves code
-   therefore fails loudly instead of silently mis-patching.
+4. **Edits** to the mod's own code are made directly in `src/Global.lua`. The branch
+   `upstream` keeps the unedited extract; a mod update is committed there and merged, so
+   an edit under changed code is a merge conflict, and `tests/test_arno_build.py` checks
+   that every edit is still in the build.
 5. Set `SaveName` to "Ark Nova - Complete Scripted + ARNO 3.0" and write
    `dist/ArkNova_Scripted_ARNO.json` with the TTS-style serialiser.
 6. Validate: compile the generated `Global.lua` in MoonSharp (syntax and local-limit
@@ -101,10 +100,10 @@ create_action_selection_panel = function(player, only_action, multiplier, hypnos
 end
 ```
 
-Text edits (`hooks.json`) are used where behaviour inside a function body must change,
+Edits in `src/Global.lua` are used where behaviour inside a function body must change,
 and for the mod's static panel text and card data: a wrapper that copies a function body
 or rewrites the XML a function returns keeps running silently after a base-mod update,
-while an anchored edit fails the build. Planned hooks (the final list goes into `CHANGES.md`):
+while an edit there conflicts in the merge from `upstream`. Planned hooks (the final list goes into `CHANGES.md`):
 
 | # | Where | Kind | Purpose |
 |---|---|---|---|
@@ -391,7 +390,7 @@ The PDFs stay local and are not committed. Every entry becomes a named constant 
 |---|---|
 | A bot colour has nobody seated: `Player[color].getHandObjects` / `deal` behaviour | ARNO never uses a hand (H7, H8, H12). **Probe** to confirm no mod path reads the bot's hand; any that does gets a wrapper. |
 | Mod paths that assume human panels (draft, income, discards, map ready) | Each one is enumerated in MOD_ARCHITECTURE §15 and has a hook (H5–H8, H12, H14). TESTING covers each. |
-| Mod updates | Anchored hooks fail the build loudly. Wrappers for before/after behaviour, edits for anything inside a body or in the mod's static text. Re-run the tests. |
+| Mod updates | Merged from the `upstream` branch: edits under changed code conflict. Wrappers for before/after behaviour, edits for anything inside a body or in the mod's static text. Re-run the tests. |
 | Mid-turn async (mod Waits) vs ARNO plan | Plan steps run sequentially with completion callbacks. The turn finishes only after the last callback. |
 | MoonSharp numerics | Integer-safe PRNG, known-answer tests run in MoonSharp itself. |
 | `[absent]` rules | Rulings register with explicit constants and panel markers. |

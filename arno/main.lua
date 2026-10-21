@@ -2,7 +2,7 @@
 -- Port of brdgm/ark-nova-solo-helper (c) Stefan Seifert, Apache License 2.0.
 -- ARNO solo mode designed by Andre K. See NOTICE.
 --
--- Entry point: the global `ARNO` table used by the hook edits in hooks/hooks.json and by
+-- Entry point: the global `ARNO` table used by the edits in src/Global.lua and by
 -- the button handlers below. ARNO.install() is called once when the bundle loads.
 
 local ARNO = {}

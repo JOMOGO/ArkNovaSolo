@@ -22,7 +22,7 @@ M.capturing = nil       -- player whose break moves are being held back during t
 M.raw = {}              -- color -> panel XML as the mod rendered it (before our edits)
 M.shown = {}            -- color -> that panel as we put it on screen
 M.EXTRA_HEIGHT = 46
-M.COLOR = "#8A6D1F"     -- every Back button; also hard-coded in the mod's panels (hooks/hooks.json)
+M.COLOR = "#8A6D1F"     -- every Back button; also hard-coded in the mod's panels (src/Global.lua)
 
 local function copy_list(t)
   local out = {}

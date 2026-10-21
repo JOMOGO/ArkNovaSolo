@@ -1,7 +1,7 @@
 # Ark Nova - Complete Scripted (TTS v14.2.2): Mod Architecture
 
 Analysis of the extracted scripts in `src/` (from `mods/original/3812420704.json`, see `src/manifest.json`).
-All references are `src/Global.lua:<line>` unless stated otherwise. Written as groundwork for integrating an
+All references are `src/Global.lua:<line>` of the unedited extract (branch `upstream`) unless stated otherwise. Written as groundwork for integrating an
 automated ARNO opponent (Yellow) against a human (Red).
 
 Conventions used below:

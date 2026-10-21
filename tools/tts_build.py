@@ -8,9 +8,9 @@ The base save is only read.
 Serialisation mimics TTS (2-space indent, CRLF, non-ASCII kept, each float written
 with its original text), so an unchanged extract rebuilds byte-identically.
 
-With --arno, Global.lua additionally gets the anchored edits from hooks/hooks.json and
-the bundled arno/ modules (inserted before the mod's on_* interaction wrapper), and the
-result is compile-checked under MoonSharp. See docs/DESIGN.md §3-4.
+With --arno, Global.lua additionally gets the bundled arno/ modules (inserted before the
+mod's on_* interaction wrapper), and the result is compile-checked under MoonSharp.
+See docs/DESIGN.md §3-4.
 """
 from __future__ import annotations
 
@@ -89,27 +89,12 @@ def install_to_saves(built: Path, saves_dir: Path) -> Path | None:
     return target
 
 
-def apply_hooks(text: str, hooks_file: Path) -> tuple[str, list[str]]:
-    """Apply anchored edits; each `find` must occur exactly once."""
-    spec = json.loads(hooks_file.read_text(encoding="utf-8"))
-    applied = []
-    for hook in spec["hooks"]:
-        count = text.count(hook["find"])
-        if count != 1:
-            raise SystemExit(f"hook {hook['id']}: anchor found {count} times (expected 1); "
-                             "the base mod changed - update hooks/hooks.json")
-        text = text.replace(hook["find"], hook["replace"])
-        applied.append(hook["id"])
-    return text, applied
-
-
-def arno_global(src: Path, hooks_file: Path, card_images: str = "") -> str:
-    """Base Global.lua + hooks + ARNO bundle (+ the ARNO card image table, if any)."""
+def arno_global(src: Path, card_images: str = "") -> str:
+    """src/Global.lua + ARNO bundle (+ the ARNO card image table, if any)."""
     sys.path.insert(0, str(ROOT / "tools"))
     import lua_bundle
     with open(src / "Global.lua", encoding="utf-8", newline="") as f:
         text = f.read()
-    text, _ = apply_hooks(text, hooks_file)
     if text.count(BUNDLE_ANCHOR) != 1:
         raise SystemExit("bundle anchor (local handler_names = {}) not found exactly once")
     bundle = lua_bundle.bundle(packages=("core", "adapter", "ui", "main"),
@@ -136,8 +121,7 @@ def main(argv=None) -> int:
     ap.add_argument("--src", type=Path, default=Path("src"), help="extracted script dir (default: src)")
     ap.add_argument("--out", type=Path, required=True, help="output save JSON")
     ap.add_argument("--save-name", help="override SaveName")
-    ap.add_argument("--arno", action="store_true", help="add ARNO (hooks + bundle) to Global.lua")
-    ap.add_argument("--hooks", type=Path, default=ROOT / "hooks" / "hooks.json")
+    ap.add_argument("--arno", action="store_true", help="add the ARNO bundle to Global.lua")
     ap.add_argument("--no-install", action="store_true",
                     help="with --arno: do not copy the result to the TTS Saves folder")
     args = ap.parse_args(argv)
@@ -151,8 +135,7 @@ def main(argv=None) -> int:
         # images next to the Saves folder when installing (TTS loads them from there)
         local = (ROOT / "build" / "arno_cards") if args.no_install or not saves.is_dir()             else saves.parent / "ARNO_cards"
         urls = arno_cards.card_urls(local)
-        overrides["Global.lua"] = arno_global(args.src, args.hooks,
-                                              arno_cards.lua_table(urls) if urls else "")
+        overrides["Global.lua"] = arno_global(args.src, arno_cards.lua_table(urls) if urls else "")
         compile_check(overrides["Global.lua"])
         save_name = save_name or ARNO_SAVE_NAME
     data = build(args.base, args.src, overrides=overrides, save_name=save_name)

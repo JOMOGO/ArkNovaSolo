@@ -6,8 +6,8 @@
 -- wrapper (so ARNO's on_* handlers are wrapped too). Every wrapper is a no-op unless an
 -- ARNO is in the game (state.active()), so a game without ARNO behaves like the base mod,
 -- except the human conveniences H20/H21 (owner requests), which apply in every game.
--- Changes inside a mod function's body or to its static panel text are anchored edits in
--- hooks/hooks.json instead, so an update of the base mod that touches one fails the build.
+-- Changes inside a mod function's body or to its static panel text are edits in
+-- src/Global.lua instead (`git diff upstream -- src` lists them).
 -- Each wrapper and edit is listed in CHANGES.md.
 
 local state = require("adapter.state")
@@ -95,7 +95,7 @@ function M.install(ARNO)
   end)
 
   -- H16: ARNO has no hand; loops over all hands treat him as an empty, unchanging hand
-  -- (wait_for_all_hand_counts is guarded by an edit in hooks/hooks.json)
+  -- (wait_for_all_hand_counts is guarded by an edit in src/Global.lua)
   wrap("H16", "other_hand_counts", function(orig)
     return function(color, index)
       local counts = orig(color, index)

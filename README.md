@@ -34,32 +34,51 @@ the base mod. The original Workshop file is not modified.
 Requires Python 3.11+ with Pillow, and the .NET SDK 9+.
 
 ```
-python tools/tts_extract.py mods/original/3812420704.json --out src     # only after a base-mod update
 python tools/tts_build.py mods/original/3812420704.json --arno --out dist/ArkNova_Scripted_ARNO.json
 ```
 
+`src/` holds the base mod's scripts with this project's edits in place (CHANGES.md §1).
+The branch `upstream` holds them exactly as extracted from the base mod, so this shows
+every edit:
+
+```
+git diff upstream -- src
+```
+
 The build:
-1. applies `hooks/hooks.json` (it fails if the base mod changed under an anchor);
-2. bundles `arno/`;
-3. compile-checks the result under MoonSharp (TTS's Lua);
-4. changes only the Global script and SaveName;
-5. cuts ARNO's real action cards from `reference/ARNO_3.0_Cards_EN.pdf` into two 4x2
+1. takes `src/Global.lua` and bundles `arno/` into it;
+2. compile-checks the result under MoonSharp (TTS's Lua);
+3. changes only the Global script and SaveName;
+4. cuts ARNO's real action cards from `reference/ARNO_3.0_Cards_EN.pdf` into two 4x2
    sheets (`arno_cards_1.jpg` = side I, `arno_cards_2.jpg` = side II) in
    `Documents\My Games\Tabletop Simulator\ARNO_cards\` (local `file:///` images, visible on
    this PC only). For hosted sheets (for example Steam Cloud, so other players see them),
    upload those two files and put their URLs in `tools/arno_card_urls.json`
    (`{"face": "...", "back": "..."}`). Without the PDF, ARNO keeps the mod's action cards.
    A copy of the sheets is kept in `assets/arno_cards/` (not used by the build);
-6. copies the result into the TTS Saves folder (override the folder with `ARNO_TTS_SAVES`,
+5. copies the result into the TTS Saves folder (override the folder with `ARNO_TTS_SAVES`,
    skip the copy with `--no-install`).
 
-**Updating to a new base-mod version:**
-1. Copy the new Workshop JSON to `mods/original/`.
-2. Re-extract.
-3. Rebuild.
-4. Run the tests.
+**Updating to a new base-mod version:** the new version goes onto `upstream`, then
+`upstream` is merged into `master`. Git carries the edits over and stops with a conflict
+where the mod author changed the same lines. From the repo root:
 
-If a hook anchor no longer matches, the build names it.
+```
+git worktree add ../ArkNovaSolo-upstream upstream
+# copy the new Workshop JSON over ../ArkNovaSolo-upstream/mods/original/3812420704.json
+python tools/tts_extract.py ../ArkNovaSolo-upstream/mods/original/3812420704.json --out ../ArkNovaSolo-upstream/src
+git -C ../ArkNovaSolo-upstream add -A
+git -C ../ArkNovaSolo-upstream commit -m "Base mod vX.Y.Z"
+git worktree remove ../ArkNovaSolo-upstream
+git merge upstream
+python tools/run_tests.py
+```
+
+Use the extractor from `master` (as above), not the one in the worktree. Resolve conflicts
+in `src/Global.lua` by keeping the author's new code and re-applying the edit (CHANGES.md
+§1 says what each one is for). A merge without conflicts can still land an edit next to
+changed code, so run the tests: `tests/test_arno_build.py` checks that every edit is in the
+build.
 
 ## Test
 

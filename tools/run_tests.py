@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Run every test suite of this repo.
 
-  1. Python tool tests (extract / build round trip / hooks)        tests/test_*.py
+  1. Python tool tests (extract / build round trip / edits)        tests/test_*.py
   2. the helper app's own unit tests (vitest, original TS)          --skip-node to skip
   3. the differential reference: original TS with seeded RNG        -> build/harness/ts_reference.json
   4. generated data is current (arno/core/cards_data.lua)
@@ -165,9 +165,9 @@ def main(argv=None) -> int:
         if run(["dotnet", MOONRUN, suite]):
             failures.append(test_file.name)
 
-    # integration tests: the BUILT Global.lua (mod + hooks + ARNO bundle) executed headless
+    # integration tests: the BUILT Global.lua (mod + edits + ARNO bundle) executed headless
     import tts_build
-    built = tts_build.arno_global(ROOT / "src", ROOT / "hooks" / "hooks.json")
+    built = tts_build.arno_global(ROOT / "src")
     stubs = (ROOT / "tests" / "lua" / "tts_stubs.lua").read_text(encoding="utf-8")
     sim = (ROOT / "tests" / "lua" / "sim_lib.lua").read_text(encoding="utf-8")
     lib = (ROOT / "tests" / "lua" / "lib.lua").read_text(encoding="utf-8")

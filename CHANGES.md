@@ -3,13 +3,14 @@
 `dist/ArkNova_Scripted_ARNO.json` differs from the base save
 (`mods/original/3812420704.json`, mod v14.2.2) in **only two fields**: the Global
 `LuaScript` and `SaveName`. Objects, assets, positions and object scripts are byte-identical.
-This is checked by the build (see README).
+This is checked by `tests/test_arno_build.py`, which also catches an accidental edit to an
+object script under `src/objects/`.
 
 The Global script is the base script plus:
-1. **anchored text edits** (`hooks/hooks.json`, 18). Each anchor must occur exactly once,
-   otherwise the build fails. They are used for changes **inside** a function body and to
-   the mod's static panel text and card data, so a base-mod update under one of them fails
-   the build instead of silently undoing it;
+1. **edits** made directly in `src/Global.lua` (§1; `git diff upstream -- src` shows
+   them). They are used for changes **inside** a function body and to the mod's static
+   panel text and card data. A base-mod update is merged in from the `upstream` branch, so
+   an edit under changed code shows up as a merge conflict (see README);
 2. the **ARNO bundle** (`arno/**/*.lua`), inserted just before the base mod's `on_*`
    interaction wrapper (`local handler_names = {}`);
 3. **wrappers** that the bundle installs at load time around existing global functions,
@@ -19,7 +20,7 @@ The Global script is the base script plus:
    buttons) and H21 (Cancel shown as Back, bonus build back to the action panel) apply in **every** game, also without ARNO; otherwise a game without ARNO
    behaves exactly like the base mod.
 
-## 1. Text edits (`hooks/hooks.json`)
+## 1. Edits to `src/Global.lua`
 
 | ID | Location (base `Global.lua`) | Edit | Why |
 |---|---|---|---|

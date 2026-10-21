@@ -2433,7 +2433,7 @@ cnsts.cards.base = {
   [468] = {type="animal", size=1, cost=15, icons={"primate", "america"}, conditions={"research", "research"}, rewards={"1 rep", "1 cp", "4 appeal"}},
   [469] = {type="animal", size=5, cost=13, icons={"reptile", "africa", "water"}, conditions={"reptile", "reptile", "reptile"}, enclosure={repthouse=3}, rewards={"9 appeal", "snap 2"}},
   [470] = {type="animal", size=2, cost=13, icons={"reptile", "africa"}, conditions={"reptile", "africa"}, enclosure={repthouse=1}, rewards={"6 appeal", "venom 2"}},
-  [471] = {type="animal", size=3, cost=22, icons={"reptile", "africa"}, rewards={"1 cp", "6 appeal", "sunbathing 3"}},
+  [471] = {type="animal", size=3, cost=22, icons={"reptile", "africa"}, enclosure={repthouse=2}, rewards={"1 cp", "6 appeal", "sunbathing 3"}},
   [472] = {type="animal", size=2, cost=12, icons={"reptile", "africa", "rock"}, enclosure={repthouse=1}, rewards={"5 appeal", "sunbathing 3"}},
   [473] = {type="animal", size=1, cost=9, icons={"reptile", "africa"}, enclosure={repthouse=0}, rewards={"3 appeal", "sunbathing 2"}},
   [474] = {type="animal", size=2, cost=14, icons={"reptile", "asia"}, conditions={"reptile", "reptile"}, enclosure={repthouse=1}, rewards={"7 appeal", "constriction"}},
@@ -4037,6 +4037,7 @@ function setup_game()
   for _, player in ipairs(seated_game_players()) do
     table.insert(players, { color = player.color, steam_name = player.steam_name })
   end
+  if ARNO then ARNO.setup.add_bots(players) end
 
   local attribute_tables = cnsts.player_object_tables
 
@@ -4217,7 +4218,7 @@ function continue_setup_game()
     color_order = { "Yellow", "Blue", "Red", "White" }
   end
 
-  local starting_player = players[math.random(#players)]
+  local starting_player = (ARNO and ARNO.setup.starting_player(players)) or players[math.random(#players)]
 
   local starting_index = 1
   for i, color in ipairs(color_order) do
@@ -7063,7 +7064,7 @@ end
 function destruct_action_card_decks()
   for _, zones in pairs(cnsts.action_card_init_zones) do
     for _, guid in pairs(zones) do
-      getDeck(getObjectFromGUID(guid)).destruct()
+      local zone = getObjectFromGUID(guid); local deck = zone and getDeck(zone); if deck ~= nil then deck.destruct() end
     end
   end
 end
@@ -8052,8 +8053,8 @@ function selection_panel_xml(color, state)
   if state.action == "sell" or state.action == "pouch"
      or state.action == "optional discard" or state.action == "glide discard" then
     cancel_button = string.format([[
-      <Button id="selectionCancelButton_%s" onClick="on_card_selection_cancel_clicked(%s)" fontSize="18" width="120" height="36" minHeight="36" color="#C61715" textColor="#FFFFFF">%s</Button>
-    ]], color, color, SELECTION_BAIL_LABEL[state.action] or "Cancel")
+      <Button id="selectionCancelButton_%s" onClick="on_card_selection_cancel_clicked(%s)" fontSize="18" width="120" height="36" minHeight="36" color="%s" textColor="#FFFFFF">%s</Button>
+    ]], color, color, SELECTION_BAIL_LABEL[state.action] and "#C61715" or "#8A6D1F", SELECTION_BAIL_LABEL[state.action] or "Back")
     height = 350
   end
 
@@ -8343,7 +8344,7 @@ function start_game()
     end)
   end, 2)
 
-  local expected_discards = 4 * #players
+  local expected_discards = (ARNO and ARNO.setup.expected_discards(players)) or 4 * #players
   Wait.condition(
     function()
       discard_pile = getByType(getObjectFromGUID(cnsts.discard_pile_zone), "Deck")
@@ -9295,7 +9296,7 @@ function project_support_panel_xml(color, state)
   end
   local function cancel()
     text("")
-    button("on_project_support_cancel_clicked", color, "Cancel", "#C61715")
+    button("on_project_support_cancel_clicked", color, "Back", "#8A6D1F")
   end
 
   if state.chosen == nil then
@@ -9935,7 +9936,7 @@ function extra_shift_panel_xml(color, state)
 
   body = body .. string.format([[
     <Text fontSize="18" color="#FFFFFF"></Text>
-    <Button id="extraShiftCancelButton_%s" onClick="on_extra_shift_cancel_clicked(%s)" fontSize="16" width="240" height="34" minHeight="34" color="#C61715" textColor="#FFFFFF">Cancel</Button>
+    <Button id="extraShiftCancelButton_%s" onClick="on_extra_shift_cancel_clicked(%s)" fontSize="16" width="240" height="34" minHeight="34" color="#8A6D1F" textColor="#FFFFFF">Back</Button>
   ]], color, color)
   height = height + 30 + 40
 
@@ -10129,10 +10130,10 @@ function action_selection_panel_xml(color, state, persistent_buttons, persistent
     pass_height = 30 + 40
   end
 
-  local height = 370 + separator_height + persistent_count * 40 + persistent_extra
+  local height = 392 + separator_height + persistent_count * 40 + persistent_extra
     + pass_height
   return string.format([[
-    <Panel id="actionSelectionPanel_%s" visibility="%s" rectAlignment="MiddleRight" offsetXY="-60 0" width="260" height="%d" color="#222222DD">
+    <Panel id="actionSelectionPanel_%s" visibility="%s" rectAlignment="MiddleRight" offsetXY="0 0" width="260" height="%d" color="#222222DD">
       <VerticalLayout spacing="6" padding="8 8 8 8" childAlignment="UpperCenter" childForceExpandHeight="false">
         <Text fontSize="18" color="#FFFFFF">%s</Text>
         <Text fontSize="18" color="#FFFFFF"></Text>
@@ -10148,6 +10149,7 @@ function action_selection_panel_xml(color, state, persistent_buttons, persistent
         </HorizontalLayout>
         %s
         %s
+        <Text fontSize="12" color="#BBBBBB" minHeight="16">Undo later choices: press the rewind arrow twice.</Text>
       </VerticalLayout>
     </Panel>
   ]], color, color, height,
@@ -10551,7 +10553,7 @@ end
 
 function wait_for_all_hand_counts(index, count, callback)
   Wait.condition(callback, function()
-    for _, player in ipairs(players) do
+    for _, player in ipairs((ARNO and ARNO.setup.humans(players)) or players) do
       local want = (type(count) == "function") and count(player) or count
       if #Player[player.color].getHandObjects(index) ~= want then return false end
     end
@@ -13556,8 +13558,8 @@ function claims_panel_xml(color, sub_table, persistent_buttons, persistent_count
     buttons = buttons .. [[<Text fontSize="18" color="#FFFFFF"></Text>]]
     separator_height = separator_height + 30
     buttons = buttons .. string.format([[
-      <Button id="claimPassButton_%s" onClick="on_claim_pass_clicked(%s)" fontSize="16" width="240" height="34" minHeight="34" color="#C61715" textColor="#FFFFFF">%s</Button>
-    ]], color, color, sub_table.cancel and "Cancel" or "Pass")
+      <Button id="claimPassButton_%s" onClick="on_claim_pass_clicked(%s)" fontSize="16" width="240" height="34" minHeight="34" color="%s" textColor="#FFFFFF">%s</Button>
+    ]], color, color, sub_table.cancel and "#8A6D1F" or "#C61715", sub_table.cancel and "Back" or "Pass")
     button_count = button_count + 1
   end
 
@@ -13972,7 +13974,7 @@ function show_trade_panel(player, host, offer)
 
   parts[#parts + 1] = [[<Text fontSize="18" color="#FFFFFF"></Text>]]
   parts[#parts + 1] = string.format([[
-    <Button id="tradeCancelButton_%s" onClick="on_trade_cancel_clicked(%s)" fontSize="16" width="240" height="34" minHeight="34" color="#C61715" textColor="#FFFFFF">Cancel</Button>
+    <Button id="tradeCancelButton_%s" onClick="on_trade_cancel_clicked(%s)" fontSize="16" width="240" height="34" minHeight="34" color="#8A6D1F" textColor="#FFFFFF">Back</Button>
   ]], color, color .. "|" .. host)
   height = height + 26 + 40
 
@@ -14155,7 +14157,7 @@ function marketing_panel_xml(color, state)
 
   if state.cancellable then
     body = body .. string.format([[
-      <Button id="marketingCancelButton_%s" onClick="on_marketing_cancel_clicked(%s)" fontSize="16" width="240" height="34" minHeight="34" color="#C61715" textColor="#FFFFFF">Cancel</Button>
+      <Button id="marketingCancelButton_%s" onClick="on_marketing_cancel_clicked(%s)" fontSize="16" width="240" height="34" minHeight="34" color="#8A6D1F" textColor="#FFFFFF">Back</Button>
     ]], color, color)
     height = height + 40
   end
@@ -17014,7 +17016,7 @@ function cut_down_panel_xml(color, state)
 
   parts[#parts + 1] = string.format([[
     <Text fontSize="18" color="#FFFFFF"></Text>
-    <Button id="cutDownCancelButton_%s" onClick="on_cut_down_cancel_clicked(%s)" fontSize="16" width="240" height="34" minHeight="34" color="#C61715" textColor="#FFFFFF">Cancel</Button>
+    <Button id="cutDownCancelButton_%s" onClick="on_cut_down_cancel_clicked(%s)" fontSize="16" width="240" height="34" minHeight="34" color="#8A6D1F" textColor="#FFFFFF">Back</Button>
   ]], color, color)
   height = height + 26 + 40
 
@@ -17099,14 +17101,14 @@ function show_building_placement_panel(player, can_confirm)
     ]], color, color)
   end
 
-  local go_back_label = "Go back to\nbuilding selection"
+  local go_back_label = "Back to\nbuilding selection"
 
   local xml = string.format([[
     <Panel id="buildingPlacementPanel_%s" visibility="%s" rectAlignment="MiddleRight" width="280" height="%d" color="#222222DD">
       <VerticalLayout spacing="8" padding="8 8 8 8" childAlignment="MiddleCenter" childForceExpandHeight="false">
         <Text fontSize="18" color="#FFFFFF">Place the building on your map.</Text>
         %s
-        <Button id="buildingPlacementGoBackButton_%s" onClick="on_building_placement_go_back(%s)" fontSize="16" width="240" height="52" minHeight="52" color="#C61715" textColor="#FFFFFF">%s</Button>
+        <Button id="buildingPlacementGoBackButton_%s" onClick="on_building_placement_go_back(%s)" fontSize="16" width="240" height="52" minHeight="52" color="#8A6D1F" textColor="#FFFFFF">%s</Button>
       </VerticalLayout>
     </Panel>
   ]], color, color, can_confirm and 162 or 120, confirm_button, color, color, go_back_label)
