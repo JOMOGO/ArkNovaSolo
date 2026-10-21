@@ -6,7 +6,7 @@
 This is checked by the build (see README).
 
 The Global script is the base script plus:
-1. three **one-line text edits** (`hooks/hooks.json`). Each anchor must occur exactly once,
+1. four **one-line text edits** (`hooks/hooks.json`). Each anchor must occur exactly once,
    otherwise the build fails;
 2. the **ARNO bundle** (`arno/**/*.lua`), inserted just before the base mod's `on_*`
    interaction wrapper (`local handler_names = {}`);
@@ -23,6 +23,7 @@ The Global script is the base script plus:
 | H2 | `setup_game`, after `players` is built from seated players (~4039) | `if ARNO then ARNO.setup.add_bots(players) end` | ARNO entries join `players` before the per-colour component loop, so their colours keep boards, counters and tokens |
 | H3 | `continue_setup_game`, start player (~4219) | `(ARNO and ARNO.setup.starting_player(players)) or players[math.random(#players)]` | ARNO 3.0: a human is always the start player |
 | H8 | `start_game`, `expected_discards` (~8346) | `(ARNO and ARNO.setup.expected_discards(players)) or 4 * #players` | humans discard 4 each; ARNO discards the cards he doesn't keep |
+| FIX471 | `cnsts.cards.base`, card 471 (~2436) | adds `enclosure={repthouse=2}` | **base-mod data fix, every game:** African Spurred Tortoise was missing its Reptile House option (printed card: Reptile House 2) |
 
 ## 2. Wrappers (installed by `arno/adapter/hooks.lua` and `arno/adapter/apply.lua`)
 
@@ -69,4 +70,4 @@ The Global script is the base script plus:
 ## 4. Not changed
 
 The base mod's rules for humans, object scripts, assets, decks, positions and the official
-solo challenge (1 human, no ARNO) are not changed.
+solo challenge (1 human, no ARNO) are not changed (apart from the card 471 data fix FIX471).

@@ -19,6 +19,7 @@ class ArnoBuildTest(unittest.TestCase):
         original = json.loads(BASE.read_bytes())
         self.assertIn("-- BEGIN ARNO BUNDLE", built["LuaScript"])
         self.assertIn("ARNO.setup.add_bots(players)", built["LuaScript"])
+        self.assertIn('[471] = {type="animal", size=3, cost=22, icons={"reptile", "africa"}, enclosure={repthouse=2},', built["LuaScript"])
         self.assertEqual(built["SaveName"], tts_build.ARNO_SAVE_NAME)
         built["LuaScript"], built["SaveName"] = original["LuaScript"], original["SaveName"]
         self.assertEqual(built, original)

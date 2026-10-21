@@ -18,6 +18,12 @@
       "why": "start_game waits for 4 discards per player; humans discard 4, ARNO discards his setup cards (not 4).",
       "find": "  local expected_discards = 4 * #players\n",
       "replace": "  local expected_discards = (ARNO and ARNO.setup.expected_discards(players)) or 4 * #players\n"
+    },
+    {
+      "id": "FIX471",
+      "why": "Card 471 African Spurred Tortoise: the base data lacks its Reptile House option (printed card: Reptile House 2, like the other size-3 reptiles 476/481). Upstream mod fix, applied in every game.",
+      "find": "  [471] = {type=\"animal\", size=3, cost=22, icons={\"reptile\", \"africa\"}, rewards={\"1 cp\", \"6 appeal\", \"sunbathing 3\"}},\n",
+      "replace": "  [471] = {type=\"animal\", size=3, cost=22, icons={\"reptile\", \"africa\"}, enclosure={repthouse=2}, rewards={\"1 cp\", \"6 appeal\", \"sunbathing 3\"}},\n"
     }
   ]
 }
