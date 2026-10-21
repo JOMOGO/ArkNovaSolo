@@ -22,8 +22,7 @@ M.capturing = nil       -- player whose break moves are being held back during t
 M.raw = {}              -- color -> panel XML as the mod rendered it (before our edits)
 M.shown = {}            -- color -> that panel as we put it on screen
 M.EXTRA_HEIGHT = 46
-M.COLOR = "#8A6D1F"
-local CANCEL_RED = "#C61715"
+M.COLOR = "#8A6D1F"     -- every Back button; also hard-coded in the mod's panels (hooks/hooks.json)
 
 local function copy_list(t)
   local out = {}
@@ -101,9 +100,8 @@ function M.add_button(color, xml)
   return string.sub(grown, 1, pos - 1) .. button .. string.sub(grown, pos)
 end
 
--- Owner request: the mod's red "Cancel" buttons only ever go back one step, so they look
--- and read like Back (same handler); "Go back to building selection" gets the Back colour.
--- Red "Pass" buttons stay: passing is a game choice, not a way back.
+-- Besides ours, the mod's panels have their own one-step Back buttons and red "Pass"
+-- buttons. Pass is a game choice, not a way back, so it is never touched.
 -- (plain finds: TTS's MoonSharp rejects patterns like <Button[^>]-...[^>]*>)
 
 -- each <Button ...>...</Button> passed to fn; a string result replaces it
@@ -123,29 +121,16 @@ local function map_buttons(xml, fn)
   return table.concat(out)
 end
 
-local RED = 'color="' .. CANCEL_RED .. '"'
-local function red_cancel(b) return b:find(RED, 1, true) and b:find(">Cancel</Button>", 1, true) end
+-- one of the mod's one-step Back buttons (not ours; "Back to building selection" is kept)
+local MOD_BACK = 'color="' .. M.COLOR .. '" textColor="#FFFFFF">Back</Button>'
+local function mod_back(b) return b:find(MOD_BACK, 1, true) and not b:find('id="arnoBack_', 1, true) end
 
-local function recolor(b) return (b:gsub(RED, 'color="' .. M.COLOR .. '"', 1)) end
-
-function M.restyle(xml)
-  if type(xml) ~= "string" then return xml end
-  return map_buttons(xml, function(b)
-    if red_cancel(b) then
-      return (recolor(b):gsub(">Cancel</Button>", ">Back</Button>", 1))
-    end
-    if b:find('id="buildingPlacementGoBackButton_', 1, true) and b:find(RED, 1, true) then
-      return (recolor(b):gsub(">Go back to", ">Back to", 1))
-    end
-  end)
-end
-
--- while our Back is offered the mod's Cancel would be a second (and weaker) way back:
+-- while our Back is offered the mod's one-step Back would be a second, weaker way back:
 -- drop it and give its height back to the panel
 local function drop_cancel(xml)
   local freed = 0
   local out = map_buttons(xml, function(b)
-    if freed == 0 and red_cancel(b) then
+    if freed == 0 and mod_back(b) then
       freed = (tonumber(b:match(' height="(%d+)"')) or 34) + 6
       return ""
     end
@@ -155,13 +140,10 @@ local function drop_cancel(xml)
     function(head, ph, tail) return head .. (tonumber(ph) - freed) .. tail end, 1))
 end
 
--- the panel as shown: restyled, and with our Back (in place of the mod's Cancel) if offered
+-- the panel as shown: with our Back (in place of the mod's) if offered
 function M.decorate(color, xml)
-  if type(xml) ~= "string" then return xml end
-  if M.pending[color] ~= nil then xml = drop_cancel(xml) end
-  xml = M.restyle(xml)
-  if M.pending[color] ~= nil then xml = M.add_button(color, xml) end
-  return xml
+  if type(xml) ~= "string" or M.pending[color] == nil then return xml end
+  return M.add_button(color, drop_cancel(xml))
 end
 
 function M.strip_button(color, xml)
@@ -180,7 +162,7 @@ local function rerender(color, transform)
   if xml == nil then return end
   local new
   if xml == M.shown[color] and M.raw[color] ~= nil then
-    new = M.decorate(color, M.raw[color])   -- rebuilt from the mod's XML: brings Cancel back
+    new = M.decorate(color, M.raw[color])   -- rebuilt from the mod's XML, so its own Back returns
     M.shown[color] = new
   else
     new = transform(color, xml)

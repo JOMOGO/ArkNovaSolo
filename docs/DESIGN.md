@@ -42,7 +42,7 @@ arno/
   ui/panel.lua            ARNO panel + log (via set_active_panel)
   main.lua                builds the global ARNO table, installs wrappers
   NOTICE.lua              Apache-2.0 header text reused by every arno/ file
-hooks/hooks.json          anchored text edits to Global.lua (only where wrapping can't work)
+hooks/hooks.json          anchored text edits to Global.lua (inside function bodies, static panel text, data)
 tools/tts_extract.py      (done)  save → src/
 tools/tts_build.py        (done)  src/ → save; Phase 3 adds --arno/--hooks
 tools/moonsharp/          tiny .NET runner using MoonSharp (TTS's interpreter) for tests
@@ -101,8 +101,10 @@ create_action_selection_panel = function(player, only_action, multiplier, hypnos
 end
 ```
 
-Text edits (`hooks.json`) are used only where behaviour inside a function body must
-change. Planned hooks (the final list goes into `CHANGES.md`):
+Text edits (`hooks.json`) are used where behaviour inside a function body must change,
+and for the mod's static panel text and card data: a wrapper that copies a function body
+or rewrites the XML a function returns keeps running silently after a base-mod update,
+while an anchored edit fails the build. Planned hooks (the final list goes into `CHANGES.md`):
 
 | # | Where | Kind | Purpose |
 |---|---|---|---|
@@ -120,10 +122,10 @@ change. Planned hooks (the final list goes into `CHANGES.md`):
 | H12 | `break_phase_discard` (12165), `start_income_phase` (12313) | wrapper | ARNO has no hand limit and no income; ARNO's income slot runs his **break draw** (OUT-15) |
 | H13 | `leader_candidates`, `constriction`, `pilfering` targets (8616, 7295, 8732) | wrapper | ARNO is never a target |
 | H14 | `start_final_scoring_discard` (4586), `start_final_scoring` / `score_all_players` (12954, 12986) | wrapper | ARNO skips the final-scoring discard and card scoring; gets token CP (OUT-16) |
-| H16 | hand guards: `wait_for_all_hand_counts`, `other_hand_counts`, `other_hands_unchanged`, `final_scoring_cards`, `player_hand_cards`, plus the all-player loops in `start_setup_discard`, `break_phase_discard`, `start_final_scoring` (covered by H8/H12/H14) | wrapper | ARNO has no hand. Every site that loops over all players' hands, or reads another player's hand, treats an ARNO as an empty hand that never changes. The TTS docs say hand zones are owned by the colour, so reading them unseated is probably fine, but this is not documented. The guards make the mod independent of that. Hand reads inside a player's own action (pouch, magnet, snap, digging, store, …) are unreachable for ARNO, because he never takes human actions and H11 filters draw/snap rewards. |
+| H16 | hand guards: `wait_for_all_hand_counts`, `other_hand_counts`, `other_hands_unchanged`, `final_scoring_cards`, `player_hand_cards`, plus the all-player loops in `start_setup_discard`, `break_phase_discard`, `start_final_scoring` (covered by H8/H12/H14) | wrapper; **text edit** for `wait_for_all_hand_counts` | ARNO has no hand. Every site that loops over all players' hands, or reads another player's hand, treats an ARNO as an empty hand that never changes. The TTS docs say hand zones are owned by the colour, so reading them unseated is probably fine, but this is not documented. The guards make the mod independent of that. Hand reads inside a player's own action (pouch, magnet, snap, digging, store, …) are unreachable for ARNO, because he never takes human actions and H11 filters draw/snap rewards. |
 | H17 | `game_winners` (13000) | wrapper | ARNO wins ties against humans (R16) |
 | H18 | the mod's Franchise Business (265) kiosk count | wrapper | ARNO's kiosk count = module tracker value, else 0 (R14) |
-| H19 | action selection panel XML (`action_selection_panel_xml`, 10082) | wrapper | **Owner request:** a hint line "Undo this action: press the rewind arrow ◀ twice" for humans. No change to game logic. |
+| H19 | action selection panel XML (`action_selection_panel_xml`, 10082) | **text edits** | **Owner request:** a hint line "Undo this action: press the rewind arrow ◀ twice" for humans. No change to game logic. |
 | H15 | `cnsts.saved_globals`, `cnsts.saved_player_fields` | text edit or bundle append (file-local `cnsts` is in scope at the bundle) | persist `arno_state` and `players[i].is_arno` |
 
 **Rule of thumb for review:** every hook is a single call into `ARNO.*`. No ARNO logic is
@@ -389,7 +391,7 @@ The PDFs stay local and are not committed. Every entry becomes a named constant 
 |---|---|
 | A bot colour has nobody seated: `Player[color].getHandObjects` / `deal` behaviour | ARNO never uses a hand (H7, H8, H12). **Probe** to confirm no mod path reads the bot's hand; any that does gets a wrapper. |
 | Mod paths that assume human panels (draft, income, discards, map ready) | Each one is enumerated in MOD_ARCHITECTURE §15 and has a hook (H5–H8, H12, H14). TESTING covers each. |
-| Mod updates | Anchored hooks fail the build loudly. Prefer wrappers. Re-run the tests. |
+| Mod updates | Anchored hooks fail the build loudly. Wrappers for before/after behaviour, edits for anything inside a body or in the mod's static text. Re-run the tests. |
 | Mid-turn async (mod Waits) vs ARNO plan | Plan steps run sequentially with completion callbacks. The turn finishes only after the last callback. |
 | MoonSharp numerics | Integer-safe PRNG, known-answer tests run in MoonSharp itself. |
 | `[absent]` rules | Rulings register with explicit constants and panel markers. |

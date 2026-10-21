@@ -305,6 +305,19 @@ T.test("a red Cancel is shown as Back (same handler); red Pass stays", function(
     "Go back to building selection in the Back look")
 end)
 
+T.test("panels with a Cancel-or-Pass button: Cancel is Back, Pass stays red", function()
+  local BACK = 'color="' .. back.COLOR .. '" textColor="#FFFFFF">Back</Button>'
+  local PASS = 'color="#C61715" textColor="#FFFFFF">Pass</Button>'
+  local sell = selection_panel_xml("Red", { action = "sell", num = 1, selected = {} })
+  T.ok(sell:find(BACK, 1, true) ~= nil and sell:find(PASS, 1, true) == nil, "sell: Back")
+  local glide = selection_panel_xml("Red", { action = "glide discard", num = 1, selected = {} })
+  T.ok(glide:find(PASS, 1, true) ~= nil and glide:find(BACK, 1, true) == nil, "glide discard: red Pass")
+  local cancellable = claims_panel_xml("Red", { cancel = true }, "", 0)
+  T.ok(cancellable:find(BACK, 1, true) ~= nil and cancellable:find(PASS, 1, true) == nil, "cancellable claim: Back")
+  local optional = claims_panel_xml("Red", {}, "", 0)
+  T.ok(optional:find(PASS, 1, true) ~= nil and optional:find(BACK, 1, true) == nil, "optional claim: red Pass")
+end)
+
 T.test("while Back is offered the mod's Cancel is dropped; it returns on commit", function()
   local p = human_turn()
   on_action_card_button_clicked(nil, "Red_" .. slot_of(p, "AS"), nil)

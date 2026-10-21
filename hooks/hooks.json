@@ -1,5 +1,5 @@
 {
-  "_comment": "Anchored text edits to src/Global.lua, applied by tools/tts_build.py --arno. Each 'find' must occur exactly once, otherwise the build fails (protects against silent mis-patching after a base-mod update). Keep every edit to a single call into ARNO.*; prefer wrappers in arno/adapter/hooks.lua whenever possible. Listed in CHANGES.md.",
+  "_comment": "Anchored text edits to src/Global.lua, applied by tools/tts_build.py --arno. Each 'find' must occur exactly once, otherwise the build fails (protects against silent mis-patching after a base-mod update). Edits are for changes inside a function body or to the mod's static panel text and data; behaviour before or after a whole function (mostly ARNO-only branches) stays a wrapper in arno/adapter/*.lua. ARNO calls are guarded with `ARNO and`. Listed in CHANGES.md.",
   "hooks": [
     {
       "id": "H2",
@@ -24,6 +24,90 @@
       "why": "Card 471 African Spurred Tortoise: the base data lacks its Reptile House option (printed card: Reptile House 2, like the other size-3 reptiles 476/481). Upstream mod fix, applied in every game.",
       "find": "  [471] = {type=\"animal\", size=3, cost=22, icons={\"reptile\", \"africa\"}, rewards={\"1 cp\", \"6 appeal\", \"sunbathing 3\"}},\n",
       "replace": "  [471] = {type=\"animal\", size=3, cost=22, icons={\"reptile\", \"africa\"}, enclosure={repthouse=2}, rewards={\"1 cp\", \"6 appeal\", \"sunbathing 3\"}},\n"
+    },
+    {
+      "id": "H6",
+      "why": "destruct_action_card_decks: ARNO's action cards were dealt from his colour's zone in his own setup, so that zone has no deck left; skip missing decks (crash before the setup discard, found in play). Harmless without ARNO.",
+      "find": "      getDeck(getObjectFromGUID(guid)).destruct()\n",
+      "replace": "      local zone = getObjectFromGUID(guid); local deck = zone and getDeck(zone); if deck ~= nil then deck.destruct() end\n"
+    },
+    {
+      "id": "H16",
+      "why": "wait_for_all_hand_counts: ARNO has no hand, so only human hands are waited for.",
+      "find": "function wait_for_all_hand_counts(index, count, callback)\n  Wait.condition(callback, function()\n    for _, player in ipairs(players) do\n",
+      "replace": "function wait_for_all_hand_counts(index, count, callback)\n  Wait.condition(callback, function()\n    for _, player in ipairs((ARNO and ARNO.setup.humans(players)) or players) do\n"
+    },
+    {
+      "id": "H19-flush",
+      "why": "Owner request, every game: the action panel sits flush right like the mod's other panels (base: 60 px in).",
+      "find": "    <Panel id=\"actionSelectionPanel_%s\" visibility=\"%s\" rectAlignment=\"MiddleRight\" offsetXY=\"-60 0\" ",
+      "replace": "    <Panel id=\"actionSelectionPanel_%s\" visibility=\"%s\" rectAlignment=\"MiddleRight\" offsetXY=\"0 0\" "
+    },
+    {
+      "id": "H19-height",
+      "why": "Owner request, every game: the action panel grows 22 px for the undo hint line.",
+      "find": "  local height = 370 + separator_height + persistent_count * 40 + persistent_extra\n",
+      "replace": "  local height = 392 + separator_height + persistent_count * 40 + persistent_extra\n"
+    },
+    {
+      "id": "H19-hint",
+      "why": "Owner request, every game: one undo hint line at the bottom of the action panel.",
+      "find": "        %s\n        %s\n      </VerticalLayout>\n    </Panel>\n  ]], color, color, height,\n",
+      "replace": "        %s\n        %s\n        <Text fontSize=\"12\" color=\"#BBBBBB\" minHeight=\"16\">Undo later choices: press the rewind arrow twice.</Text>\n      </VerticalLayout>\n    </Panel>\n  ]], color, color, height,\n"
+    },
+    {
+      "id": "H21-selection",
+      "why": "Owner request, every game: card selection's Cancel (sell, pouch, optional discard) is a Back button; glide discard's Pass stays red.",
+      "find": "onClick=\"on_card_selection_cancel_clicked(%s)\" fontSize=\"18\" width=\"120\" height=\"36\" minHeight=\"36\" color=\"#C61715\" textColor=\"#FFFFFF\">%s</Button>\n    ]], color, color, SELECTION_BAIL_LABEL[state.action] or \"Cancel\")\n",
+      "replace": "onClick=\"on_card_selection_cancel_clicked(%s)\" fontSize=\"18\" width=\"120\" height=\"36\" minHeight=\"36\" color=\"%s\" textColor=\"#FFFFFF\">%s</Button>\n    ]], color, color, SELECTION_BAIL_LABEL[state.action] and \"#C61715\" or \"#8A6D1F\", SELECTION_BAIL_LABEL[state.action] or \"Back\")\n"
+    },
+    {
+      "id": "H21-project",
+      "why": "Owner request, every game: conservation project support's Cancel is a Back button.",
+      "find": "button(\"on_project_support_cancel_clicked\", color, \"Cancel\", \"#C61715\")",
+      "replace": "button(\"on_project_support_cancel_clicked\", color, \"Back\", \"#8A6D1F\")"
+    },
+    {
+      "id": "H21-shift",
+      "why": "Owner request, every game: extra shift's Cancel is a Back button.",
+      "find": "onClick=\"on_extra_shift_cancel_clicked(%s)\" fontSize=\"16\" width=\"240\" height=\"34\" minHeight=\"34\" color=\"#C61715\" textColor=\"#FFFFFF\">Cancel</Button>",
+      "replace": "onClick=\"on_extra_shift_cancel_clicked(%s)\" fontSize=\"16\" width=\"240\" height=\"34\" minHeight=\"34\" color=\"#8A6D1F\" textColor=\"#FFFFFF\">Back</Button>"
+    },
+    {
+      "id": "H21-claims",
+      "why": "Owner request, every game: a cancellable claim's Cancel is a Back button; Pass stays red.",
+      "find": "onClick=\"on_claim_pass_clicked(%s)\" fontSize=\"16\" width=\"240\" height=\"34\" minHeight=\"34\" color=\"#C61715\" textColor=\"#FFFFFF\">%s</Button>\n    ]], color, color, sub_table.cancel and \"Cancel\" or \"Pass\")\n",
+      "replace": "onClick=\"on_claim_pass_clicked(%s)\" fontSize=\"16\" width=\"240\" height=\"34\" minHeight=\"34\" color=\"%s\" textColor=\"#FFFFFF\">%s</Button>\n    ]], color, color, sub_table.cancel and \"#8A6D1F\" or \"#C61715\", sub_table.cancel and \"Back\" or \"Pass\")\n"
+    },
+    {
+      "id": "H21-trade",
+      "why": "Owner request, every game: trade's Cancel is a Back button.",
+      "find": "onClick=\"on_trade_cancel_clicked(%s)\" fontSize=\"16\" width=\"240\" height=\"34\" minHeight=\"34\" color=\"#C61715\" textColor=\"#FFFFFF\">Cancel</Button>",
+      "replace": "onClick=\"on_trade_cancel_clicked(%s)\" fontSize=\"16\" width=\"240\" height=\"34\" minHeight=\"34\" color=\"#8A6D1F\" textColor=\"#FFFFFF\">Back</Button>"
+    },
+    {
+      "id": "H21-marketing",
+      "why": "Owner request, every game: marketing's Cancel is a Back button.",
+      "find": "onClick=\"on_marketing_cancel_clicked(%s)\" fontSize=\"16\" width=\"240\" height=\"34\" minHeight=\"34\" color=\"#C61715\" textColor=\"#FFFFFF\">Cancel</Button>",
+      "replace": "onClick=\"on_marketing_cancel_clicked(%s)\" fontSize=\"16\" width=\"240\" height=\"34\" minHeight=\"34\" color=\"#8A6D1F\" textColor=\"#FFFFFF\">Back</Button>"
+    },
+    {
+      "id": "H21-cutdown",
+      "why": "Owner request, every game: cut down's Cancel is a Back button.",
+      "find": "onClick=\"on_cut_down_cancel_clicked(%s)\" fontSize=\"16\" width=\"240\" height=\"34\" minHeight=\"34\" color=\"#C61715\" textColor=\"#FFFFFF\">Cancel</Button>",
+      "replace": "onClick=\"on_cut_down_cancel_clicked(%s)\" fontSize=\"16\" width=\"240\" height=\"34\" minHeight=\"34\" color=\"#8A6D1F\" textColor=\"#FFFFFF\">Back</Button>"
+    },
+    {
+      "id": "H21-build-label",
+      "why": "Owner request, every game: 'Go back to building selection' reads 'Back to building selection'.",
+      "find": "  local go_back_label = \"Go back to\\nbuilding selection\"\n",
+      "replace": "  local go_back_label = \"Back to\\nbuilding selection\"\n"
+    },
+    {
+      "id": "H21-build-colour",
+      "why": "Owner request, every game: the building-selection Back button in the Back colour.",
+      "find": "onClick=\"on_building_placement_go_back(%s)\" fontSize=\"16\" width=\"240\" height=\"52\" minHeight=\"52\" color=\"#C61715\"",
+      "replace": "onClick=\"on_building_placement_go_back(%s)\" fontSize=\"16\" width=\"240\" height=\"52\" minHeight=\"52\" color=\"#8A6D1F\""
     }
   ]
 }

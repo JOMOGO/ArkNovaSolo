@@ -6,7 +6,6 @@ seated_game_players = function() return { { color = "Red" } } end
 set_ui_attributes = function() end
 
 local setup = require("adapter.setup")
-local hint = require("ui.hint")
 
 local SETUP_XML = [[
     <Panel id="gameSetupPanel" rectAlignment="MiddleCenter" width="600" height="400" color="#222222FF">
@@ -60,24 +59,6 @@ T.test("humans-only window swaps and restores players", function()
   T.eq(#players, 2); T.eq(players[2].color, "White")
   setup.close_window()
   T.ok(players == full)
-end)
-
-T.test("undo hint grows the action panel and adds one line", function()
-  local xml = [[<Panel id="actionSelectionPanel_Red" visibility="Red" rectAlignment="MiddleRight" offsetXY="-60 0" width="260" height="300" color="#222222DD">
-      <VerticalLayout><Button/></VerticalLayout></Panel>]]
-  local out = hint.add_undo_hint(xml)
-  T.ok(out:find('height="322"', 1, true) ~= nil)
-  T.ok(out:find(hint.TEXT, 1, true) ~= nil)
-  T.ok(out:find(hint.TEXT, 1, true) < out:find("</VerticalLayout>", 1, true))
-  T.eq(hint.add_undo_hint("<Panel id=\"other\"/>"), "<Panel id=\"other\"/>")
-end)
-
-T.test("action panel sits flush right like the mod's other panels (owner request)", function()
-  local xml = [[<Panel id="actionSelectionPanel_Red" visibility="Red" rectAlignment="MiddleRight" offsetXY="-60 0" width="260" height="300">
-      <VerticalLayout><Button offsetXY="-60 0"/></VerticalLayout></Panel>]]
-  local out = hint.flush_right(xml)
-  T.ok(out:find('<Panel id="actionSelectionPanel_Red" visibility="Red" rectAlignment="MiddleRight" offsetXY="0 0"', 1, true) ~= nil)
-  T.ok(out:find('<Button offsetXY="-60 0"/>', 1, true) ~= nil, "only the panel itself moves")
 end)
 
 T.finish("adapter ui")

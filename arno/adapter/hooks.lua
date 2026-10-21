@@ -5,8 +5,10 @@
 -- bundle loads, after every mod function is defined and before the mod's on_* interaction
 -- wrapper (so ARNO's on_* handlers are wrapped too). Every wrapper is a no-op unless an
 -- ARNO is in the game (state.active()), so a game without ARNO behaves like the base mod,
--- except the human conveniences H19/H20 (owner requests), which apply in every game.
--- Each wrapper is listed in CHANGES.md.
+-- except the human conveniences H20/H21 (owner requests), which apply in every game.
+-- Changes inside a mod function's body or to its static panel text are anchored edits in
+-- hooks/hooks.json instead, so an update of the base mod that touches one fails the build.
+-- Each wrapper and edit is listed in CHANGES.md.
 
 local state = require("adapter.state")
 local setup = require("adapter.setup")
@@ -76,22 +78,6 @@ function M.install(ARNO)
     end
   end)
 
-  -- H6: ARNO's action cards were dealt from his colour's zone earlier (prepare_bot), so that
-  -- zone is empty when the mod removes the leftover decks; skip missing decks
-  -- (found in play: "attempt to index a nil value" in destruct_action_card_decks)
-  wrap("H6", "destruct_action_card_decks", function(orig)
-    return function(...)
-      if not state.active() then return orig(...) end
-      for _, zones in pairs(cnsts.action_card_init_zones) do
-        for _, guid in pairs(zones) do
-          local zone = getObjectFromGUID(guid)
-          local deck = zone and getDeck(zone)
-          if deck ~= nil then deck.destruct() end
-        end
-      end
-    end
-  end)
-
   -- H9: ARNO's turn starts where a human would get the action panel
   wrap("H9", "create_action_selection_panel", function(orig)
     return function(player, only_action, multiplier, hypnosis)
@@ -109,19 +95,7 @@ function M.install(ARNO)
   end)
 
   -- H16: ARNO has no hand; loops over all hands treat him as an empty, unchanging hand
-  wrap("H16", "wait_for_all_hand_counts", function(orig)
-    return function(index, count, callback)
-      if not state.active() then return orig(index, count, callback) end
-      local humans = setup.humans(players)
-      return Wait.condition(callback, function()
-        for _, player in ipairs(humans) do
-          local want = (type(count) == "function") and count(player) or count
-          if #Player[player.color].getHandObjects(index) ~= want then return false end
-        end
-        return true
-      end)
-    end
-  end)
+  -- (wait_for_all_hand_counts is guarded by an edit in hooks/hooks.json)
   wrap("H16", "other_hand_counts", function(orig)
     return function(color, index)
       local counts = orig(color, index)
@@ -159,16 +133,6 @@ function M.install(ARNO)
       end
       if #bots > 0 then return bots end       -- several ARNOs tied: they share the win
       return orig(...)
-    end
-  end)
-
-  -- H19 (owner request): undo hint in the human action panel, which sits flush right
-  wrap("H19", "action_selection_panel_xml", function(orig)
-    return function(...)
-      local xml = orig(...)
-      if type(xml) ~= "string" then return xml end
-      local hint = require("ui.hint")
-      return hint.flush_right(hint.add_undo_hint(xml))
     end
   end)
 
@@ -267,7 +231,7 @@ function M.install(ARNO)
     end
   end)
   -- panels shown while Back is available get the button too (in place of the mod's
-  -- Cancel); H21: the mod's red Cancel buttons are shown as Back
+  -- own one-step Back)
   wrap("H20", "set_player_panel", function(orig)
     return function(color, xml, refresh)
       back.raw[color] = xml
