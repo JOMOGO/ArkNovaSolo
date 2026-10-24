@@ -61,7 +61,7 @@ end)
 
 T.test("human hand waits through the H16 wrappers return a single boolean (found in play)", function()
   base()
-  Player = setmetatable({}, { __index = function() return { getHandObjects = function() return {} end } end })
+  Player = sim.hand_players()
   local fired = false
   wait_for_cards_out_of_hand(players[1], 1, { sim.fake("discarded card") }, function() fired = true end)
   sim.pump()
@@ -216,10 +216,8 @@ end)
 T.test("hand waits ignore ARNO (H16)", function()
   base()
   local fired = false
-  local hands = { Red = 2 }
-  Player = setmetatable({}, { __index = function(_, color)
-    return { getHandObjects = function() local t = {} for i = 1, (hands[color] or 0) do t[i] = i end return t end }
-  end })
+  Player = sim.hand_players()
+  for _ = 1, 2 do sim.fake("card").deal(1, "Red", 1) end   -- ARNO (Yellow) holds none
   wait_for_all_hand_counts(1, 2, function() fired = true end)
   sim.pump()
   T.ok(fired, "only the human's hand is counted")

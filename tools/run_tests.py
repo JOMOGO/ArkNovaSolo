@@ -200,7 +200,7 @@ def main(argv=None) -> int:
         body = test_file.read_text(encoding="utf-8")
         names = card_names_module() if "tests.card_names" in body else ""
         suite = out_dir / test_file.name
-        suite.write_text(stubs + "\n" + sim + "\n" + built + "\nsim.cnsts = cnsts\n"
+        suite.write_text(stubs + "\n" + sim + "\n" + built + "\nsim.cnsts, sim.HexBoard = cnsts, HexBoard\n"
                          + 'ARNO_MODULES["tests.lib"] = function(require)\n' + lib + "\nend\n" + names
                          + "do\nlocal require = arno_require\n" + body + "\nend\n",
                          encoding="utf-8", newline="\n")

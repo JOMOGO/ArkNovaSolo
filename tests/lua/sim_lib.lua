@@ -161,9 +161,12 @@ function sim.deck(numbers)
 end
 
 -- record calls of a global function (optionally replacing it)
+-- (replacement gets the mod's own function, also when name was recorded before)
+sim.originals = {}
 function sim.record(name, replacement)
   sim.calls[name] = {}
-  local orig = _G[name]
+  if sim.originals[name] == nil then sim.originals[name] = _G[name] or false end
+  local orig = sim.originals[name] or nil
   _G[name] = function(...)
     local args = { ... }
     table.insert(sim.calls[name], args)
@@ -254,3 +257,90 @@ function sim.setup_game()
   return bot_player, bot
 end
 
+
+-- ---------------------------------------------------------------- one human, no ARNO
+-- bags like the mod's infinite ones (cubes, ...): an empty bag still gives an object
+function sim.bottomless_bags(prefix)
+  return setmetatable({}, { __index = function(t, k)
+    local o = sim.fake(prefix .. k)
+    local take = o.takeObject
+    o.takeObject = function(params)
+      if o.getQuantity() == 0 then o.putObject(sim.fake(prefix .. k .. " item")) end
+      return take(params)
+    end
+    rawset(t, k, o); return o
+  end })
+end
+
+-- building tiles carry "building_shape" snap points like the real ones, one per cell of
+-- cnsts.build_tile_shapes, centred on the tile; single cells have none (the mod's default)
+function sim.snap_points_for(name)
+  local shape = sim.cnsts.build_tile_shapes[name]
+  if shape == nil or #shape < 2 then return {} end
+  local locals, cx, cz = {}, 0, 0
+  for i, cell in ipairs(shape) do
+    locals[i] = cell_local_position(cell)
+    cx, cz = cx + locals[i].x, cz + locals[i].z
+  end
+  cx, cz = cx / #shape, cz / #shape
+  local out = {}
+  for i, l in ipairs(locals) do
+    out[i] = { position = Vector(l.x - cx, 0, l.z - cz), tags = { "building_shape" } }
+  end
+  return out
+end
+
+-- a game of one human (Red) on map A, set up as setup_game and apply_map_choice leave it:
+-- the real hex board with its starting tiles, project cubes, bags, hands, decks, empty display.
+-- The turn end, checkpoints and worker moves are recorded, not run.
+function sim.human_game(mw)
+  sim.queue = {}
+  local p = sim.make_player("Red", false)
+  players = { p }
+  arno_state = nil
+  current_player = p
+  marine_worlds_enabled = mw or false
+  p.x_tokens = {}
+  p.map = sim.HexBoard.Board.new(sim.cnsts.map_data.map_A.cells)          -- apply_map_choice
+  p.building_tiles, p.pouched_cards = {}, {}
+  for _, tile in pairs(p.map.tiles) do                       -- spawn_player_starting_tiles
+    p.building_tiles[tile.id] = sim.fake((string.upper(tile.tags.type):gsub("_", " ")))
+  end
+  for _, rec in ipairs(p.action_cards) do getObjectFromGUID(rec.guid).is_face_down = false end
+  p.project_cubes = {}
+  for i = 1, sim.cnsts.project_cube_count do p.project_cubes[i] = sim.fake("cube " .. i).getGUID() end
+  all_zoo_hooks = {}
+  bags = sim.bottomless_bags("bag ")
+  for _, name in ipairs({ "X-token", "Association Worker" }) do bags.tokens.putObject(sim.fake(name)) end
+  for _, spec in pairs(sim.cnsts.action_card_tokens) do bags.tokens.putObject(sim.fake(spec.name)) end
+  for kind in pairs(sim.cnsts.build_tile_shapes) do
+    bags.sponsor_buildings.putObject(sim.fake(kind))
+    bags.build_buildings.putObject(sim.fake(kind))
+  end
+  zoo_deck, discard_pile = sim.deck({ 401, 402, 403, 201, 202, 101 }), sim.deck({ 404, 203 })
+  base_conservation_deck = sim.deck({ 101, 102, 103 })
+  final_scoring_deck = sim.deck({ 1, 2, 3, 4, 5, 6, 7, 8 })
+  placeholder_card = sim.fake("placeholder card")
+  base_projects, added_projects = {}, {}
+  cp_bonuses_5 = { sim.fake("tile5a", nil, "cc1325"), sim.fake("tile5b", nil, "4fb150") }
+  cp_bonuses_8 = { sim.fake("tile8a", nil, "840cd1"), sim.fake("tile8b", nil, "03d9ca") }
+  pouch_slot_count = 0
+  action_selection_state = { Red = { player = p, x_tokens_used = 0, x_token_active = false } }
+  association_actions, build_actions, animal_actions, sponsor_actions = {}, {}, {}, {}
+  claims_players, player_prompted, player_panel_refresh, active_panels = {}, {}, {}, {}
+  selection_panels, tile_placements, project_supports, reconstruction_actions = {}, {}, {}, {}
+  snap_player, rep_draw_player = nil, nil
+  Player = sim.hand_players()
+  display_cards, display_marks = {}, {}
+  zones = setmetatable({}, { __index = function(t, k)
+    local z = sim.fake("zone " .. k)
+    z.getObjects = function() return {} end
+    rawset(t, k, z); return z
+  end })
+  sim.record("end_player_turn")
+  sim.record("take_checkpoint")
+  sim.record("deploy_workers_to_task", function(_, pl, task)
+    pl.deployed_workers[#pl.deployed_workers + 1] = { guid = "w", task = task }
+  end)
+  return p
+end

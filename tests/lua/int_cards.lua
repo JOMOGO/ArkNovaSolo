@@ -27,92 +27,18 @@ local function full_deck(name)
   return deck
 end
 
--- building tiles carry "building_shape" snap points like the real ones, one per cell of
--- cnsts.build_tile_shapes, centred on the tile; single cells have none (the mod's default)
-sim.snap_points_for = function(name)
-  local shape = sim.cnsts.build_tile_shapes[name]
-  if shape == nil or #shape < 2 then return {} end
-  local locals, cx, cz = {}, 0, 0
-  for i, cell in ipairs(shape) do
-    locals[i] = cell_local_position(cell)
-    cx, cz = cx + locals[i].x, cz + locals[i].z
-  end
-  cx, cz = cx / #shape, cz / #shape
-  local out = {}
-  for i, l in ipairs(locals) do
-    out[i] = { position = Vector(l.x - cx, 0, l.z - cz), tags = { "building_shape" } }
-  end
-  return out
-end
-
 local DISPLAY = { 486, 476, 220, 223, 101, 488 }   -- size-1 and size-3 animal, sponsors, project
 local HAND = { 484, 205, 102 }                     -- an animal, a sponsor, a project
 
+-- sim.human_game, with every card of the save in the decks, a full display, three cards in
+-- hand and money for anything
 local function human_game(mw)
-  sim.queue = {}
-  local p = sim.make_player("Red", false)
-  players = { p }
-  arno_state = nil
-  current_player = p
-  marine_worlds_enabled = mw
-  p.x_tokens = {}
-  -- the fields apply_map_choice sets (6604), with the real hex board of map A
-  p.map = HexBoard.Board.new(sim.cnsts.map_data.map_A.cells)
-  p.building_tiles, p.pouched_cards = {}, {}
-  for _, tile in pairs(p.map.tiles) do                -- spawn_player_starting_tiles (6636)
-    p.building_tiles[tile.id] = sim.fake(string.upper(tile.tags.type):gsub("_", " "))
-  end
-  for _, rec in ipairs(p.action_cards) do getObjectFromGUID(rec.guid).is_face_down = false end
-  p.project_cubes = {}
-  for i = 1, sim.cnsts.project_cube_count do p.project_cubes[i] = sim.fake("cube " .. i).getGUID() end
-  all_zoo_hooks = {}
-  local function lazy(prefix)
-    return setmetatable({}, { __index = function(t, k)
-      -- like the mod's infinite bags (cubes, ...): an empty bag still gives an object
-      local o = sim.fake(prefix .. k)
-      local take = o.takeObject
-      o.takeObject = function(params)
-        if o.getQuantity() == 0 then o.putObject(sim.fake(prefix .. k .. " item")) end
-        return take(params)
-      end
-      rawset(t, k, o); return o
-    end })
-  end
-  bags = lazy("bag ")
-  for _, name in ipairs({ "X-token", "Association Worker" }) do bags.tokens.putObject(sim.fake(name)) end
-  for _, spec in pairs(sim.cnsts.action_card_tokens) do bags.tokens.putObject(sim.fake(spec.name)) end
-  for kind in pairs(sim.cnsts.build_tile_shapes) do
-    bags.sponsor_buildings.putObject(sim.fake(kind))
-    bags.build_buildings.putObject(sim.fake(kind))
-  end
+  local p = sim.human_game(mw)
   zoo_deck, discard_pile = full_deck("zoo deck"), full_deck("discard pile")
   base_conservation_deck = full_deck("base conservation deck")
-  final_scoring_deck = sim.deck({ 1, 2, 3, 4, 5, 6, 7, 8 })
-  placeholder_card = sim.fake("placeholder card")
-  base_projects, added_projects = {}, {}
-  cp_bonuses_5 = { sim.fake("tile5a", nil, "cc1325"), sim.fake("tile5b", nil, "4fb150") }
-  cp_bonuses_8 = { sim.fake("tile8a", nil, "840cd1"), sim.fake("tile8b", nil, "03d9ca") }
-  pouch_slot_count = 0
   set_counter(p.money_counter, 100, sim.cnsts.counter_style.cp)
-  action_selection_state = { Red = { player = p, x_tokens_used = 0, x_token_active = false } }
-  association_actions, build_actions, animal_actions, sponsor_actions = {}, {}, {}, {}
-  claims_players, player_prompted, player_panel_refresh, active_panels = {}, {}, {}, {}
-  selection_panels, tile_placements, project_supports = {}, {}, {}
-  snap_player, rep_draw_player = nil, nil
-  Player = sim.hand_players()
-  display_cards, display_marks = {}, {}
   for i, n in ipairs(DISPLAY) do display_cards[i] = card_obj(n) end
   for _, n in ipairs(HAND) do card_obj(n).deal(1, "Red", 1) end
-  zones = setmetatable({}, { __index = function(t, k)
-    local z = sim.fake("zone " .. k)
-    z.getObjects = function() return {} end
-    rawset(t, k, z); return z
-  end })
-  sim.record("end_player_turn")
-  sim.record("take_checkpoint")
-  sim.record("deploy_workers_to_task", function(_, pl, task)
-    pl.deployed_workers[#pl.deployed_workers + 1] = { guid = "w", task = task }
-  end)
   return p
 end
 
@@ -329,17 +255,23 @@ for id, n in pairs(answered) do panels[#panels + 1] = id .. " " .. n end
 table.sort(panels)
 print("panels answered: " .. table.concat(panels, ", "))
 
+-- the rewards handed out as a reef effect, in a list that fills as they are applied
+local function record_reef_rewards()
+  local sources = {}
+  sim.record("apply_reward_string", function(orig, player, reward, source)
+    if tostring(source):find("reef effect", 1, true) then sources[#sources + 1] = reward end
+    return orig(player, reward, source)
+  end)
+  return sources
+end
+
 T.test("FIX138: Sea Animal Management Plan's left slot carries out every reef effect", function()
   local p = human_game(true)
   set_icon_counter(p.icon_counters.sea, 2, sim.cnsts.counter_style.icon)
   for _, n in ipairs({ 530, 534, 535 }) do                -- reef: 2 appeal, 3 money, none ("")
     table.insert(p.played_animals, card_obj(n).getGUID())
   end
-  local sources = {}
-  sim.record("apply_reward_string", function(orig, player, reward, source)
-    if tostring(source):find("reef effect", 1, true) then sources[#sources + 1] = reward end
-    return orig(player, reward, source)
-  end)
+  local sources = record_reef_rewards()
   local obj = card_obj(138)
   obj.deal(1, "Red", 1)
   start_association_action(p, 5, "0")
@@ -353,11 +285,7 @@ T.test("FIX138: playing a reef animal still carries out every reef effect, its o
   for _, n in ipairs({ 534, 535 }) do                     -- reef: 3 money, none ("")
     table.insert(p.played_animals, card_obj(n).getGUID())
   end
-  local sources = {}
-  sim.record("apply_reward_string", function(orig, player, reward, source)
-    if tostring(source):find("reef effect", 1, true) then sources[#sources + 1] = reward end
-    return orig(player, reward, source)
-  end)
+  local sources = record_reef_rewards()
   play(p, 530, sim.cnsts.cards.mw[530])                   -- reef: 2 appeal
   T.eq(drive(p), "ended")
   table.sort(sources)

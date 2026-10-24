@@ -4,15 +4,7 @@ local T = require("tests.lib")
 local back = require("adapter.back")
 
 local function human_turn()
-  local p = sim.make_player("Red", false)
-  players = { p }
-  arno_state = nil
-  current_player = p
-  p.x_tokens = {}
-  action_selection_state = { Red = { player = p, x_tokens_used = 0, x_token_active = false } }
-  association_actions, build_actions, animal_actions, sponsor_actions = {}, {}, {}, {}
-  display_cards = {}
-  Player = setmetatable({}, { __index = function() return { getHandObjects = function() return {} end } end })
+  local p = sim.human_game()
   zones = setmetatable({}, { __index = function(t, k)
     local z = sim.fake("zone " .. k)
     local contents = {}
@@ -384,12 +376,17 @@ T.test("Cards I: Draw deals at once, so no Back", function()
   T.eq(back.pending.Red, nil)
 end)
 
-T.test("bonus build from the action panel: going back returns to the action panel", function()
+-- a human turn with an Engineer bonus build (a kiosk) waiting on the action panel
+local function engineer_turn()
   local p = human_turn()
-  sim.record("end_player_turn")
   p.engineer_builds = { { key = "engineer_1", text = "Build a Kiosk\n(Engineer)", search_name = "KIOSK",
                           price = 2, money_source = "Kiosk (Engineer bonus build)" } }
   p.persistent_rewards.engineer_1 = true
+  return p
+end
+
+T.test("bonus build from the action panel: going back returns to the action panel", function()
+  local p = engineer_turn()
   sim.record("start_bonus_build", function(_, pl, extra)
     pl.persistent_rewards[extra.key] = nil
     pl.pending_building = { tile_guid = sim.fake("kiosk tile").getGUID(), bonus = extra.key }
@@ -403,11 +400,7 @@ T.test("bonus build from the action panel: going back returns to the action pane
 end)
 
 T.test("bonus build from the action panel: after Confirm the action panel returns, once", function()
-  local p = human_turn()
-  sim.record("end_player_turn")
-  p.engineer_builds = { { key = "engineer_1", text = "Build a Kiosk\n(Engineer)", search_name = "KIOSK",
-                          price = 2, money_source = "Kiosk (Engineer bonus build)" } }
-  p.persistent_rewards.engineer_1 = true
+  local p = engineer_turn()
   sim.record("start_bonus_build", function(_, pl, extra) pl.persistent_rewards[extra.key] = nil end)
   on_persistent_reward_button_clicked(nil, "Red|engineer_1|action", nil)
   create_claims_from_reward_groups(p, {}, false)   -- how Confirm ends (claim_placement_rewards)
