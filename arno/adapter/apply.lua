@@ -46,10 +46,7 @@ M.at = at
 
 local function bot_of(player) return state.bot(player.color) end
 
-local function contains(list, v)
-  for _, x in ipairs(list or {}) do if x == v then return true end end
-  return false
-end
+local contains = require("core.util").contains
 
 -- ---------------------------------------------------------------- runner
 

@@ -40,12 +40,7 @@ function M.kiosk_count(position)
   return 0
 end
 
-local function contains(list, value)
-  for _, v in ipairs(list) do
-    if v == value then return true end
-  end
-  return false
-end
+local contains = require("core.util").contains
 
 -- getPreferredProjectSlots(): preferred slot, then fallbacks
 function M.preferred_slots(position)

@@ -62,12 +62,7 @@ function M.dice(r, n)
   return math.floor(M.next(r) * n) + 1
 end
 
-local function contains(list, value)
-  for _, v in ipairs(list) do
-    if v == value then return true end
-  end
-  return false
-end
+local contains = require("core.util").contains
 
 -- rollDiceDifferentValue(maxValue, ...currentValue)
 function M.dice_different(r, n, current)

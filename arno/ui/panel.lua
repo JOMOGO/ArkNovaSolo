@@ -21,10 +21,7 @@ local function esc(s)
   return (tostring(s):gsub("&", "&amp;"):gsub("<", "&lt;"):gsub(">", "&gt;"):gsub('"', "&quot;"))
 end
 
-local function contains(list, v)
-  for _, x in ipairs(list or {}) do if x == v then return true end end
-  return false
-end
+local contains = require("core.util").contains
 
 -- Shows the table order: the card ARNO used last sits in slot 1 (no highlight: his last
 -- turn is listed below; owner choice). Upgraded cards are pink.

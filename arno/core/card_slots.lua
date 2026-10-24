@@ -13,12 +13,7 @@ local M = {}
 
 M.MAX_UPGRADES = 3
 
-local function contains(list, value)
-  for _, v in ipairs(list) do
-    if v == value then return true end
-  end
-  return false
-end
+local contains = require("core.util").contains
 
 function M.copy(cs)
   local slots, upgraded = {}, {}
