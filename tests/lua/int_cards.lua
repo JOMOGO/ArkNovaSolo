@@ -12,6 +12,7 @@
 -- cannot be confirmed or passed, a snap with nothing to snap).
 local T = require("tests.lib")
 local NAMES = require("tests.card_names")   -- "(217) Engineer", from the base save
+local OPTIONS = require("tests.options")    -- { quick = true } from run_tests --quick
 
 local function card_obj(n)
   return sim.fake(NAMES[n] or string.format("(%03d) Card %d", n, n))
@@ -30,10 +31,15 @@ end
 local DISPLAY = { 486, 476, 220, 223, 101, 488 }   -- size-1 and size-3 animal, sponsors, project
 local HAND = { 484, 205, 102 }                     -- an animal, a sponsor, a project
 
--- sim.human_game, with every card of the save in the decks, a full display, three cards in
--- hand and money for anything
-local function human_game(mw)
-  local p = sim.human_game(mw)
+-- sim.human_game on map_key, with every card of the save in the decks, a full display, three
+-- cards in hand and money for anything; upgraded: all five action cards on side II
+local function human_game(mw, map_key, upgraded)
+  local p = sim.human_game(mw, map_key)
+  if upgraded then
+    for _, rec in ipairs(p.action_cards) do getObjectFromGUID(rec.guid).is_face_down = true end
+    p.animals_flipped, p.sponsors_flipped, p.build_flipped = true, true, true
+    p.association_flipped, p.cards_flipped = true, true
+  end
   zoo_deck, discard_pile = full_deck("zoo deck"), full_deck("discard pile")
   base_conservation_deck = full_deck("base conservation deck")
   set_counter(p.money_counter, 100, sim.cnsts.counter_style.cp)
@@ -45,11 +51,13 @@ end
 local function play(p, number, card)
   local obj = card_obj(number)
   if card.type == "animal" then
-    animal_actions.Red = { selected = obj, card = card, cost = 0, strength = 5, num = "1",
-                           offers = {}, chosen = {} }
+    set_animal_action(p, 5, "1")                     -- the action state as the mod builds it
+    local state = animal_actions.Red
+    state.selected, state.card, state.cost, state.chosen = obj, card, 0, {}
     finish_animal_play(p)
   else
-    sponsor_actions.Red = { remaining = 10 }
+    sponsor_actions.Red = { player = p, num = "1", strength = 5, remaining = 10,   -- as in
+                            upgd = p.sponsors_flipped, offers = {} }           -- start_sponsors_action
     finish_sponsor_play(p, obj, nil, nil)
   end
 end
@@ -173,7 +181,11 @@ local function drive(p, opts)
       for i = 1, 5 do
         if slot == nil and not action_card_upgraded(action_card_object(p, i)) then slot = i end
       end
+      if slot == nil then error("card flip panel with every action card upgraded: no way on") end
       on_card_flip_clicked(nil, "Red_" .. slot, nil)
+
+    elseif panel == "rescuePanel" then
+      on_rescue_confirm_clicked(nil, "Red", nil)
 
     elseif panel == "diggingPanel" then
       if digging_selected == nil and not clicked.digging then
@@ -205,43 +217,74 @@ end
 -- bugs in the base mod this test found; the test checks they still fail the same way, so it
 -- says when one gets fixed (then remove it here)
 -- (found and fixed so far: mw #138, "reef effect" had no handler, FIX138)
-local KNOWN = {}
+local KNOWN = {}        -- card id -> the error it still ends with
+-- the same, for whichever card runs into it; counted in the summary line, not failed
+local KNOWN_ANY = {
+  -- card_flip (~14737) opens its panel even when all five action cards are upgraded: every
+  -- button is disabled and there is no Pass, so the player cannot go on. Hit in the upgraded
+  -- pass by an upgrade reward (2nd partner zoo, 2nd university, reputation 5, 2-CP bonus).
+  ["card flip panel with every action card upgraded"] = "card flip with nothing to upgrade",
+}
 
 local outcomes = {}
 local function count(outcome) outcomes[outcome] = (outcomes[outcome] or 0) + 1 end
 
 local function card_test(id, name, fn)
-  if KNOWN[id] == nil then return T.test(name, fn) end
-  T.test(name .. " (known base-mod bug)", function()
+  if KNOWN[id] ~= nil then
+    return T.test(name .. " (known base-mod bug)", function()
+      local ok, err = pcall(fn)
+      T.ok(not ok, "now passes: remove it from KNOWN")
+      T.ok(tostring(err):find(KNOWN[id], 1, true) ~= nil, "fails differently now: " .. tostring(err))
+    end)
+  end
+  T.test(name, function()
     local ok, err = pcall(fn)
-    T.ok(not ok, "now passes: remove it from KNOWN")
-    T.ok(tostring(err):find(KNOWN[id], 1, true) ~= nil, "fails differently now: " .. tostring(err))
+    if ok then return end
+    for pattern, label in pairs(KNOWN_ANY) do
+      if tostring(err):find(pattern, 1, true) then count("known base-mod bug (" .. label .. ")") return end
+    end
+    error(err, 0)
   end)
 end
 
-for _, set in ipairs({ "base", "mw" }) do
-  local numbers = {}
-  for n in pairs(sim.cnsts.cards[set]) do numbers[#numbers + 1] = n end
-  table.sort(numbers)
-  for _, n in ipairs(numbers) do
-    local card = sim.cnsts.cards[set][n]
-    if card.type == "animal" or card.type == "sponsor" then
-      card_test(string.format("%s #%03d", set, n), string.format("%s #%03d (%s) plays to the end of the turn", set, n, card.type), function()
-        local p = human_game(set == "mw")
-        play(p, n, card)
-        count(drive(p))
-      end)
-    elseif card.type == "project" then
-      card_test(string.format("%s #%03d", set, n), string.format("%s #%03d (project) is supported to the end of the turn", set, n), function()
-        local p = human_game(set == "mw")
-        qualify_for_project(p, card, set)
-        local obj = card_obj(n)
-        obj.deal(1, "Red", 1)
-        start_association_action(p, 5, "0")
-        count(drive(p, { first_claim = sim.cnsts.association_tasks[5].label, project = obj }))
-        T.eq(#added_projects, 1, "the project joined the row")
-        T.eq(p.project_cubes[1], nil, "a project cube was used")
-      end)
+-- pass 1: map A, nothing upgraded. Pass 2 (skipped by run_tests --quick): every action card
+-- upgraded, and each card on the next map in turn, so every map gets about ten cards.
+local MAPS = {}
+for key in pairs(sim.cnsts.map_data) do MAPS[#MAPS + 1] = key end
+table.sort(MAPS)
+local PASSES = { { label = "", upgraded = false } }
+if not OPTIONS.quick then PASSES[2] = { label = ", upgraded", upgraded = true, maps = MAPS } end
+
+for _, pass in ipairs(PASSES) do
+  local turn = 0
+  for _, set in ipairs({ "base", "mw" }) do
+    local numbers = {}
+    for n in pairs(sim.cnsts.cards[set]) do numbers[#numbers + 1] = n end
+    table.sort(numbers)
+    for _, n in ipairs(numbers) do
+      local card = sim.cnsts.cards[set][n]
+      turn = turn + 1
+      local map_key = pass.maps and pass.maps[(turn - 1) % #pass.maps + 1] or "map_A"
+      local id = string.format("%s #%03d", set, n)
+      local setup = string.format(" (%s, %s%s)", card.type, map_key, pass.label)
+      if card.type == "animal" or card.type == "sponsor" then
+        card_test(id, id .. setup .. " plays to the end of the turn", function()
+          local p = human_game(set == "mw", map_key, pass.upgraded)
+          play(p, n, card)
+          count(drive(p))
+        end)
+      elseif card.type == "project" then
+        card_test(id, id .. setup .. " is supported to the end of the turn", function()
+          local p = human_game(set == "mw", map_key, pass.upgraded)
+          qualify_for_project(p, card, set)
+          local obj = card_obj(n)
+          obj.deal(1, "Red", 1)
+          start_association_action(p, 5, "0")
+          count(drive(p, { first_claim = sim.cnsts.association_tasks[5].label, project = obj }))
+          T.eq(#added_projects, 1, "the project joined the row")
+          T.eq(p.project_cubes[1], nil, "a project cube was used")
+        end)
+      end
     end
   end
 end

@@ -290,10 +290,11 @@ function sim.snap_points_for(name)
   return out
 end
 
--- a game of one human (Red) on map A, set up as setup_game and apply_map_choice leave it:
--- the real hex board with its starting tiles, project cubes, bags, hands, decks, empty display.
--- The turn end, checkpoints and worker moves are recorded, not run.
-function sim.human_game(mw)
+-- a game of one human (Red) on map_key (default map A), set up as setup_game and
+-- apply_map_choice leave it: the real hex board with its starting tiles, the map's own player
+-- attribute, project cubes, bags, hands, decks, empty display. The turn end, checkpoints
+-- and worker moves are recorded, not run.
+function sim.human_game(mw, map_key)
   sim.queue = {}
   local p = sim.make_player("Red", false)
   players = { p }
@@ -301,7 +302,13 @@ function sim.human_game(mw)
   current_player = p
   marine_worlds_enabled = mw or false
   p.x_tokens = {}
-  p.map = sim.HexBoard.Board.new(sim.cnsts.map_data.map_A.cells)          -- apply_map_choice
+  map_key = map_key or "map_A"
+  p.map = sim.HexBoard.Board.new(sim.cnsts.map_data[map_key].cells)      -- apply_map_choice
+  p.map_A, p.map_key = nil, map_key
+  local attribute = player_map_attribute_name(map_tile_name_for(map_key) or map_key, map_key)
+  if sim.cnsts.listed_map_attributes[attribute] then p[attribute] = {}
+  elseif sim.cnsts.counted_map_attributes[attribute] then p[attribute] = 0
+  else p[attribute] = true end
   p.building_tiles, p.pouched_cards = {}, {}
   for _, tile in pairs(p.map.tiles) do                       -- spawn_player_starting_tiles
     p.building_tiles[tile.id] = sim.fake((string.upper(tile.tags.type):gsub("_", " ")))
@@ -311,6 +318,7 @@ function sim.human_game(mw)
   for i = 1, sim.cnsts.project_cube_count do p.project_cubes[i] = sim.fake("cube " .. i).getGUID() end
   all_zoo_hooks = {}
   bags = sim.bottomless_bags("bag ")
+  if p.map_geographical_zoo then spawn_player_geographical_cubes(p, p.player_board.getPosition()) end
   for _, name in ipairs({ "X-token", "Association Worker" }) do bags.tokens.putObject(sim.fake(name)) end
   for _, spec in pairs(sim.cnsts.action_card_tokens) do bags.tokens.putObject(sim.fake(spec.name)) end
   for kind in pairs(sim.cnsts.build_tile_shapes) do

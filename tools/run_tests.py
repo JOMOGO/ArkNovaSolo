@@ -7,7 +7,8 @@
   4. generated data is current (arno/core/cards_data.lua)
   5. Lua tests under MoonSharp (TTS's interpreter)                  tests/lua/test_*.lua
   6. integration tests on the built Global.lua, headless            tests/lua/int_*.lua
-     (int_cards.lua plays every card to the end of the turn; -k int_cards runs it alone)
+     (int_cards.lua plays every card to the end of the turn, twice; --quick plays it once,
+     -k int_cards runs it alone)
 
 Node >= 20.19 is required for 2 and 3. It is taken from $ARNO_NODE, else from PATH, else
 from the newest nvs install (%LOCALAPPDATA%/nvs/node/<version>/x64).
@@ -137,6 +138,8 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--skip-node", action="store_true", help="skip helper tests and reference regeneration")
     ap.add_argument("-k", help="only Lua tests whose file name contains this")
+    ap.add_argument("--quick", action="store_true",
+                    help="int_cards: only the map A pass (skip the upgraded pass over every map)")
     args = ap.parse_args(argv)
     failures = []
 
@@ -193,6 +196,9 @@ def main(argv=None) -> int:
             continue
         body = test_file.read_text(encoding="utf-8")
         names = card_names_module() if "tests.card_names" in body else ""
+        if "tests.options" in body:
+            names += ('ARNO_MODULES["tests.options"] = function(require)\nreturn { quick = '
+                      + ("true" if args.quick else "false") + " }\nend\n")
         suite = out_dir / test_file.name
         suite.write_text(stubs + "\n" + sim + "\n" + built + "\nsim.cnsts, sim.HexBoard = cnsts, HexBoard\n"
                          + 'ARNO_MODULES["tests.lib"] = function(require)\n' + lib + "\nend\n" + names
