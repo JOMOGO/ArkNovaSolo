@@ -24,28 +24,37 @@ content beyond what the base mod already references.
 
 ```
 mods/original/            base saves (read-only copies)
-src/                      pristine extract of the base mod (tts_extract.py); never hand-edited
+src/                      the base mod's scripts, extracted by tts_extract.py, with this
+                          project's edits in src/Global.lua (CHANGES.md §1); the branch
+                          `upstream` keeps them unedited
 arno/
   core/                   PURE Lua: no TTS API, no mod globals
     rng.lua               seeded PRNG (§6)
-    cards.lua             action tables (port of services/Cards.ts)
+    cards_data.lua        action tables, generated from services/Cards.ts (gen_cards_data.py)
     card_slots.lua        slots, upgrades, move-first (CardSlots.ts)
     bot_actions.lua       slot draw, filters, amounts (BotActions.ts)
     project_tracker.lua   project module (ProjectModuleTracker.ts)
-    decide.lua            one turn: card + resolved sub-decisions (component dice)
-    state.lua             bot state constructor, (de)serialisation, schema version
+    decide.lua            one turn's draw plus the dice the helper rolls in its Vue components
+    plan.lua              a drawn card -> ordered, fully resolved steps
+    rulings.lua           rule choices the helper leaves to the human (§11)
+    util.lua              small shared list helpers
   adapter/                Lua that reads/writes the mod (TTS API + mod globals)
-    snapshot.lua          table facts → plain tables for the core
-    apply.lua             executes a plan step by step through mod primitives
-    claims.lua            policy for rewards/claims that land on an ARNO player
-    setup.lua turn.lua breaks.lua scoring.lua persistence.lua
+    snapshot.lua          table facts -> plain tables for the core
+    apply.lua             executes plan steps through mod primitives; claims/reward policy
+    hooks.lua             installs the wrappers around mod functions (§4)
+    setup.lua             setup integration (§9)
+    turn.lua              ARNO's turn (§5)
+    state.lua             the persistent `arno_state` (§8)
+    cards.lua             the real ARNO action-card images on the table
+    back.lua              "Back to action choice" for humans (H20)
   ui/panel.lua            ARNO panel + log (via set_active_panel)
   main.lua                builds the global ARNO table, installs wrappers
-  NOTICE.lua              Apache-2.0 header text reused by every arno/ file
-tools/tts_extract.py      (done)  save → src/
-tools/tts_build.py        (done)  src/ → save; Phase 3 adds --arno
+tools/tts_extract.py      save -> src/
+tools/tts_build.py        src/ + bundle -> save (--arno), compile check, install
+tools/lua_bundle.py       arno/**/*.lua -> one block (strict globals in test builds, §12)
+tools/run_tests.py        every suite (§12)
 tools/moonsharp/          tiny .NET runner using MoonSharp (TTS's interpreter) for tests
-tests/                    python (tools), lua (core + adapter fakes), harness (node vs TS)
+tests/                    python (tools), lua (core, built mod headless), harness (node vs TS)
 dist/                     build output (git-ignored)
 ```
 
@@ -103,7 +112,7 @@ end
 Edits in `src/Global.lua` are used where behaviour inside a function body must change,
 and for the mod's static panel text and card data: a wrapper that copies a function body
 or rewrites the XML a function returns keeps running silently after a base-mod update,
-while an edit there conflicts in the merge from `upstream`. Planned hooks (the final list goes into `CHANGES.md`):
+while an edit there conflicts in the merge from `upstream`. Edits are also how the project fixes base-mod bugs (FIX rows in CHANGES.md) and shares base-mod code that was copied in several places (REF rows); each one has a check in `tests/test_arno_build.py`. Planned hooks (the final list goes into `CHANGES.md`):
 
 | # | Where | Kind | Purpose |
 |---|---|---|---|
@@ -116,7 +125,7 @@ while an edit there conflicts in the merge from `upstream`. Planned hooks (the f
 | H7 | `finish_player_action_cards` (7055) | wrapper | ARNO: of the 8 zoo cards keep ≤ 2 project cards on his mat, discard the rest; 1 final-scoring card face-down on mat; never deal to his hand |
 | H8 | `start_setup_discard` (8252) wrapper; `start_game` **text edit** at 8346 (`local expected_discards = 4 * #players` → `ARNO.setup.expected_discards(players)`) | wrapper + text edit (1 line) | ARNO is not asked to discard; the expected discard count accounts for ARNO's setup discards |
 | H9 | `create_action_selection_panel` (10162) | wrapper | ARNO's turn starts where a human would get the action panel. `start_player_turn` (8365) runs unchanged first: it sets `current_player`, takes the `"turn"` checkpoint, increments `turns_taken`, and resets persistent rewards. The other call sites (`only_action`/`multiplier`/`hypnosis`: 8398, 8405, 8908, 10177, 12679, 12692) are human-only mechanics; for a bot they are logged and ignored (§5) |
-| H10 | `render_claims_table` (13574) | wrapper | ARNO claims → `adapter/claims.lua` policy, never a panel |
+| H10 | `render_claims_table` (13574) | wrapper | ARNO claims → the claims policy in `adapter/apply.lua`, never a panel |
 | H11 | `apply_reward_string`, `update_money`, `update_x_token` | wrapper | ARNO gets no money or X tokens; other rewards filtered to CP / reputation / upgrade / worker / appeal (ARNO_LOGIC §2.5) |
 | H12 | `break_phase_discard` (12165), `start_income_phase` (12313) | wrapper | ARNO has no hand limit and no income; ARNO's income slot runs his **break draw** (OUT-15) |
 | H13 | `leader_candidates`, `constriction`, `pilfering` targets (8616, 7295, 8732) | wrapper | ARNO is never a target |
@@ -237,7 +246,7 @@ cp        = decide.final_cp(state)                -- OUT-16
 `break_x`, `add_project_to_row`, cube tagging, `display_cards` + `refill_display`,
 `donation_slot`) and not through the claim-producing UI entry points
 (`get_partner_zoo`, `start_association_action`, …). Any claim the mod still queues for
-ARNO (for example map or track bonuses) is resolved by `claims.lua`: keep allowed reward
+ARNO (for example map or track bonuses) is resolved by the claims policy in `adapter/apply.lua`: keep allowed reward
 types, pick by ARNO rule (bonus tile d2, worker over upgrade at ≥ 2 CP), and **pass and
 log** anything else.
 
@@ -356,19 +365,19 @@ The PDFs stay local and are not committed. Every entry becomes a named constant 
 
 ## 12. Testing strategy
 
-- **Python:** extract, round-trip, hook anchors (each `find` matches once in the current
-  `src/Global.lua`), and a bundle that compiles.
-- **Lua core (headless):** `tools/moonsharp/` is a .NET console app (the .NET 9/10 SDK is
-  installed) hosting MoonSharp, the interpreter family TTS uses. A minimal test runner
-  (`tests/lua/run.lua`, no busted needed) runs:
-  - all ported helper unit tests: `BotActions.spec`, `Cards.spec`, `CardSlots.spec`,
-    `ProjectModuleTracker.spec`, `getDifficultyLevel.spec`;
-  - RNG known-answer tests;
-  - state round trip.
-- **Differential harness:** `tests/harness/` runs thousands of random scenarios (level,
-  slot states, upgrades, token counts, project counts, rerolls) with `Math.random`
-  replaced by mulberry32(seed), writes JSON, and the Lua core must match exactly. Two
-  levels of evidence:
+`python tools/run_tests.py` runs everything (`--skip-node` without the TypeScript parts,
+`--quick` with one card pass, `-k name` for one Lua suite); the README lists the suites.
+
+- **Python:** extract/build round trip (byte-identical), and `tests/test_arno_build.py`:
+  the built save differs from the base only in the Global script and SaveName, and every
+  edit of CHANGES.md §1 is in the build.
+- **Lua core (headless):** `tools/moonsharp/` is a .NET console app hosting MoonSharp, the
+  interpreter family TTS uses. `tests/lua/test_*.lua` (with the small harness `lib.lua`)
+  run the ported helper specs (`BotActions`, `Cards`, `CardSlots`, `ProjectModuleTracker`,
+  `getDifficultyLevel`), RNG known answers and ARNO's plan rules.
+- **Differential harness:** `tests/harness/` runs thousands of random scenarios with
+  `Math.random` replaced by mulberry32(seed), writes JSON, and the Lua core must match
+  exactly (`test_differential.lua`). Two levels of evidence:
   - **`services/*` and `NavigationState.getBotRound`: the original TypeScript, unchanged.**
   - **Component-level dice** (`BotActions.vue` display d6, `GainPartnerZoo/University.vue`,
     `BonusTile.vue`, `ActionCards.vue upgradeCard`, `PickConservationProject.vue`): these
@@ -376,13 +385,28 @@ The PDFs stay local and are not committed. Every entry becomes a named constant 
     transcription, with each function citing the source file and lines.
 
   Matching call order is a **Lua-vs-harness reproducibility rule**, not equivalence to
-  the app, which rolls unseeded when a page renders. The harness needs **Node ≥ 20.19**
-  (you have 20.18).
-- **Adapter:** Lua tests against a fake mod (fake `players`, display, projects and
-  primitives recording calls).
-- **In TTS:** your `TESTING.md` checklist covers setup variants (1H+1A, 1H+2A, 2H+1A,
-  0 ARNO, official solo), a full game with breaks, game end, scoring, rewind in the middle
-  of an ARNO turn, and save/load.
+  the app, which rolls unseeded when a page renders. The harness needs **Node ≥ 20.19**.
+- **The built mod, headless:** `tests/lua/int_*.lua` run the *built* Global.lua (mod +
+  edits + ARNO) with TTS stand-ins: `tts_stubs.lua` for load time, `sim_lib.lua` for play
+  (fake objects with GUIDs, decks, bottomless bags, hands, building tiles with real shape
+  snap points, a `Wait` scheduler as strict as TTS, `sim.human_game` for a one-human game
+  on any map). Suites:
+  - `int_turns`, `int_claims`, `int_phases`: ARNO's turns (60-turn soak, replay
+    determinism), the claims engine, setup, breaks, scoring, ties;
+  - `int_back`: the humans' Back buttons (H20, H21);
+  - `int_cards`: every card (animals, sponsors, projects; base and Marine Worlds) played
+    by a human through the mod's real code, a driver answering every panel as a player
+    would, to the end of the turn. Two passes: map A, then every action card upgraded with
+    each card on the next of the 27 maps. Bugs it found in the base mod are listed in the
+    file (fixed ones go to CHANGES.md as FIX rows);
+  - `int_rewards`: every reward text in the mod's data reaches a handler;
+  - `int_rules`: base-mod code shared by several places (REF rows): hex board regions and
+    placement, the final scoring discard, reconstruction moves.
+- **Strict globals:** in test builds every ARNO module runs in an environment that refuses
+  a new global (`tools/lua_bundle.py`), except the mod's own and ARNO's documented ones
+  (CHANGES.md §3). A missing `local` fails the tests instead of colliding with a mod global.
+- **In TTS:** the `TESTING.md` checklist covers what only the real table shows: objects
+  moving, panels, rewind, save/load, setup variants and the card fixes.
 
 ## 13. Risks and mitigations
 

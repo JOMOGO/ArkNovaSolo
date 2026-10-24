@@ -98,7 +98,15 @@ Install: see README ("Play").
 - [ ] **E5.** After a rewind, the panel's seed is unchanged and his card slots match the
   physical cards.
 
-## F. Things to report if they happen
+## F. Card fixes (every game, with or without ARNO)
+
+- [ ] **F1 — African Spurred Tortoise (#471)** can be played into a Reptile House
+  (FIX471).
+- [ ] **F2 — Sea Animal Management Plan (#138, Marine Worlds).** Play two sea animals with
+  a reef effect, then support the project in its left slot: you get 2 CP and each reef
+  effect, and the turn goes on (FIX138).
+
+## G. Things to report if they happen
 
 - Chat: `[ARNO] ERROR in step …` (the turn continues; press *Run ARNO turn* or rewind).
 - Any panel or prompt that seems to wait for Yellow, or a game that stops advancing.

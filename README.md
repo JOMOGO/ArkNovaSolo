@@ -88,6 +88,7 @@ build.
 ```
 python tools/run_tests.py            # everything (needs Node >= 20.19 for the TypeScript parts)
 python tools/run_tests.py --skip-node
+python tools/run_tests.py --skip-node --quick -k int_cards   # one suite, one card pass
 ```
 
 | Suite | What it checks |
@@ -97,8 +98,12 @@ python tools/run_tests.py --skip-node
 | differential | seeded original TypeScript vs the Lua port: 2,400 action cases, 300 full games, 400 dice sets, shuffles, tracker, RNG |
 | Lua | ported helper specs, ARNO rules (plan) |
 | integration | the **built** mod + ARNO executed headless: claims engine, 60-turn soak, replay determinism, setup cards, breaks, scoring, ties |
-| every card | `tests/lua/int_cards.lua`: each of the 281 cards (base + Marine Worlds: animals, sponsors, projects) played by a human through the mod's real code, every panel answered, to the end of the turn (`-k int_cards` runs it alone) |
+| every card | `tests/lua/int_cards.lua`: each of the 281 cards (base + Marine Worlds: animals, sponsors, projects) played by a human through the mod's real code, every panel answered, to the end of the turn; twice: map A, then every action card upgraded with each card on the next of the 27 maps (`--quick`: the first pass only) |
+| rewards | `tests/lua/int_rewards.lua`: every reward text in the mod's data (cards, maps, universities, tracks, bonus tiles) reaches a handler |
 | rules | `tests/lua/int_rules.lua`: base-mod code shared by several places (REF1-REF3 in CHANGES.md): hex board regions and placement, the final scoring discard, reconstruction moves |
+
+The test builds also refuse any new global set by ARNO code (a missing `local`), except the
+mod's own and ARNO's documented ones (CHANGES.md §3).
 
 In-game checklist: `TESTING.md`.
 
