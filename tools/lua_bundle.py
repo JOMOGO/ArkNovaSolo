@@ -43,14 +43,47 @@ def module_files(base: Path = ARNO_DIR, packages: tuple[str, ...] | None = None)
     return files
 
 
-def bundle(base: Path = ARNO_DIR, packages: tuple[str, ...] | None = None, epilogue: str = "") -> str:
-    """Return the bundle text (LF line endings). `epilogue` is appended inside the block."""
+STRICT_PRELUDE = """\
+-- tests only: an ARNO module may set a global the mod has (ARNO_MOD_GLOBALS, or one with a
+-- value) or one of ARNO's own (CHANGES.md §3: ARNO, arno_state, arno_setup, on_arno_*,
+-- arno_back_clicked); any other new global is a mistake, usually a missing `local`
+local ARNO_MOD_GLOBALS = {%s}
+local function arno_strict_env(module)
+  return setmetatable({}, {
+    __index = _G,
+    __newindex = function(_, k, v)
+      if rawget(_G, k) ~= nil or ARNO_MOD_GLOBALS[k] or k == "ARNO" or k == "arno_state"
+         or k == "arno_setup" or k == "arno_back_clicked"
+         or (type(k) == "string" and k:match("^on_arno_")) then
+        rawset(_G, k, v)
+      else
+        error("ARNO module " .. module .. " sets a new global: " .. tostring(k), 2)
+      end
+    end,
+  })
+end
+"""
+
+
+def bundle(base: Path = ARNO_DIR, packages: tuple[str, ...] | None = None, epilogue: str = "",
+           strict_globals: list[str] | None = None) -> str:
+    """Return the bundle text (LF line endings). `epilogue` is appended inside the block.
+
+    With `strict_globals` (tests only), each module runs in an environment that refuses new
+    globals other than those names and ARNO's own (STRICT_PRELUDE).
+    """
     parts = [BEGIN, "\n", PRELUDE]
+    prologue = ""
+    if strict_globals is not None:
+        parts.append(STRICT_PRELUDE % ", ".join(f"{name} = true" for name in sorted(set(strict_globals))))
     for f in module_files(base, packages):
         text = f.read_text(encoding="utf-8").replace("\r\n", "\n")
         if not text.endswith("\n"):
             text += "\n"
-        parts.append(f'ARNO_MODULES["{module_name(f, base)}"] = function(require)\n{text}end\n')
+        name = module_name(f, base)
+        if strict_globals is not None:
+            prologue = f'local _ENV = arno_strict_env("{name}")\n'
+        parts.append(f'ARNO_MODULES["{name}"] = function(require)\n{prologue}{text}end\n')
     parts.append(epilogue)
     parts.append(END + "\n")
     return "".join(parts)

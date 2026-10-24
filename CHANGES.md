@@ -74,7 +74,8 @@ The Global script is the base script plus:
 - `cnsts.saved_globals` += `"arno_state"`: ARNO's state is saved in every checkpoint.
 - `cnsts.saved_player_fields` += `"is_arno"`, `"arno_index"`.
 - New globals: `ARNO` (module), `arno_state` (persistent), `arno_setup` (setup choices),
-  `on_arno_*` button handlers.
+  `on_arno_*` button handlers, `arno_back_clicked` (the H20 Back button). The tests refuse any
+  other new global set by ARNO code (`tools/lua_bundle.py`, strict mode).
 - New UI panel `arno` (through the mod's `set_active_panel`).
 
 ## 4. Not changed

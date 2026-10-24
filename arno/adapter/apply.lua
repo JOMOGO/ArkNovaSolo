@@ -541,7 +541,7 @@ end
 function M.deal_bot_setup_cards(bots, done)
   -- the humans' pile was built this frame by discard_cards_to_new_pile; zone contents lag
   -- physical moves, so use the pile object it returned (captured by the wrapper below)
-  local pile = arno_last_discard_pile
+  local pile = M.last_discard_pile
   if pile == nil then
     local zone = getObjectFromGUID(cnsts.discard_pile_zone)
     pile = getByType(zone, "Deck") or getByType(zone, "Card")
@@ -699,7 +699,7 @@ function M.install_hooks(wrap)
   wrap("H8", "discard_cards_to_new_pile", function(orig)
     return function(...)
       local pile = orig(...)
-      arno_last_discard_pile = pile
+      M.last_discard_pile = pile
       return pile
     end
   end)

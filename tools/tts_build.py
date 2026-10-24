@@ -89,8 +89,18 @@ def install_to_saves(built: Path, saves_dir: Path) -> Path | None:
     return target
 
 
-def arno_global(src: Path, card_images: str = "") -> str:
-    """src/Global.lua + ARNO bundle (+ the ARNO card image table, if any)."""
+def mod_global_names(lua: str) -> list[str]:
+    """Names the mod assigns or defines without `local` (a superset of its globals)."""
+    names = set(re.findall(r"^[ \t]*function[ \t]+([A-Za-z_]\w*)[ \t]*\(", lua, re.M))
+    names |= set(re.findall(r"^[ \t]*([A-Za-z_]\w*)[ \t]*=(?!=)", lua, re.M))
+    return sorted(names)
+
+
+def arno_global(src: Path, card_images: str = "", strict: bool = False) -> str:
+    """src/Global.lua + ARNO bundle (+ the ARNO card image table, if any).
+
+    strict (tests only): ARNO modules may not create new globals (lua_bundle.STRICT_PRELUDE).
+    """
     sys.path.insert(0, str(ROOT / "tools"))
     import lua_bundle
     with open(src / "Global.lua", encoding="utf-8", newline="") as f:
@@ -98,7 +108,8 @@ def arno_global(src: Path, card_images: str = "") -> str:
     if text.count(BUNDLE_ANCHOR) != 1:
         raise SystemExit("bundle anchor (local handler_names = {}) not found exactly once")
     bundle = lua_bundle.bundle(packages=("core", "adapter", "ui", "main"),
-                               epilogue=card_images + 'ARNO = arno_require("main")\nARNO.install()\n')
+                               epilogue=card_images + 'ARNO = arno_require("main")\nARNO.install()\n',
+                               strict_globals=mod_global_names(text) if strict else None)
     return text.replace(BUNDLE_ANCHOR, "\n" + bundle + BUNDLE_ANCHOR, 1)
 
 

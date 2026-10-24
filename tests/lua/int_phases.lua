@@ -33,11 +33,11 @@ T.test("setup discards join the humans' pile even before it is in the zone (H8)"
   zoo_deck = sim.deck({ 401, 402, 403, 404, 405, 406, 407, 408 })
   final_scoring_deck = sim.deck({ 1, 2 })
   local humans_pile = sim.deck({ 201, 202, 203, 204 })
-  arno_last_discard_pile = nil
+  require("adapter.apply").last_discard_pile = nil
   discard_cards_to_new_pile(players[1], {}, humans_pile)   -- the mod's call, captured by H8
   require("adapter.apply").deal_bot_setup_cards({ p }, function() end)
   T.eq(humans_pile.getQuantity(), 4 + 8, "all of ARNO's 8 animals went onto the same pile")
-  arno_last_discard_pile = nil
+  require("adapter.apply").last_discard_pile = nil
 end)
 
 T.test("leftover action-card decks: ARNO's empty zone is skipped (H6, found in play)", function()

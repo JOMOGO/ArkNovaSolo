@@ -129,7 +129,7 @@ def lua_suite(test_file: Path, ref: dict | None) -> str:
         parts = [f'R[{json.dumps(k)}] = (function() return {to_lua(v)} end)()' for k, v in ref.items()]
         extra += 'ARNO_MODULES["tests.ref"] = function(require)\nlocal R = {}\n' + "\n".join(parts) + "\nreturn R\nend\n"
     body = test_file.read_text(encoding="utf-8")
-    return (lua_bundle.bundle(epilogue=extra)
+    return (lua_bundle.bundle(epilogue=extra, strict_globals=[])
             + "do\nlocal require = arno_require\n" + body + "\nend\n")
 
 
@@ -184,7 +184,7 @@ def main(argv=None) -> int:
 
     # integration tests: the BUILT Global.lua (mod + edits + ARNO bundle) executed headless
     import tts_build
-    built = tts_build.arno_global(ROOT / "src")
+    built = tts_build.arno_global(ROOT / "src", strict=True)
     stubs = (ROOT / "tests" / "lua" / "tts_stubs.lua").read_text(encoding="utf-8")
     sim = (ROOT / "tests" / "lua" / "sim_lib.lua").read_text(encoding="utf-8")
     lib = (ROOT / "tests" / "lua" / "lib.lua").read_text(encoding="utf-8")
