@@ -109,20 +109,14 @@ def to_lua(v, indent: int = 0) -> str:
 
 def card_names_module() -> str:
     """tests.card_names: card number -> object name ("(217) Engineer") from the base save."""
+    from tts_extract import walk_objects
+
     names: dict[int, str] = {}
-
-    def walk(o):
-        if isinstance(o, dict):
-            m = re.match(r"^\((\d{3})\) ", o.get("Nickname", ""))
-            if m:
-                names.setdefault(int(m.group(1)), o["Nickname"])
-            for v in o.values():
-                walk(v)
-        elif isinstance(o, list):
-            for v in o:
-                walk(v)
-
-    walk(json.loads(BASE_SAVE.read_text(encoding="utf-8")))
+    save = json.loads(BASE_SAVE.read_text(encoding="utf-8"))
+    for _, obj in walk_objects(save.get("ObjectStates"), ["ObjectStates"]):
+        m = re.match(r"^\((\d{3})\) ", obj.get("Nickname", ""))
+        if m:
+            names.setdefault(int(m.group(1)), obj["Nickname"])
     body = ",".join(f"[{n}]={json.dumps(names[n], ensure_ascii=False)}" for n in sorted(names))
     return 'ARNO_MODULES["tests.card_names"] = function(require)\nreturn {' + body + "}\nend\n"
 
