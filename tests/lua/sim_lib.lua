@@ -41,6 +41,33 @@ function sim.pump(limit)
   end
 end
 
+-- ---------------------------------------------------------------- hands
+-- sim.hands[color][index] lists the fakes dealt there; Player[color].getHandObjects reads it
+-- when a test installs sim.hand_players()
+sim.hands = {}
+function sim.hand(color, index)
+  index = index or 1
+  sim.hands[color] = sim.hands[color] or {}
+  sim.hands[color][index] = sim.hands[color][index] or {}
+  return sim.hands[color][index]
+end
+function sim.leave_hand(obj)
+  for _, by_index in pairs(sim.hands) do
+    for _, hand in pairs(by_index) do
+      for i = #hand, 1, -1 do
+        if hand[i] == obj then table.remove(hand, i) end
+      end
+    end
+  end
+end
+function sim.hand_players()
+  sim.hands = {}
+  return setmetatable({}, { __index = function(_, color)
+    return { color = color, seated = true,
+             getHandObjects = function(index) local out = {} for i, o in ipairs(sim.hand(color, index)) do out[i] = o end return out end }
+  end })
+end
+
 -- ---------------------------------------------------------------- fake objects
 local fake_mt = { __index = function() return function() end end }
 function sim.fake(name, pos, guid)
@@ -55,30 +82,55 @@ function sim.fake(name, pos, guid)
   o.getName = function() return state.name end
   o.setName = function(n) state.name = n end
   o.getPosition = function() return state.pos end
-  o.setPosition = function(p) state.pos = Vector(p) end
-  o.setPositionSmooth = function(p) state.pos = Vector(p) end
-  o.getRotation = function() return Vector(0, 180, state.face_down and 180 or 0) end
-  o.setRotation = function(r) end
-  o.setRotationSmooth = function(r) end
+  o.setPosition = function(p) sim.leave_hand(o); state.pos = Vector(p) end
+  o.setPositionSmooth = function(p) sim.leave_hand(o); state.pos = Vector(p) end
+  o.deal = function(_, color, index)                 -- a card: into that player's hand
+    sim.leave_hand(o)
+    local hand = sim.hand(color, index)
+    hand[#hand + 1] = o
+  end
+  -- only the turn (y) is kept; face up / down stays state.face_down
+  o.getRotation = function() return Vector(0, state.rot_y or 180, state.face_down and 180 or 0) end
+  o.setRotation = function(r) state.rot_y = Vector(r).y end
+  o.setRotationSmooth = function(r) state.rot_y = Vector(r).y end
+  o.getScale = function() return Vector(1, 1, 1) end
   o.isSmoothMoving = function() return false end
   o.createButton = function(b) state.buttons[#state.buttons + 1] = b end
   o.clearButtons = function() state.buttons = {} end
   o.getButtons = function() return state.buttons end
+  -- a test may give objects snap points by name (building tiles: sim.snap_points_for)
+  o.getSnapPoints = function() return sim.snap_points_for and sim.snap_points_for(state.name) or {} end
   o.addTag = function(t) state.tags[t] = true end
   o.removeTag = function(t) state.tags[t] = nil end
   o.hasTag = function(t) return state.tags[t] == true end
   o.getTags = function() local out = {} for t in pairs(state.tags) do out[#out + 1] = t end return out end
   o.getObjects = function() return state.contents end
   o.takeObject = function(params)
-    local item = table.remove(state.contents, 1)
+    local at = 1
+    if params and params.guid then
+      for i, entry in ipairs(state.contents) do
+        if entry.guid == params.guid then at = i; break end
+      end
+    end
+    local item = table.remove(state.contents, at)
     if item == nil then error("takeObject from empty container " .. state.name) end
     local obj = sim.objects[item.guid] or sim.fake(item.name, nil, item.guid)
     if params and params.position then obj.setPosition(params.position) end
+    -- as in TTS, the callback runs once the object has spawned (a later frame)
+    if params and params.callback_function then
+      Wait.frames(function() params.callback_function(obj) end, 1)
+    end
     return obj
   end
-  o.putObject = function(obj) state.contents[#state.contents + 1] = { guid = obj.getGUID(), name = obj.getName() } return o end
+  o.putObject = function(obj) sim.leave_hand(obj); state.contents[#state.contents + 1] = { guid = obj.getGUID(), name = obj.getName() } return o end
   o.getQuantity = function() return #state.contents end
   o.reload = function() return o end
+  o.clone = function(params)
+    local copy = sim.fake(state.name, params and params.position)
+    for t in pairs(state.tags) do copy.addTag(t) end
+    copy.setRotation((params and params.rotation) or o.getRotation())
+    return copy
+  end
   o.destruct = function() sim.objects[guid] = nil end
   sim.objects[guid] = o
   return o

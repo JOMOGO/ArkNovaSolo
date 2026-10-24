@@ -6,6 +6,8 @@
   3. the differential reference: original TS with seeded RNG        -> build/harness/ts_reference.json
   4. generated data is current (arno/core/cards_data.lua)
   5. Lua tests under MoonSharp (TTS's interpreter)                  tests/lua/test_*.lua
+  6. integration tests on the built Global.lua, headless            tests/lua/int_*.lua
+     (int_cards.lua plays every card to the end of the turn; -k int_cards runs it alone)
 
 Node >= 20.19 is required for 2 and 3. It is taken from $ARNO_NODE, else from PATH, else
 from the newest nvs install (%LOCALAPPDATA%/nvs/node/<version>/x64).
@@ -30,6 +32,7 @@ BUILD = ROOT / "build"
 MOONRUN_DIR = ROOT / "tools" / "moonsharp"
 MOONRUN = MOONRUN_DIR / "bin" / "out" / "moonrun.dll"
 REF_JSON = BUILD / "harness" / "ts_reference.json"
+BASE_SAVE = ROOT / "mods" / "original" / "3812420704.json"
 
 
 def run(cmd, **kw) -> int:
@@ -104,6 +107,26 @@ def to_lua(v, indent: int = 0) -> str:
     raise TypeError(type(v))
 
 
+def card_names_module() -> str:
+    """tests.card_names: card number -> object name ("(217) Engineer") from the base save."""
+    names: dict[int, str] = {}
+
+    def walk(o):
+        if isinstance(o, dict):
+            m = re.match(r"^\((\d{3})\) ", o.get("Nickname", ""))
+            if m:
+                names.setdefault(int(m.group(1)), o["Nickname"])
+            for v in o.values():
+                walk(v)
+        elif isinstance(o, list):
+            for v in o:
+                walk(v)
+
+    walk(json.loads(BASE_SAVE.read_text(encoding="utf-8")))
+    body = ",".join(f"[{n}]={json.dumps(names[n], ensure_ascii=False)}" for n in sorted(names))
+    return 'ARNO_MODULES["tests.card_names"] = function(require)\nreturn {' + body + "}\nend\n"
+
+
 def lua_suite(test_file: Path, ref: dict | None) -> str:
     lib = (ROOT / "tests" / "lua" / "lib.lua").read_text(encoding="utf-8")
     extra = f'ARNO_MODULES["tests.lib"] = function(require)\n{lib}\nend\n'
@@ -175,9 +198,10 @@ def main(argv=None) -> int:
         if args.k and args.k not in test_file.name:
             continue
         body = test_file.read_text(encoding="utf-8")
+        names = card_names_module() if "tests.card_names" in body else ""
         suite = out_dir / test_file.name
         suite.write_text(stubs + "\n" + sim + "\n" + built + "\nsim.cnsts = cnsts\n"
-                         + 'ARNO_MODULES["tests.lib"] = function(require)\n' + lib + "\nend\n"
+                         + 'ARNO_MODULES["tests.lib"] = function(require)\n' + lib + "\nend\n" + names
                          + "do\nlocal require = arno_require\n" + body + "\nend\n",
                          encoding="utf-8", newline="\n")
         if run(["dotnet", MOONRUN, suite]):

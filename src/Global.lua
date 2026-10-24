@@ -12019,6 +12019,21 @@ function finish_animal_play(player)
   end)
 end
 
+function reef_effect(player, source)
+  local groups = {}
+  for _, guid in ipairs(player.played_animals) do
+    local played = getObjectFromGUID(guid)
+    local data = played ~= nil and card_data_for(played.getName()) or nil
+    if data ~= nil and data.reef ~= nil and data.reef ~= "" then
+      groups[#groups + 1] = {
+        rewards = { data.reef },
+        source = string.sub(played.getName(), 7) .. "'s reef effect"
+      }
+    end
+  end
+  create_claims_from_reward_groups(player, groups, false)
+end
+
 function container_holds_guid(container, guid)
   for _, entry in ipairs(container.getObjects()) do
     if entry.guid == guid then return true end

@@ -32,6 +32,7 @@ The Global script is the base script plus:
 | H19 | `action_selection_panel_xml` (~10132-10154), 3 edits | `offsetXY="-60 0"` → `"0 0"`; height 370 → 392; one `<Text>` line before the closing `</VerticalLayout>` | **owner request, every game:** the hint "Undo later choices: press the rewind arrow twice."; the panel sits flush right like the mod's other panels |
 | H21 | 8 panel templates: card selection (~8055), project support (~9298), extra shift (~9938), claims (~13559), trade (~13975), marketing (~14158), cut down (~17017), building placement (~17102, ~17109), 9 edits | red `#C61715` → Back colour `#8A6D1F`; `Cancel` → `Back`; `Go back to` → `Back to` | **owner request, every game:** the mod's red Cancel buttons only ever go back one step, so they are Back buttons, same handlers. Red **Pass** buttons stay (passing is a game choice), also glide discard's Pass in the card-selection panel and the claims panel's Pass |
 | FIX471 | `cnsts.cards.base`, card 471 (~2436) | adds `enclosure={repthouse=2}` | **base-mod data fix, every game:** African Spurred Tortoise was missing its Reptile House option (printed card: Reptile House 2) |
+| FIX138 | after `finish_animal_play` (~12021) | adds the reward function `reef_effect(player, source)`: one claim per played animal with a reef effect, the loop `finish_animal_play` uses for reef animals | **base-mod fix, Marine Worlds:** the left slot of Sea Animal Management Plan (card 138, printed: 2 CP + the reef icon) awards `"reef effect"`, which had no handler, so `apply_reward_string` called nil and the claims stopped. Found by `tests/lua/int_cards.lua` |
 
 ## 2. Wrappers (installed by `arno/adapter/hooks.lua` and `arno/adapter/apply.lua`)
 
@@ -76,4 +77,4 @@ The Global script is the base script plus:
 ## 4. Not changed
 
 The base mod's rules for humans, object scripts, assets, decks, positions and the official
-solo challenge (1 human, no ARNO) are not changed (apart from the card 471 data fix FIX471).
+solo challenge (1 human, no ARNO) are not changed (apart from the card fixes FIX471 and FIX138).

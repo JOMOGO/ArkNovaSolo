@@ -31,6 +31,8 @@ class ArnoBuildTest(unittest.TestCase):
         self.assertIn("(ARNO and ARNO.setup.expected_discards(players)) or 4 * #players", lua)
         # FIX471: African Spurred Tortoise can live in a Reptile House
         self.assertIn('[471] = {type="animal", size=3, cost=22, icons={"reptile", "africa"}, enclosure={repthouse=2},', lua)
+        # FIX138: the "reef effect" reward of Sea Animal Management Plan exists
+        self.assertIn("\nfunction reef_effect(player, source)\n", lua)
         # H6, H16: nil-safe deck removal, human hands only
         self.assertIn("if deck ~= nil then deck.destruct() end", lua)
         self.assertIn("ipairs((ARNO and ARNO.setup.humans(players)) or players)", lua)
