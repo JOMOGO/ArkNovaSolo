@@ -348,4 +348,20 @@ T.test("FIX138: Sea Animal Management Plan's left slot carries out every reef ef
   T.eq(sources, { "2 appeal", "3 money" }, "the reef effects of both reef animals")
 end)
 
+T.test("FIX138: playing a reef animal still carries out every reef effect, its own too", function()
+  local p = human_game(true)
+  for _, n in ipairs({ 534, 535 }) do                     -- reef: 3 money, none ("")
+    table.insert(p.played_animals, card_obj(n).getGUID())
+  end
+  local sources = {}
+  sim.record("apply_reward_string", function(orig, player, reward, source)
+    if tostring(source):find("reef effect", 1, true) then sources[#sources + 1] = reward end
+    return orig(player, reward, source)
+  end)
+  play(p, 530, sim.cnsts.cards.mw[530])                   -- reef: 2 appeal
+  T.eq(drive(p), "ended")
+  table.sort(sources)
+  T.eq(sources, { "2 appeal", "3 money" })
+end)
+
 T.finish("integration every card")
