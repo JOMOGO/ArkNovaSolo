@@ -7,6 +7,9 @@ automated players to the scripted Tabletop Simulator mod "Ark Nova - Complete Sc
 - optional ARNO project module;
 - Marine Worlds supported.
 
+It also fixes a few base-mod bugs, in every game (card data and rewards: CHANGES.md §1, the
+FIX rows).
+
 ARNO's decisions are a tested Lua port of the
 [Ark Nova Solo Helper](https://github.com/brdgm/ark-nova-solo-helper) by Stefan Seifert
 (Apache-2.0); see `NOTICE`.
@@ -94,6 +97,7 @@ python tools/run_tests.py --skip-node
 | differential | seeded original TypeScript vs the Lua port: 2,400 action cases, 300 full games, 400 dice sets, shuffles, tracker, RNG |
 | Lua | ported helper specs, ARNO rules (plan) |
 | integration | the **built** mod + ARNO executed headless: claims engine, 60-turn soak, replay determinism, setup cards, breaks, scoring, ties |
+| every card | `tests/lua/int_cards.lua`: each of the 281 cards (base + Marine Worlds: animals, sponsors, projects) played by a human through the mod's real code, every panel answered, to the end of the turn (`-k int_cards` runs it alone) |
 
 In-game checklist: `TESTING.md`.
 
