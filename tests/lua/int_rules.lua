@@ -62,6 +62,21 @@ T.test("board: place and placeUnchecked leave the same board and reward", functi
   T.eq(a:place(cells, { "size_3" }, ANY, {}), nil, "place refuses taken cells")
 end)
 
+T.test("board: the placement that fills the last free cell reports a cleared board", function()
+  local board = sim.human_game().map
+  local last, placed = nil, 0
+  while board.unoccupiedCount > 0 and placed < 200 do
+    local cells = board:findValidPlacement(sim.cnsts.build_tile_shapes["SIZE 1"],
+                                           { allowed = ANY, ignore_touch_rule = true })
+    if cells == nil then break end
+    local _, reward = board:placeUnchecked(cells, { "size_1" }, ANY, {})
+    if board.unoccupiedCount > 0 then T.eq(reward.clearedBoard, false, "not yet cleared") end
+    last, placed = reward, placed + 1
+  end
+  T.eq(board.unoccupiedCount, 0, "every free cell built over")
+  T.eq(last.clearedBoard, true)
+end)
+
 -- ---------------------------------------------------------------- final scoring discard
 
 -- Red and Blue, each with two final scoring cards in hand 2

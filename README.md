@@ -98,6 +98,7 @@ python tools/run_tests.py --skip-node
 | Lua | ported helper specs, ARNO rules (plan) |
 | integration | the **built** mod + ARNO executed headless: claims engine, 60-turn soak, replay determinism, setup cards, breaks, scoring, ties |
 | every card | `tests/lua/int_cards.lua`: each of the 281 cards (base + Marine Worlds: animals, sponsors, projects) played by a human through the mod's real code, every panel answered, to the end of the turn (`-k int_cards` runs it alone) |
+| rules | `tests/lua/int_rules.lua`: base-mod code shared by several places (REF1-REF3 in CHANGES.md): hex board regions and placement, the final scoring discard, reconstruction moves |
 
 In-game checklist: `TESTING.md`.
 

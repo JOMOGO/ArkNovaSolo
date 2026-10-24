@@ -592,9 +592,7 @@ local HexBoard = (function()
     return r
   end
 
-  function Board:place(cells, tags, allowed, opts)
-    local ok, why = self:canPlace(cells, allowed, opts)
-    if not ok then return nil, why end
+  function Board:_commit(cells, tags, opts)
     local before = self.unoccupiedCount
     local reward = self:_rewardFrom(cells, self:_rewardMultiplier(opts))
     local id = self:_insert(cells, tags)
@@ -603,17 +601,18 @@ local HexBoard = (function()
     return id, reward
   end
 
+  function Board:place(cells, tags, allowed, opts)
+    local ok, why = self:canPlace(cells, allowed, opts)
+    if not ok then return nil, why end
+    return self:_commit(cells, tags, opts)
+  end
+
   function Board:placeUnchecked(cells, tags, allowed, opts)
     if #cells < 1 or #cells > MAX_TILE_SIZE then return nil, "size" end
     local bad = self:_cellsUnusable(cells, allowed)
     if bad then return nil, bad end
     if not M.isContiguous(cells) then return nil, "not contiguous" end
-    local before = self.unoccupiedCount
-    local reward = self:_rewardFrom(cells, self:_rewardMultiplier(opts))
-    local id = self:_insert(cells, tags)
-    self:_consume(id, cells)
-    reward.clearedBoard = (before > 0 and self.unoccupiedCount == 0)
-    return id, reward
+    return self:_commit(cells, tags, opts)
   end
 
   function Board:remove(id)
@@ -943,32 +942,12 @@ local HexBoard = (function()
   end
 
   function Board:countGroupsOfSix()
-    markGen = markGen + 1
-    local g = markGen
-    local owner, countable = self.owner, self.countable
-    local total, regions, largest = 0, 0, 0
-    for c = 1, N_CELLS do
-      if countable[c] and owner[c] == EMPTY and MARK[c] ~= g then
-        MARK[c] = g
-        local top, size = 1, 0
-        STACK[1] = c
-        while top > 0 do
-          local x = STACK[top]; top = top - 1
-          size = size + 1
-          local nb = NEIGHBORS[x]
-          for k = 1, #nb do
-            local u = nb[k]
-            if countable[u] and owner[u] == EMPTY and MARK[u] ~= g then
-              MARK[u] = g; top = top + 1; STACK[top] = u
-            end
-          end
-        end
-        regions = regions + 1
-        if size > largest then largest = size end
-        total = total + (size - size % GROUP_SIZE) / GROUP_SIZE
-      end
+    local sizes = self:unoccupiedRegionSizes()
+    local total = 0
+    for _, size in ipairs(sizes) do
+      total = total + (size - size % GROUP_SIZE) / GROUP_SIZE
     end
-    return total, regions, largest
+    return total, #sizes, sizes[1] or 0
   end
 
   function Board:unoccupiedRegionSizes()
@@ -4588,13 +4567,17 @@ function start_final_scoring_discard(player)
   broadcastToAll(player.steam_name ..
     " has reached 10 Conservation Points. All players discard 1 Final Scoring card.")
 
+  all_players_discard_final_scoring(function() render_claims_table(player) end)
+end
+
+function all_players_discard_final_scoring(done)
   local remaining = #players
   for _, p in ipairs(players) do
     prompt_final_scoring_discard(p, 1, nil, function()
       remaining = remaining - 1
       if remaining == 0 then
         clear_waiting_status()
-        render_claims_table(player)
+        done()
       else
         set_waiting_status(p, cnsts.waiting_to_discard)
       end
@@ -12979,19 +12962,9 @@ function start_final_scoring()
     held[p.color] = #Player[p.color].getHandObjects(2)
   end
 
-  local remaining = #players
-  for _, p in ipairs(players) do
-    prompt_final_scoring_discard(p, 1, nil, function()
-      remaining = remaining - 1
-      if remaining == 0 then
-        clear_waiting_status()
-        wait_for_all_hand_counts(2, function(q) return held[q.color] - 1 end,
-                                 score_all_players)
-      else
-        set_waiting_status(p, cnsts.waiting_to_discard)
-      end
-    end)
-  end
+  all_players_discard_final_scoring(function()
+    wait_for_all_hand_counts(2, function(q) return held[q.color] - 1 end, score_all_players)
+  end)
 end
 
 function score_all_players()
@@ -16882,34 +16855,18 @@ function on_reconstruction_confirm_clicked(_, color, _)
     end
   end
 
-  local remaining = {}
-  for i, move in ipairs(moves) do remaining[i] = move end
-  local board_pos = player.player_board.getPosition()
+  place_reposition_moves(player, player.map, moves, function(move, opts)
+    local id, reward = player.map:place(move.cells, { move.type }, opts.allowed, opts)
+    tally(reward.specials, 1)
+    player.map.tiles[id].tags.placement = move.rules
+    move.placed_id = id
 
-  local progress = true
-  while progress and #remaining > 0 do
-    progress = false
-    for i = #remaining, 1, -1 do
-      local move = remaining[i]
-      local opts = reposition_opts(player, move.rules)
-      if player.map:canPlace(move.cells, opts.allowed, opts)
-         and placement_meets_requirements(player.map, move.cells, opts) then
-        local id, reward = player.map:place(move.cells, { move.type }, opts.allowed, opts)
-        tally(reward.specials, 1)
-        player.map.tiles[id].tags.placement = move.rules
-        move.placed_id = id
-
-        local obj = objects[move] or state.added[move.type]
-        player.building_tiles[id] = obj
-        obj.interactable = false
-        obj.highlightOff()
-        reassert_board_tile(player, id)
-
-        table.remove(remaining, i)
-        progress = true
-      end
-    end
-  end
+    local obj = objects[move] or state.added[move.type]
+    player.building_tiles[id] = obj
+    obj.interactable = false
+    obj.highlightOff()
+    reassert_board_tile(player, id)
+  end)
 
   printToAll(string.format("%s repositions %d building(s).",
     player.steam_name, #moves))
@@ -17292,6 +17249,12 @@ function reposition_is_valid(player, moves)
     end
   end
 
+  return place_reposition_moves(player, scratch, moves, function(move, opts)
+    scratch:placeUnchecked(move.cells, { move.type }, opts.allowed, opts)
+  end)
+end
+
+function place_reposition_moves(player, board, moves, place)
   local remaining = {}
   for i, move in ipairs(moves) do remaining[i] = move end
 
@@ -17301,9 +17264,9 @@ function reposition_is_valid(player, moves)
     for i = #remaining, 1, -1 do
       local move = remaining[i]
       local opts = reposition_opts(player, move.rules)
-      if scratch:canPlace(move.cells, opts.allowed, opts)
-         and placement_meets_requirements(scratch, move.cells, opts) then
-        scratch:placeUnchecked(move.cells, { move.type }, opts.allowed, opts)
+      if board:canPlace(move.cells, opts.allowed, opts)
+         and placement_meets_requirements(board, move.cells, opts) then
+        place(move, opts)
         table.remove(remaining, i)
         progress = true
       end

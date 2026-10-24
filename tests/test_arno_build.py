@@ -34,6 +34,11 @@ class ArnoBuildTest(unittest.TestCase):
         # FIX138: the "reef effect" reward of Sea Animal Management Plan exists
         self.assertIn("\nfunction reef_effect(player, source)\n", lua)
         self.assertIn("    append_reef_effect_groups(groups, player)\n", lua)
+        # REF1-REF3: shared board commit and region sizes, final scoring discard, reposition loop
+        self.assertIn("    return self:_commit(cells, tags, opts)\n", lua)
+        self.assertIn("    local sizes = self:unoccupiedRegionSizes()\n", lua)
+        self.assertIn("\nfunction all_players_discard_final_scoring(done)\n", lua)
+        self.assertIn("\nfunction place_reposition_moves(player, board, moves, place)\n", lua)
         # H6, H16: nil-safe deck removal, human hands only
         self.assertIn("if deck ~= nil then deck.destruct() end", lua)
         self.assertIn("ipairs((ARNO and ARNO.setup.humans(players)) or players)", lua)
