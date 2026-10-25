@@ -108,6 +108,9 @@ Install: see README ("Play").
 - [ ] **F3 — upgrade with nothing left to upgrade.** With all five action cards upgraded,
   take an upgrade reward (for example your 2nd partner zoo): chat says you have no action
   card left to upgrade, and the turn goes on (FIXFLIP).
+- [ ] **F4 — the same reward twice.** Get the same reward from two sources in one go (for
+  example two sponsors paying 2 money for one icon): both are paid at once, without a
+  claims panel. Two different rewards still ask for the order (AUTOSAME).
 
 ## G. Things to report if they happen
 

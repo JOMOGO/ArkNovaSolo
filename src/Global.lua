@@ -6296,6 +6296,7 @@ function append_reward_claims(sub_table, player, rewards, source, grouped, show_
             return reward and reward_button_text(reward, player, source, show_source)
           end,
           source = source,
+          reward = initial_reward,
           optional = initial_reward ~= nil and is_reward_optional(initial_reward),
           async = initial_reward == nil or not is_reward_sync(initial_reward),
           valid = function()
@@ -13555,6 +13556,17 @@ function claims_panel_xml(color, sub_table, persistent_buttons, persistent_count
   ]], color, color, height, buttons)
 end
 
+-- every claim left is the same mandatory reward: the order cannot matter, so they are paid
+-- one after the other without asking
+function claims_all_same_reward(sub_table)
+  local reward = sub_table[1] and sub_table[1].reward
+  if reward == nil then return false end
+  for _, claim in ipairs(sub_table) do
+    if claim.optional or claim.reward ~= reward then return false end
+  end
+  return true
+end
+
 function render_claims_table(player)
   local color = player.color
   claims_players[color] = nil
@@ -13603,8 +13615,8 @@ function render_claims_table(player)
     return
   end
 
-  if #sub_table == 1 and not sub_table[1].optional and persistent_count == 0
-     and not sub_table.grouped then
+  if (#sub_table == 1 and not sub_table[1].optional or claims_all_same_reward(sub_table))
+     and persistent_count == 0 and not sub_table.grouped then
     local claim = sub_table[1]
     pop_claim(sub_table, 1)
     persistent_origin = sub_table.from_persistent or false

@@ -241,4 +241,52 @@ T.test("FIXFLIP: with one card left to upgrade, the panel still opens and upgrad
   T.eq(#sim.calls.end_player_turn, 1)
 end)
 
+-- ---------------------------------------------------------------- same rewards (AUTOSAME)
+
+local function from_two_sources(p, a, b)
+  create_claims_from_reward_groups(p, {
+    { rewards = { a }, source = "Card A", show_source = true },
+    { rewards = { b }, source = "Card B", show_source = true },
+  }, false)
+  sim.pump()
+end
+
+T.test("AUTOSAME: the same reward twice is paid without asking", function()
+  local p = sim.human_game()
+  from_two_sources(p, "2 appeal", "2 appeal")
+  T.eq(claims_players.Red, nil, "no claims panel")
+  T.eq(get_counter_value(p.appeal_counter), 4)
+  T.eq(#sim.calls.end_player_turn, 1, "the turn went on")
+end)
+
+T.test("AUTOSAME: different rewards still ask for the order", function()
+  local p = sim.human_game()
+  from_two_sources(p, "2 appeal", "3 money")
+  T.eq(claims_players.Red, p, "claims panel open")
+  T.eq(get_counter_value(p.appeal_counter), 0, "nothing paid yet")
+  T.eq(#sim.calls.end_player_turn, 0)
+end)
+
+T.test("AUTOSAME: the same optional reward twice still asks (it may be skipped)", function()
+  local p = sim.human_game()
+  from_two_sources(p, "sunbathing 2", "sunbathing 2")
+  T.eq(claims_players.Red, p, "claims panel open")
+  T.eq(#sim.calls.end_player_turn, 0)
+end)
+
+T.test("AUTOSAME: a reward with its own choice runs twice, one after the other", function()
+  local p = sim.human_game()
+  from_two_sources(p, "card flip", "card flip")
+  T.eq(claims_players.Red, nil, "no claims panel")
+  T.ok(card_flips.Red ~= nil, "first upgrade panel open")
+  on_card_flip_clicked(nil, "Red_1", nil)
+  sim.pump()
+  T.ok(card_flips.Red ~= nil, "second upgrade panel open")
+  on_card_flip_clicked(nil, "Red_2", nil)
+  sim.pump()
+  T.eq(action_card_upgraded(action_card_object(p, 1)), true)
+  T.eq(action_card_upgraded(action_card_object(p, 2)), true)
+  T.eq(#sim.calls.end_player_turn, 1)
+end)
+
 T.finish("integration rules")
