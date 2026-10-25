@@ -112,6 +112,10 @@ Install: see README ("Play").
   example two sponsors paying 2 money for one icon): both are paid at once, without a
   claims panel. So are appeal, money and X-tokens together. Appeal plus reputation still asks
   for the order (AUTOSAME).
+- [ ] **F5 — no click without a choice.** With one final scoring card in hand, the 10 CP
+  discard happens by itself; with one action card left to upgrade, an upgrade reward
+  upgrades it; supporting a project with only one project and one open slot goes straight
+  to the project cube, but with a Wildcard token the slot is still asked (AUTOONE).
 
 ## G. Things to report if they happen
 

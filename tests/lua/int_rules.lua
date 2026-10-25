@@ -229,16 +229,107 @@ T.test("FIXFLIP: a card flip with every action card upgraded is skipped, the tur
   T.eq(#sim.calls.end_player_turn, 1, "the claims went on to the end of the turn")
 end)
 
-T.test("FIXFLIP: with one card left to upgrade, the panel still opens and upgrades it", function()
+T.test("AUTOONE: with one card left to upgrade, it is upgraded without the panel", function()
   local p = sim.human_game()
   upgrade_all_but(p, 3)
   create_claims_from_rewards(p, { "card flip" }, "test")
   sim.pump()
-  T.ok(card_flips.Red ~= nil, "upgrade panel open")
-  T.eq(#sim.calls.end_player_turn, 0, "waiting for the choice")
-  on_card_flip_clicked(nil, "Red_3", nil)
+  T.eq(card_flips.Red, nil, "no upgrade panel")
   T.eq(action_card_upgraded(action_card_object(p, 3)), true, "slot 3 upgraded")
   T.eq(#sim.calls.end_player_turn, 1)
+end)
+
+T.test("AUTOONE: with two cards left to upgrade, the panel asks", function()
+  local p = sim.human_game()
+  upgrade_all_but(p, 3)
+  getObjectFromGUID(p.action_cards[4].guid).is_face_down = false
+  create_claims_from_rewards(p, { "card flip" }, "test")
+  sim.pump()
+  T.ok(card_flips.Red ~= nil, "upgrade panel open")
+  T.eq(#sim.calls.end_player_turn, 0)
+end)
+
+-- ---------------------------------------------------------------- one answer (AUTOONE)
+
+local function in_hand(color, index, n)
+  local cards = {}
+  for i = 1, n do
+    cards[i] = sim.fake(string.format("(40%d) Card", i))
+    if index == 2 then cards[i].addTag("final_scoring") end
+    cards[i].deal(1, color, index)
+  end
+  return cards
+end
+
+T.test("AUTOONE: the final scoring discard with one card in hand happens without a panel", function()
+  local p = sim.human_game()
+  local cards = in_hand("Red", 2, 1)
+  prompt_final_scoring_discard(p, 1)
+  T.eq(selection_panels.Red, nil, "no selection panel")
+  T.eq(cards[1].hasTag("final_scoring"), false, "the card was discarded")
+  T.eq(#sim.calls.end_player_turn, 1, "the claims went on")
+end)
+
+T.test("AUTOONE: the final scoring discard with two cards in hand asks", function()
+  local p = sim.human_game()
+  in_hand("Red", 2, 2)
+  prompt_final_scoring_discard(p, 1)
+  T.ok(selection_panels.Red ~= nil, "selection panel open")
+end)
+
+T.test("AUTOONE: discard 1 with one card in hand happens without a panel", function()
+  local p = sim.human_game()
+  local cards = in_hand("Red", 1, 1)
+  prompt_discard(p, 1)
+  sim.pump()
+  T.eq(selection_panels.Red, nil, "no selection panel")
+  T.ok(container_holds_guid(discard_pile, cards[1].getGUID()), "on the discard pile")
+  T.eq(#sim.calls.end_player_turn, 1)
+end)
+
+T.test("AUTOONE: keep 2 of 2 keeps both without a panel", function()
+  local p = sim.human_game()
+  local cards = in_hand("Red", 1, 2)
+  local kept
+  prompt_keep(p, cards, 2, function(k) kept = k end)
+  sim.pump()
+  T.eq(selection_panels.Red, nil, "no selection panel")
+  T.eq(#kept, 2)
+end)
+
+T.test("AUTOONE: an optional choice (sell up to 1) with one card still asks", function()
+  local p = sim.human_game()
+  local cards = in_hand("Red", 1, 1)
+  create_card_selection_panel(p, cards, 1, "sell", function() end, 2)
+  T.ok(selection_panels.Red ~= nil, "selection panel open: selling is optional")
+end)
+
+-- Habitat Diversity (#102) on the table: slots need 5 / 4 / 3 habitat icons; the zoo has 3
+local function habitat_project(p)
+  local card = sim.fake("(102) Habitat Diversity")
+  base_projects = { { card.getGUID(), {} } }
+  for i, icon in ipairs(sim.cnsts.icons.habitat) do
+    set_icon_counter(p.icon_counters[icon], i <= 3 and 1 or 0, sim.cnsts.counter_style.icon)
+  end
+  start_project_support(p, nil, false)
+  return project_supports.Red
+end
+
+T.test("AUTOONE: one project and one open slot, no boost: straight to the project cube", function()
+  local p = sim.human_game()
+  local state = habitat_project(p)
+  T.eq(state.chosen ~= nil and state.chosen.card.project, "icons", "the only project chosen")
+  T.eq(state.slot, 3, "the only open slot chosen")
+  T.ok(active_panels.Red:find("on_project_support_cube_clicked", 1, true) ~= nil, "cube choice shown")
+end)
+
+T.test("AUTOONE: with a boost on offer the slot is still asked", function()
+  local p = sim.human_game()
+  p.wildcard = true                                   -- a Wildcard token: +1 toward a slot
+  local state = habitat_project(p)
+  T.ok(state.chosen ~= nil, "the only project chosen")
+  T.eq(state.slot, nil, "the slot is a choice: the boost opens slot 2")
+  T.ok(active_panels.Red:find("on_project_support_boost_clicked", 1, true) ~= nil, "boost offered")
 end)
 
 -- ---------------------------------------------------------------- same rewards (AUTOSAME)

@@ -40,6 +40,10 @@ class ArnoBuildTest(unittest.TestCase):
         self.assertIn("\nfunction claims_all_same_reward(sub_table)\n", lua)
         self.assertIn("          reward = initial_reward,\n", lua)
         self.assertIn("\nfunction plain_amount_reward(reward)\n", lua)
+        # AUTOONE: a step with only one answer is taken
+        self.assertIn("\nfunction selection_can_go_back(state)\n", lua)
+        self.assertIn("  if #upgradable == 1 then", lua)
+        self.assertIn("  if state.chosen == nil and #state.offers == 1 then", lua)
         # REF1-REF3: shared board commit and region sizes, final scoring discard, reposition loop
         self.assertIn("    return self:_commit(cells, tags, opts)\n", lua)
         self.assertIn("    local sizes = self:unoccupiedRegionSizes()\n", lua)

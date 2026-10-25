@@ -8034,8 +8034,7 @@ function selection_panel_xml(color, state)
 
   local cancel_button = ""
   local height = 300
-  if state.action == "sell" or state.action == "pouch"
-     or state.action == "optional discard" or state.action == "glide discard" then
+  if selection_can_go_back(state) then
     cancel_button = string.format([[
       <Button id="selectionCancelButton_%s" onClick="on_card_selection_cancel_clicked(%s)" fontSize="18" width="120" height="36" minHeight="36" color="%s" textColor="#FFFFFF">%s</Button>
     ]], color, color, SELECTION_BAIL_LABEL[state.action] and "#C61715" or "#8A6D1F", SELECTION_BAIL_LABEL[state.action] or "Back")
@@ -8078,7 +8077,22 @@ function create_card_selection_panel(player, pool, num, action, callback, sell_v
     selected = {}
   }
   selection_panels[player.color] = state
+
+  -- no way out and no more cards than must be picked: there is only one answer, so take it
+  if not selection_can_go_back(state) and state.confirm_check == nil
+     and #pool > 0 and #pool <= num then
+    state.num = #pool
+    for _, card in ipairs(pool) do table.insert(state.selected, card) end
+    on_card_selection_confirm_clicked(nil, player.color, nil)
+    return
+  end
+
   render_selection_panel(player.color)
+end
+
+function selection_can_go_back(state)
+  return state.action == "sell" or state.action == "pouch"
+    or state.action == "optional discard" or state.action == "glide discard"
 end
 
 function selection_pool_lookup(pool)
@@ -9370,8 +9384,24 @@ function releasable_animals(player, offer)
 end
 
 function render_project_support_panel(player)
-  set_player_panel(player.color,
-    project_support_panel_xml(player.color, project_supports[player.color]))
+  local state = project_supports[player.color]
+
+  -- steps with only one answer are taken: the only project on offer, and the only open slot
+  -- when no boost is offered (a boost can open another slot). Release projects pick their
+  -- slot through the animal released; the project cube stays a choice.
+  if state.chosen == nil and #state.offers == 1 then
+    state.chosen = state.offers[1]
+  end
+  if state.chosen ~= nil and state.slot == nil and state.chosen.card.project ~= "release"
+     and not (state.chosen.boostable and #available_project_boosts(player) > 0) then
+    local live = {}
+    for slot = 1, 3 do
+      if project_slot_live(state, slot) then live[#live + 1] = slot end
+    end
+    if #live == 1 then state.slot = live[1] end
+  end
+
+  set_player_panel(player.color, project_support_panel_xml(player.color, state))
 end
 
 function start_project_support(player, origin, upgd)
@@ -14756,11 +14786,13 @@ function render_card_flip_panel(player)
 end
 
 function card_flip(player, source)
-  local upgradable = false
+  local upgradable = {}
   for slot = 1, 5 do
-    if not action_card_upgraded(action_card_object(player, slot)) then upgradable = true end
+    if not action_card_upgraded(action_card_object(player, slot)) then
+      upgradable[#upgradable + 1] = slot
+    end
   end
-  if not upgradable then
+  if #upgradable == 0 then
     printToAll(player.steam_name .. " has no action card left to upgrade" ..
       (source and (" (" .. source .. "'s card flip)") or "") .. ".")
     render_claims_table(player)
@@ -14768,6 +14800,10 @@ function card_flip(player, source)
   end
 
   card_flips[player.color] = { player = player, source = source }
+  if #upgradable == 1 then                         -- the only card left: upgrade it
+    on_card_flip_clicked(nil, player.color .. "_" .. upgradable[1], nil)
+    return
+  end
   render_card_flip_panel(player)
 end
 
