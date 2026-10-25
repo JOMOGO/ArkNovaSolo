@@ -205,4 +205,40 @@ T.test("reconstruction: a move onto rock or water is refused and changes nothing
   T.eq(#sim.calls.end_player_turn, 0)
 end)
 
+-- ---------------------------------------------------------------- card flip (FIXFLIP)
+
+local function upgrade_all_but(p, keep)
+  for slot = 1, 5 do
+    getObjectFromGUID(p.action_cards[slot].guid).is_face_down = (slot ~= keep)
+  end
+end
+
+T.test("FIXFLIP: a card flip with every action card upgraded is skipped, the turn goes on", function()
+  local p = sim.human_game()
+  upgrade_all_but(p, nil)
+  create_claims_from_rewards(p, { "card flip", "2 appeal" }, "test")
+  sim.pump()
+  local flip                                              -- the player picks the card flip first
+  for i, claim in ipairs(p.claims[#p.claims]) do
+    if not tostring(resolve_claim_text(claim)):find("Appeal") then flip = i end
+  end
+  on_claim_button_clicked(nil, "Red_" .. flip, nil)
+  sim.pump()
+  T.eq(card_flips.Red, nil, "no upgrade panel")
+  T.eq(get_counter_value(p.appeal_counter), 2, "the next reward was still paid")
+  T.eq(#sim.calls.end_player_turn, 1, "the claims went on to the end of the turn")
+end)
+
+T.test("FIXFLIP: with one card left to upgrade, the panel still opens and upgrades it", function()
+  local p = sim.human_game()
+  upgrade_all_but(p, 3)
+  create_claims_from_rewards(p, { "card flip" }, "test")
+  sim.pump()
+  T.ok(card_flips.Red ~= nil, "upgrade panel open")
+  T.eq(#sim.calls.end_player_turn, 0, "waiting for the choice")
+  on_card_flip_clicked(nil, "Red_3", nil)
+  T.eq(action_card_upgraded(action_card_object(p, 3)), true, "slot 3 upgraded")
+  T.eq(#sim.calls.end_player_turn, 1)
+end)
+
 T.finish("integration rules")

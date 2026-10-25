@@ -14730,6 +14730,17 @@ function render_card_flip_panel(player)
 end
 
 function card_flip(player, source)
+  local upgradable = false
+  for slot = 1, 5 do
+    if not action_card_upgraded(action_card_object(player, slot)) then upgradable = true end
+  end
+  if not upgradable then
+    printToAll(player.steam_name .. " has no action card left to upgrade" ..
+      (source and (" (" .. source .. "'s card flip)") or "") .. ".")
+    render_claims_table(player)
+    return
+  end
+
   card_flips[player.color] = { player = player, source = source }
   render_card_flip_panel(player)
 end

@@ -105,6 +105,9 @@ Install: see README ("Play").
 - [ ] **F2 — Sea Animal Management Plan (#138, Marine Worlds).** Play two sea animals with
   a reef effect, then support the project in its left slot: you get 2 CP and each reef
   effect, and the turn goes on (FIX138).
+- [ ] **F3 — upgrade with nothing left to upgrade.** With all five action cards upgraded,
+  take an upgrade reward (for example your 2nd partner zoo): chat says you have no action
+  card left to upgrade, and the turn goes on (FIXFLIP).
 
 ## G. Things to report if they happen
 

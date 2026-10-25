@@ -89,10 +89,17 @@ function sim.fake(name, pos, guid)
     local hand = sim.hand(color, index)
     hand[#hand + 1] = o
   end
-  -- only the turn (y) is kept; face up / down stays state.face_down
+  -- the turn (y) is kept, and a roll (z) near 180 turns the object face down, as TTS reports
+  -- it in is_face_down
+  local function rotate(r)
+    local v = Vector(r)
+    state.rot_y = v.y
+    state.face_down = math.abs(v.z % 360 - 180) < 90
+    o.is_face_down = state.face_down
+  end
   o.getRotation = function() return Vector(0, state.rot_y or 180, state.face_down and 180 or 0) end
-  o.setRotation = function(r) state.rot_y = Vector(r).y end
-  o.setRotationSmooth = function(r) state.rot_y = Vector(r).y end
+  o.setRotation = rotate
+  o.setRotationSmooth = rotate
   o.getScale = function() return Vector(1, 1, 1) end
   o.isSmoothMoving = function() return false end
   o.createButton = function(b) state.buttons[#state.buttons + 1] = b end

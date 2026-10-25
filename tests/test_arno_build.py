@@ -34,6 +34,8 @@ class ArnoBuildTest(unittest.TestCase):
         # FIX138: the "reef effect" reward of Sea Animal Management Plan exists
         self.assertIn("\nfunction reef_effect(player, source)\n", lua)
         self.assertIn("    append_reef_effect_groups(groups, player)\n", lua)
+        # FIXFLIP: no upgrade panel when nothing is left to upgrade
+        self.assertIn("has no action card left to upgrade", lua)
         # REF1-REF3: shared board commit and region sizes, final scoring discard, reposition loop
         self.assertIn("    return self:_commit(cells, tags, opts)\n", lua)
         self.assertIn("    local sizes = self:unoccupiedRegionSizes()\n", lua)

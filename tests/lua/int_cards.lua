@@ -216,15 +216,12 @@ end
 
 -- bugs in the base mod this test found; the test checks they still fail the same way, so it
 -- says when one gets fixed (then remove it here)
--- (found and fixed so far: mw #138, "reef effect" had no handler, FIX138)
+-- (found and fixed so far: mw #138, "reef effect" had no handler, FIX138; a card flip with
+-- every action card upgraded left the player stuck, FIXFLIP)
 local KNOWN = {}        -- card id -> the error it still ends with
--- the same, for whichever card runs into it; counted in the summary line, not failed
-local KNOWN_ANY = {
-  -- card_flip (~14737) opens its panel even when all five action cards are upgraded: every
-  -- button is disabled and there is no Pass, so the player cannot go on. Hit in the upgraded
-  -- pass by an upgrade reward (2nd partner zoo, 2nd university, reputation 5, 2-CP bonus).
-  ["card flip panel with every action card upgraded"] = "card flip with nothing to upgrade",
-}
+-- the same, for whichever card runs into it (error text -> label); counted in the summary
+-- line, not failed
+local KNOWN_ANY = {}
 
 local outcomes = {}
 local function count(outcome) outcomes[outcome] = (outcomes[outcome] or 0) + 1 end
