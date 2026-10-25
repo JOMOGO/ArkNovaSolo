@@ -259,9 +259,26 @@ T.test("AUTOSAME: the same reward twice is paid without asking", function()
   T.eq(#sim.calls.end_player_turn, 1, "the turn went on")
 end)
 
-T.test("AUTOSAME: different rewards still ask for the order", function()
+T.test("AUTOSAME: only appeal, money and X-tokens are paid without asking", function()
   local p = sim.human_game()
-  from_two_sources(p, "2 appeal", "3 money")
+  local money = get_counter_value(p.money_counter)
+  create_claims_from_reward_groups(p, {
+    { rewards = { "2 appeal" }, source = "Card A", show_source = true },
+    { rewards = { "3 money" }, source = "Card B", show_source = true },
+    { rewards = { "1 x_token" }, source = "Card C", show_source = true },
+    { rewards = { "2 money + 1 appeal" }, source = "Card D", show_source = true },
+  }, false)
+  sim.pump()
+  T.eq(claims_players.Red, nil, "no claims panel")
+  T.eq(get_counter_value(p.appeal_counter), 3)
+  T.eq(get_counter_value(p.money_counter), money + 5)
+  T.eq(#p.x_tokens, 1)
+  T.eq(#sim.calls.end_player_turn, 1)
+end)
+
+T.test("AUTOSAME: different rewards that can change what comes next still ask", function()
+  local p = sim.human_game()
+  from_two_sources(p, "2 appeal", "1 rep")      -- reputation can reach a track reward
   T.eq(claims_players.Red, p, "claims panel open")
   T.eq(get_counter_value(p.appeal_counter), 0, "nothing paid yet")
   T.eq(#sim.calls.end_player_turn, 0)

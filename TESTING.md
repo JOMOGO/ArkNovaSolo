@@ -110,7 +110,8 @@ Install: see README ("Play").
   card left to upgrade, and the turn goes on (FIXFLIP).
 - [ ] **F4 — the same reward twice.** Get the same reward from two sources in one go (for
   example two sponsors paying 2 money for one icon): both are paid at once, without a
-  claims panel. Two different rewards still ask for the order (AUTOSAME).
+  claims panel. So are appeal, money and X-tokens together. Appeal plus reputation still asks
+  for the order (AUTOSAME).
 
 ## G. Things to report if they happen
 

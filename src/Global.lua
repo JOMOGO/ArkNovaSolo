@@ -13556,15 +13556,29 @@ function claims_panel_xml(color, sub_table, persistent_buttons, persistent_count
   ]], color, color, height, buttons)
 end
 
--- every claim left is the same mandatory reward: the order cannot matter, so they are paid
--- one after the other without asking
+-- a reward that only adds appeal, money or X-tokens (also "2 money + 1 appeal"): none of
+-- them opens a choice, so it does not matter when it is paid
+function plain_amount_reward(reward)
+  local first_half, second_half = split_combined_reward(reward)
+  if first_half ~= nil then
+    return plain_amount_reward(first_half) and plain_amount_reward(second_half)
+  end
+  return reward:match("^%d+ appeal$") ~= nil or reward:match("^%d+ money$") ~= nil
+    or reward:match("^%d+ x_token$") ~= nil
+end
+
+-- every claim left is mandatory and either the same reward or only appeal / money /
+-- X-tokens: the order cannot matter, so they are paid one after the other without asking
 function claims_all_same_reward(sub_table)
   local reward = sub_table[1] and sub_table[1].reward
   if reward == nil then return false end
+  local same, plain = true, true
   for _, claim in ipairs(sub_table) do
-    if claim.optional or claim.reward ~= reward then return false end
+    if claim.optional or claim.reward == nil then return false end
+    same = same and claim.reward == reward
+    plain = plain and plain_amount_reward(claim.reward)
   end
-  return true
+  return same or plain
 end
 
 function render_claims_table(player)

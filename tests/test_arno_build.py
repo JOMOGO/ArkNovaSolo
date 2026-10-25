@@ -39,6 +39,7 @@ class ArnoBuildTest(unittest.TestCase):
         # AUTOSAME: identical mandatory rewards are paid without asking
         self.assertIn("\nfunction claims_all_same_reward(sub_table)\n", lua)
         self.assertIn("          reward = initial_reward,\n", lua)
+        self.assertIn("\nfunction plain_amount_reward(reward)\n", lua)
         # REF1-REF3: shared board commit and region sizes, final scoring discard, reposition loop
         self.assertIn("    return self:_commit(cells, tags, opts)\n", lua)
         self.assertIn("    local sizes = self:unoccupiedRegionSizes()\n", lua)
