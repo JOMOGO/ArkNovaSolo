@@ -115,6 +115,7 @@ In-game checklist: `TESTING.md`.
 | `docs/ARNO_LOGIC.md` | what the helper app computes and asks |
 | `docs/DECISION.md` | options studied, and why this one |
 | `docs/DESIGN.md` | architecture, hooks, RNG, persistence, rulings R1–R21 |
+| `docs/AI_OPPONENT.md` | plan: a full-rules AI player that plays through the human panels |
 | `docs/MOD_PRIMITIVES.md` | mod functions used for each ARNO step |
 | `CHANGES.md` | every change to the base mod |
 
