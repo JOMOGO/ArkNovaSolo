@@ -22,7 +22,7 @@ M.ORDER = { "easy", "medium", "hard", "expert" }
 -- 1.0 -> 18, 1.3 -> 35, 1.6 -> 26, 2.0 -> 30 (strength falls steeply around 1)
 M.LEVELS = {
   easy   = { budget = 1.6, personality = 3 },     -- personality: weight of a fitting choice
-  medium = { budget = 1.2, personality = 1.5 },   -- 1.05 measured even with Hard (80 games)
+  medium = { budget = 1.3, personality = 1.5 },   -- 1.05 / 1.2: within 3-6 points of Hard
   hard   = { budget = 0.8 },
   expert = { budget = 0 },
 }

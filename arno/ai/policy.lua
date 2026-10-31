@@ -176,6 +176,9 @@ local function q_scored(player, choices)
       e.score = -1000
     elseif (e.choice.label or ""):find("Venom Fee", 1, true) then
       e.score = 1000
+    elseif player.venom_unpaid and get_counter_value(player.money_counter) < 2
+           and (e.choice.label or ""):find("Gain %d+ Money") then
+      e.score = 900         -- the fee must be paid at the end of this turn: take the money
     else
       e.score = net.forward(x)
     end

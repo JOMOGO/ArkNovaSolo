@@ -530,6 +530,24 @@ Found on the way:
 | 2026-10-31 | Hand-written policy (`ai/value.lua`, `policy.heuristic`) | beats random 94.8 vs 67.4 average (20 games) |
 | 2026-10-31 | Network round 0: 1500 self-play games of the hand-written policy (budgets 1 and 3), 765k decisions; target = margin change over the next 10 own decisions (the final margin gave no signal) | Q network 85 inputs, 64-64 hidden, 9.7k weights: **beats the hand-written policy +31.7 average margin, 89% of 99 games** |
 | 2026-10-31 | Round 1 (network self-play) | stopped by the system (low memory while idle); not restarted |
+| 2026-10-31 | Levels calibrated (budgets Hard 0.8, Medium 1.3, Easy 1.6; personalities for Easy and Medium) | ladder below; 0 stalls in the last 200 games |
+
+Ladder (2-seat games, seats swapped, `tools/ai_train.py match`; a margin is the average
+final score difference; ±4 points is noise at 100 games):
+
+| Pairing | Games | Margin | Win |
+|---|---|---|---|
+| Expert vs Hard | 80 | +14.6 | 67% |
+| Hard vs Medium | 100 | +7.8 | 61% |
+| Expert vs Medium | 100 | +12.0 | 61% |
+| Medium (1.05) vs Easy | 80 | +13.8 | 60% |
+| Expert vs Easy | 100 | +32.6 | 80% |
+| Easy vs hand-written policy | 80 | +14.1 | 73% |
+| Expert vs hand-written policy | 99 | +31.7 | 89% |
+
+The order holds; the steps are uneven (Easy stands out further below). The plan's next
+strength steps, not done yet: more training rounds (network self-play, §9), the lookahead
+(§4b) and Expert's opponent model (§4 Levels), each kept only if it wins in the ladder.
 
 ## 9. Training the network
 

@@ -406,12 +406,15 @@ end
 function M.dead_end(player, button)
   if button.handler ~= "on_action_card_button_clicked" then return false end
   local state = action_selection_state and action_selection_state[player.color]
-  if player.venom_unpaid and state ~= nil and state.hypnosis == nil and not state.x_token_active
+  if player.venom_unpaid and state ~= nil and state.hypnosis == nil
      and get_counter_value(player.money_counter) < 2 then
     local slot = tonumber((button.arg or ""):match("_(%d+)$") or "")
-    if slot ~= nil and not action_card_has_token(player, slot, "venom")
-       and not (button.label or ""):upper():find("^SPONSORS") then
-      return true
+    if slot ~= nil and not action_card_has_token(player, slot, "venom") then
+      -- (an X-token from the poisoned card settles the fee too: x_token_action uses the card)
+      if state.x_token_active or not (button.label or ""):upper():find("^SPONSORS") then return true end
+      -- SPONSORS' money option: strength money (twice that upgraded), enough for the fee?
+      local gain = (M.strength(player, button) or 0) * (player.sponsors_flipped and 2 or 1)
+      if get_counter_value(player.money_counter) + gain < 2 then return true end
     end
   end
   if not (button.label or ""):upper():find("^BUILD") then return false end
