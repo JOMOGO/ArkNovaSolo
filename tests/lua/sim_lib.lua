@@ -101,6 +101,11 @@ function sim.fake(name, pos, guid)
   o.setRotation = rotate
   o.setRotationSmooth = rotate
   o.getScale = function() return Vector(1, 1, 1) end
+  -- local -> world without rotation or scale (enough for placing cubes on a tile)
+  o.positionToWorld = function(p)
+    local v = Vector(p)
+    return Vector(state.pos.x + v.x, state.pos.y + v.y, state.pos.z + v.z)
+  end
   o.isSmoothMoving = function() return false end
   o.createButton = function(b) state.buttons[#state.buttons + 1] = b end
   o.clearButtons = function() state.buttons = {} end

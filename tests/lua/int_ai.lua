@@ -111,4 +111,38 @@ for k, n in pairs(panels) do summary[#summary + 1] = k .. " " .. n end
 table.sort(summary)
 print(string.format("AI turns ended: %d of %d; inputs: %s", outcomes.ended or 0, SEEDS, table.concat(summary, ", ")))
 
+-- chains of turns by the same AI: the real end of turn runs (action card back to slot 1,
+-- post-action rewards, multiplier, venom fee); only finish_player_turn, the hand-over to
+-- the next player, is recorded. The zoo, hand and money carry over from turn to turn.
+local CHAINS, CHAIN_TURNS = OPTIONS.quick and 10 or 40, 20
+local chained = 0
+for seed = 1, CHAINS do
+  T.test("AI plays " .. CHAIN_TURNS .. " turns in a row, seed " .. seed, function()
+    local p = ai_game(1000 + seed)
+    sim.record("end_player_turn", function(orig, ...) return orig(...) end)
+    sim.record("finish_player_turn")
+    sim.record("move_action_card")
+    for turn = 1, CHAIN_TURNS do
+      failures = {}
+      local before = #sim.calls.finish_player_turn
+      local ok, err = pcall(function()
+        start_player_turn(p)
+        sim.pump()
+      end)
+      if not ok then failures[#failures + 1] = tostring(err) end
+      local open = active_panels.Red and active_panels.Red:match('id="(%a+)') or "none"
+      if #failures > 0 then
+        error(string.format("turn %d: %s (panel %s)\n%s", turn, failures[1], open, last_log(12)), 0)
+      end
+      if #sim.calls.finish_player_turn ~= before + 1 then
+        error(string.format("turn %d did not end: panel %s, %d choices\n%s", turn, open,
+          #choices.list(p), last_log(12)), 0)
+      end
+      T.eq(#p.claims, 0, "turn " .. turn .. " left no claims")
+      chained = chained + 1
+    end
+  end)
+end
+print(string.format("AI chained turns ended: %d of %d", chained, CHAINS * CHAIN_TURNS))
+
 T.finish("integration AI")

@@ -1,6 +1,6 @@
 # Plan: a real AI opponent that plays through the player's systems
 
-Status: **plan for review**, nothing built yet. References: `src/Global.lua:<line>` (master),
+Status: **in development** on branch `ai-opponent` (progress: §8). References: `src/Global.lua:<line>` (master),
 `MOD_ARCHITECTURE.md`, `MOD_PRIMITIVES.md` (§0 "ten things that will bite"), `DESIGN.md`
 (hooks H1-H21, rulings), `DECISION.md` (§2 TTS WebRequest facts).
 
@@ -149,6 +149,17 @@ The snapshot never reimplements a rule.
 track (the score), plus weighted income, money, reputation, icons toward projects and
 partner-zoo/university value, free enclosure space against animals in hand, action-card
 strength (an upgrade), X-tokens and the tempo to the break. Weights live in one table.
+
+**Owner's goals for the ends of the range:**
+- **Easy is a beginner who knows the rules.** It never plays an illegal or senseless move (the
+  mod's panels only offer legal ones, and the point budget keeps it from the worst), but it
+  plays without much plan or foresight.
+- **Expert aims to be the Stockfish of Ark Nova:** as strong as the hardware allows. The limits
+  are real (no deep search in MoonSharp, §4a), so Expert's strength comes from the network
+  and the lookahead (§4b), and the tournament measures how far it gets. Ways to push it
+  further, each kept only if it wins in the tournament: a bigger network if P5 allows it,
+  more lookahead in the end game (fewer moves left), and thinking during the other players'
+  turns.
 
 **Levels.** Four, set per AI seat in the setup panel: Easy, Medium, Hard, Expert. **All four
 use the same trained network** (§4a). The lower levels are weaker because they play below
@@ -485,3 +496,25 @@ the AI over the hand limit, game end and scoring, MW draft.
 | Q1 | Interactive effects a human aims at the AI (hypnosis, pilfer): which colour gets the panel? | read `hypnosis` 8707, `start_pilfer` 8765, `pilfer_panel_xml` 8796; test |
 | Q2 | Solo challenge (`#players == 1`, 27 cubes): an AI makes it a 2-player game. Keep the challenge only for no-AI games? | owner decision; default: yes |
 | Q3 | Names and labels: "AI" next to "ARNO" in the setup panel and the Workshop text | owner decision |
+
+## 8. Progress
+
+| Date | Step | Result |
+|---|---|---|
+| 2026-10-31 | M1 start: `arno/ai/` seat, inputs, choices, random policy, driver; hooks AI1 (`set_active_panel`), AI2 (`start_player_turn`) | `tests/lua/int_ai.lua`: 300 single AI turns from random positions (money, hand, display, upgrades, card order, base and Marine Worlds) and 40 chains of 20 turns in a row with the real end of turn, all ending cleanly; every other suite unchanged |
+
+Found on the way:
+- **Acting too fast races the mod.** Taking a second card while the first is still being dealt
+  ends a reputation draw twice (Lua error). The driver now waits until the mod has reacted to
+  each input (§3). A human who double-clicks very fast could probably hit the same race in
+  the base mod (not checked in TTS).
+- **Not every button does something.** An animal that cannot be played still gets a
+  Confirm button, which does nothing. The driver remembers inputs that changed nothing and
+  does not retry them for the same view.
+- **Possible base-mod issue (unverified):** `scavenging` and `deal_tagged_card` take cards from
+  the discard pile without checking it has enough. With an empty discard pile the headless
+  run failed; whether TTS fails the same way needs a check in game.
+
+Not done yet in M1: the AI seat in the setup panel and the setup flow (map, setup discard,
+draft), the hand of an unseated colour (P1), breaks, income and the final scoring with an AI,
+and a whole game from setup to scoring (the harness so far plays turns, not games).
