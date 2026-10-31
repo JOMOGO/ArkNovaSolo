@@ -82,8 +82,26 @@ local function selection_value(player, card_value)
   return card_value
 end
 
+-- choices decided by a fixed rule, over the hand-written scores and the network (nil: none)
+--   Back last (it never ends a turn by itself); a venom fee paid as soon as offered;
+--   spreading an animal's cubes over several aquariums (allocate): + until the cubes are
+--   placed (a + on a full enclosure changes nothing and drops out), never -, then Confirm.
+--   (Left to the network, the + and - went round in circles: found in round-2 self-play.)
+local ALLOCATE_CONFIRM = { on_animal_allocate_confirm_clicked = true, on_enclosure_vacate_allocate_confirm_clicked = true }
+local ALLOCATE_SPIN = { on_animal_allocate_spin = true, on_enclosure_vacate_allocate_spin = true }
+function M.rule(player, c)
+  if c.tag == "back" then return -1000 end
+  if (c.label or ""):find("Venom Fee", 1, true) then return 1000 end
+  if ALLOCATE_CONFIRM[c.handler or ""] then return 1000 end
+  if ALLOCATE_SPIN[c.handler or ""] then
+    return (c.arg or ""):find("|up$") and 500 or -500
+  end
+  return nil
+end
+
 function M.score(player, c)
-  if c.tag == "back" then return -50 end
+  local ruled = M.rule(player, c)
+  if ruled ~= nil then return ruled end
   local panel = panel_id(player)
   if c.kind == "click" then
     if c.handler == "on_action_card_button_clicked" then
@@ -97,9 +115,8 @@ function M.score(player, c)
       return v
     end
     if c.handler == "on_take_x_token_clicked" then return 0.9 end
-    -- the venom fee is due anyway: paid as soon as it is offered (honest play; holding money
-    -- back to pay less at the end, FIXVENOM, would be gaming the rule)
-    if (c.label or ""):find("Venom Fee", 1, true) then return 40 end
+    -- (the venom fee is paid as soon as offered, M.rule: honest play; holding money back to
+    -- pay less at the end, FIXVENOM, would be gaming the rule)
     -- the -1 condition / -3 conditions toggles: on when the chosen animal needs them
     if c.handler == "on_animal_discount_clicked" or c.handler == "on_animal_condition_token_clicked" then
       local state = animal_actions and animal_actions[player.color]
@@ -170,15 +187,8 @@ local function q_scored(player, choices, weights)
     local x = {}
     for i, v in ipairs(state) do x[i] = v end
     for _, v in ipairs(features.choice(player, e.choice, e.heuristic)) do x[#x + 1] = v end
-    -- rules over the network: Back stays last (it never ends a turn by itself); a venom fee
-    -- is paid as soon as offered (see M.score)
-    if e.choice.tag == "back" then
-      e.score = -1000
-    elseif (e.choice.label or ""):find("Venom Fee", 1, true) then
-      e.score = 1000
-    else
-      e.score = net.forward(x, weights)
-    end
+    -- rules over the network (M.rule)
+    e.score = M.rule(player, e.choice) or net.forward(x, weights)
   end
   return list
 end
