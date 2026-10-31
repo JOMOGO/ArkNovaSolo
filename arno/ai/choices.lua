@@ -339,22 +339,11 @@ function M.list(player)
   end
 
   if player_prompted and player_prompted[color] then
-    -- dead-end actions are left out, unless nothing else would be left to do (then the AI
-    -- takes its chances, as a human without a better option would)
-    local buttons, any_way_on = M.buttons(active_panels[color]), false
-    local dead = {}
-    for i, b in ipairs(buttons) do
-      dead[i] = M.dead_end(player, b)
-      -- a way on: any live button but the X-token spins and Back (a multiplier's Pass counts)
-      if not dead[i] and not (b.handler or ""):find("spin", 1, true) and tag_of(b.label) ~= "back" then
-        any_way_on = true
-      end
-    end
-    for i, b in ipairs(buttons) do
-      if not dead[i] or not any_way_on then
-        add(list, { kind = "click", label = b.label, tag = tag_of(b.label), handler = b.handler, arg = b.arg,
-                    apply = now(function() inputs.click(b.handler, b.arg) end) })
-      end
+    -- (the mod's dead ends that used to be avoided here are fixed in the mod itself: FIXBUILD,
+    -- FIXVENOM, FIXANIMAL, CHANGES.md)
+    for _, b in ipairs(M.buttons(active_panels[color])) do
+      add(list, { kind = "click", label = b.label, tag = tag_of(b.label), handler = b.handler, arg = b.arg,
+                  apply = now(function() inputs.click(b.handler, b.arg) end) })
     end
   end
 
@@ -395,37 +384,6 @@ function M.strength(player, button)
   local owner = state and state.hypnosis and state.hypnosis.target or player
   local ok, s = pcall(action_strength, player, slot, state and state.x_tokens_used or 0, owner)
   return ok and s or slot
-end
-
--- an action button that leads to a dead end, as a human could see on the map: BUILD with
--- nowhere to build at that strength. The mod only checks the money (build_action_available)
--- and then shows "Use rewind to undo this action" (build_dead_end_xml), which the AI cannot.
--- Also (Marine Worlds): a venom fee due at the end of the turn with less than 2 money: only
--- the poisoned card (using it settles the fee, use_action_card) or SPONSORS (it can earn
--- money) avoid the end-of-turn "Pay Venom Fee" panel that cannot be paid.
-function M.dead_end(player, button)
-  if button.handler ~= "on_action_card_button_clicked" then return false end
-  local state = action_selection_state and action_selection_state[player.color]
-  if player.venom_unpaid and state ~= nil and state.hypnosis == nil
-     and get_counter_value(player.money_counter) < 2 then
-    local slot = tonumber((button.arg or ""):match("_(%d+)$") or "")
-    if slot ~= nil and not action_card_has_token(player, slot, "venom") then
-      -- (an X-token from the poisoned card settles the fee too: x_token_action uses the card)
-      if state.x_token_active or not (button.label or ""):upper():find("^SPONSORS") then return true end
-      -- SPONSORS' money option: strength money (twice that upgraded), enough for the fee?
-      local gain = (M.strength(player, button) or 0) * (player.sponsors_flipped and 2 or 1)
-      if get_counter_value(player.money_counter) + gain < 2 then return true end
-    end
-  end
-  if not (button.label or ""):upper():find("^BUILD") then return false end
-  -- (X-token mode turns the card into an X-token, it does not build; a multiplier's second
-  -- BUILD does build, at the card's strength)
-  if state == nil or state.x_token_active then return false end
-  local strength = M.strength(player, button)
-  if strength == nil then return false end
-  local ok, candidates = pcall(build_candidates, player,
-    { upgd = player.build_flipped, num = "0", built = {}, remaining = strength })
-  return ok and #candidates == 0
 end
 
 return M

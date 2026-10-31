@@ -36,6 +36,15 @@ class ArnoBuildTest(unittest.TestCase):
         self.assertIn("    append_reef_effect_groups(groups, player)\n", lua)
         # FIXFLIP: no upgrade panel when nothing is left to upgrade
         self.assertIn("has no action card left to upgrade", lua)
+        # FIXBUILD, FIXVENOM, FIXANIMAL, FIXSCAV, FIXPILE: dead ends a player could not leave
+        self.assertIn("\nfunction build_action_available(player, strength, num)\n", lua)
+        self.assertIn("return build_action_available(player, strength, num)", lua)
+        self.assertIn("\nfunction venom_fee_due(player)\n", lua)
+        self.assertIn("\nfunction animal_selection_problem(state)\n", lua)
+        self.assertIn("The discard pile is empty: nothing to scavenge.", lua)
+        self.assertIn("\nfunction zoo_deck_needs(count)\n", lua)
+        self.assertIn("\nfunction put_on_discard_pile(card)\n", lua)
+        self.assertNotIn("discard_pile.putObject(", lua)
         # AUTOSAME: identical mandatory rewards are paid without asking
         self.assertIn("\nfunction claims_all_same_reward(sub_table)\n", lua)
         self.assertIn("          reward = initial_reward,\n", lua)

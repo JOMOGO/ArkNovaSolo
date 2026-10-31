@@ -97,8 +97,8 @@ function M.score(player, c)
       return v
     end
     if c.handler == "on_take_x_token_clicked" then return 0.9 end
-    -- the venom fee is due at the end of the turn and cannot be paid without 2 money (a
-    -- dead end in the mod): pay it as soon as it is offered
+    -- the venom fee is due anyway: paid as soon as it is offered (honest play; holding money
+    -- back to pay less at the end, FIXVENOM, would be gaming the rule)
     if (c.label or ""):find("Venom Fee", 1, true) then return 40 end
     -- the -1 condition / -3 conditions toggles: on when the chosen animal needs them
     if c.handler == "on_animal_discount_clicked" or c.handler == "on_animal_condition_token_clicked" then
@@ -171,14 +171,11 @@ local function q_scored(player, choices)
     for i, v in ipairs(state) do x[i] = v end
     for _, v in ipairs(features.choice(player, e.choice, e.heuristic)) do x[#x + 1] = v end
     -- rules over the network: Back stays last (it never ends a turn by itself); a venom fee
-    -- is paid as soon as offered (later it may not be payable: a dead end in the mod)
+    -- is paid as soon as offered (see M.score)
     if e.choice.tag == "back" then
       e.score = -1000
     elseif (e.choice.label or ""):find("Venom Fee", 1, true) then
       e.score = 1000
-    elseif player.venom_unpaid and get_counter_value(player.money_counter) < 2
-           and (e.choice.label or ""):find("Gain %d+ Money") then
-      e.score = 900         -- the fee must be paid at the end of this turn: take the money
     else
       e.score = net.forward(x)
     end

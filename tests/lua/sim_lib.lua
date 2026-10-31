@@ -152,7 +152,16 @@ function sim.fake(name, pos, guid)
     end
     return obj
   end
-  o.putObject = function(obj) sim.leave_hand(obj); state.contents[#state.contents + 1] = { guid = obj.getGUID(), name = obj.getName() } return o end
+  o.putObject = function(obj)
+    sim.leave_hand(obj)
+    if obj.tag == "Deck" then                    -- a deck put on a deck: its cards join, as in TTS
+      for _, entry in ipairs(obj._s.contents) do state.contents[#state.contents + 1] = entry end
+      obj._s.contents = {}
+    else
+      state.contents[#state.contents + 1] = { guid = obj.getGUID(), name = obj.getName() }
+    end
+    return o
+  end
   o.getQuantity = function() return #state.contents end
   o.reload = function() return o end
   o.clone = function(params)
