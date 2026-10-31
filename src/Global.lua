@@ -18,7 +18,17 @@ function getDeck(zone)
 end
 
 function deal_tagged_card(deck, guid, color, index, tag)
-  local card = deck.takeObject({ guid = guid, smooth = false })
+  -- FIXPILE: the zoo deck refills from the discard pile when it runs out; an empty pile
+  -- deals nothing (nil). (A nil pile is the zoo deck after its last card: the discard pile
+  -- is only drawn from after checking it has cards.)
+  if deck == nil or deck == zoo_deck then
+    zoo_deck_needs(1)
+    deck = live_zoo_deck()
+  elseif deck ~= nil and deck == discard_pile then
+    deck = live_discard_pile()
+  end
+  local card = take_from_pile(deck, { guid = guid, smooth = false })
+  if card == nil then return nil end
   card.addTag(tag)
   card.deal(1, color, index)
   return card
@@ -4972,9 +4982,10 @@ function reveal_and_keep(player, count, source, spec)
   if source ~= nil then message = message .. " from " .. source end
   printToAll(message .. ".")
 
-  local deck_objects = zoo_deck.getObjects()
+  zoo_deck_needs(count)                                              -- FIXPILE
+  local deck_objects = pile_objects(live_zoo_deck())
   local top, names = {}, {}
-  for i = 1, count do
+  for i = 1, math.min(count, #deck_objects) do
     table.insert(top, deck_objects[i])
     table.insert(names, string.sub(deck_objects[i].name, 7))
   end
@@ -4987,7 +4998,7 @@ function reveal_and_keep(player, count, source, spec)
     if card_data_for(info.name).type == spec.type then
       table.insert(caught, deal_tagged_card(zoo_deck, info.guid, player.color, 1, "zoo_card"))
     else
-      zoo_deck.takeObject({ guid = info.guid, position = discard_position, smooth = false })
+      take_from_pile(live_zoo_deck(), { guid = info.guid, position = discard_position, smooth = false })
     end
   end
 
@@ -5142,7 +5153,7 @@ function send_sponsor_away(player, guid)
   table.remove(player.played_sponsors, index)
 
   obj.locked = false
-  discard_pile.putObject(obj)
+  put_on_discard_pile(obj)
 
   local board_pos = player.player_board.getPosition()
   for i = index, #player.played_sponsors do
@@ -5176,15 +5187,23 @@ function scavenging(player, count, source)
   if source ~= nil then message = message .. " for " .. source end
   printToAll(message .. ".")
 
-  discard_pile.shuffle()
-  deal_cards_to_hand(discard_pile, count, player, 1, "zoo_card", function(dealt)
+  -- FIXSCAV: only as many cards as the discard pile holds; none, and the effect is over
+  local pile = live_discard_pile()
+  local available = pile_quantity(pile)
+  if available == 0 then
+    printToAll("The discard pile is empty: nothing to scavenge.")
+    render_claims_table(player)
+    return
+  end
+  if pile.tag == "Deck" then pile.shuffle() end
+  deal_cards_to_hand(pile, math.min(count, available), player, 1, "zoo_card", function(dealt)
     prompt_keep(player, dealt, 1)
   end)
 end
 
 function horse_whisperer(player, source)
   local wanted = {}
-  for _, info in ipairs(discard_pile.getObjects()) do
+  for _, info in ipairs(pile_objects(live_discard_pile())) do       -- FIXPILE
     local data = card_data_for(info.name)
     if data ~= nil and data.type == "animal" then
       for _, icon in ipairs(data.icons or {}) do
@@ -5204,7 +5223,9 @@ function horse_whisperer(player, source)
 
   local dealt = {}
   for _, guid in ipairs(wanted) do
-    dealt[#dealt + 1] = deal_tagged_card(discard_pile, guid, player.color, 1, "zoo_card")
+    local pile = live_discard_pile()                                 -- FIXPILE
+    local card = pile and deal_tagged_card(pile, guid, player.color, 1, "zoo_card")
+    if card ~= nil then dealt[#dealt + 1] = card end
   end
 
   local function keep_card(card)
@@ -5442,7 +5463,7 @@ function wave(player, source)
       else
         leaving[#leaving + 1] = { guid = guid }
         card.locked = false
-        discard_pile.putObject(card)
+        put_on_discard_pile(card)
       end
       display_cards[i] = nil
       break
@@ -6362,12 +6383,14 @@ function card_matches_search_key(card_data, key)
 end
 
 function bottom_revealed_card(top_info)
-  zoo_deck.takeObject({ guid = top_info.guid, position = zoo_deck.getPosition(), smooth = false })
+  local deck = live_zoo_deck()                                       -- FIXPILE
+  if deck == nil or deck.tag ~= "Deck" then return end               -- the only card: stays
+  deck.takeObject({ guid = top_info.guid, position = deck.getPosition(), smooth = false })
 end
 
 function discard_revealed_card(top_info)
   local discard_pos = getObjectFromGUID(cnsts.discard_pile_zone).getPosition()
-  zoo_deck.takeObject({
+  take_from_pile(live_zoo_deck(), {                                  -- FIXPILE
     guid = top_info.guid,
     position = {
       x = discard_pos.x,
@@ -6381,8 +6404,19 @@ end
 
 function run_search(player, key, dispose, disposal, callback)
   local revealed = {}
+  -- FIXPILE: a search ends without a card once every card has been looked at (cards put
+  -- under the deck would come round again: it used to search forever), or the zoo deck
+  -- and the discard pile are empty
+  local limit = pile_quantity(live_zoo_deck()) + pile_quantity(live_discard_pile())
   while true do
-    local top_info = zoo_deck.getObjects()[1]
+    zoo_deck_needs(1)
+    local top_info = pile_objects(live_zoo_deck())[1]
+    if top_info == nil or #revealed >= limit then
+      printToAll(revealed_cards_line(revealed, disposal))
+      printToAll(player.steam_name .. " finds no " .. label_from_key(key) .. " card.")
+      if callback ~= nil then callback({}) end
+      return
+    end
     local number = tonumber(string.sub(top_info.name, 2, 4))
     local card_data = (marine_worlds_enabled and cnsts.cards.mw[number]) or cnsts.cards.base[number]
 
@@ -6449,7 +6483,7 @@ end
 
 function move_cards_to_discard(cards)
   for _, card in ipairs(cards) do
-    discard_pile.putObject(card)
+    put_on_discard_pile(card)
   end
 end
 
@@ -8570,7 +8604,7 @@ function action_row_available(player, owner, slot, strength)
   local prefix = string.sub(card.getName(), 1, 2)
   local num = string.sub(card.getName(), -1)
 
-  if prefix == "BU" then return build_action_available(player) end
+  if prefix == "BU" then return build_action_available(player, strength, num) end
   if prefix == "AN" then return animals_action_available(player, strength, num) end
   if prefix == "AS" then return association_action_available(player, strength, num) end
   return true
@@ -8976,7 +9010,7 @@ function add_project_to_row(obj)
     end
     local card = getObjectFromGUID(oldest[1])
     card.locked = false
-    discard_pile.putObject(card)
+    put_on_discard_pile(card)
   end
 
   local total = #added_projects
@@ -9471,7 +9505,7 @@ function release_animal_for_project(player, pick, vacated)
   table.remove(player.played_animals, index)
 
   pick.obj.locked = false
-  discard_pile.putObject(pick.obj)
+  put_on_discard_pile(pick.obj)
 
   local board_pos = player.player_board.getPosition()
   for i = index, #player.played_animals do
@@ -10614,10 +10648,107 @@ function wait_for_cards_in_hand(player, index, cards, callback)
   end)
 end
 
+-- FIXPILE: the zoo deck and the discard pile as they are now (helpers here, below cnsts:
+-- deal_tagged_card at the top of the file uses them at run time). In TTS a deck down to its last
+-- card turns into that card, and is gone once empty, so a stored reference can point at a
+-- dead object (a dead object equals nil); it is read again from the pile's zone then.
+function live_pile(current, zone_guid)
+  if current ~= nil and (current.tag == "Deck" or current.tag == "Card") then return current end
+  return getDeck(getObjectFromGUID(zone_guid))
+end
+
+function live_zoo_deck()
+  zoo_deck = live_pile(zoo_deck, cnsts.zoo_deck_guid)
+  return zoo_deck
+end
+
+function live_discard_pile()
+  discard_pile = live_pile(discard_pile, cnsts.discard_pile_zone)
+  return discard_pile
+end
+
+function pile_quantity(pile)
+  if pile == nil then return 0 end
+  if pile.tag == "Deck" then return pile.getQuantity() end
+  return 1
+end
+
+-- the cards of a pile as getObjects lists them ({ guid, name }), also for a single card
+function pile_objects(pile)
+  if pile == nil then return {} end
+  if pile.tag == "Deck" then return pile.getObjects() end
+  return { { guid = pile.getGUID(), name = pile.getName() } }
+end
+
+-- takes a card (by guid, or the top one) out of a pile; the last card is the pile itself.
+-- A deck that turns into its last card leaves that card as the zoo deck / discard pile.
+function take_from_pile(pile, params)
+  if pile_quantity(pile) == 0 then return nil end
+  if pile.tag ~= "Deck" then
+    if params.guid ~= nil and params.guid ~= pile.getGUID() then return nil end
+    if pile == zoo_deck then zoo_deck = nil end
+    if pile == discard_pile then discard_pile = nil end
+    if params.position then pile.setPosition(params.position) end
+    if params.rotation then pile.setRotation(params.rotation) end
+    return pile
+  end
+  local was_zoo, was_discard = pile == zoo_deck, pile == discard_pile
+  local card = pile.takeObject(params)
+  local rest = pile.remainder
+  if type(rest) == "userdata" or (type(rest) == "table" and rest.getGUID ~= nil) then
+    if was_zoo then zoo_deck = rest end
+    if was_discard then discard_pile = rest end
+  end
+  return card
+end
+
+-- puts a card on the discard pile; with no pile left, the card starts a new one
+function put_on_discard_pile(card)
+  local pile = live_discard_pile()
+  if pile == nil then
+    card.setPosition(getObjectFromGUID(cnsts.discard_pile_zone).getPosition() + Vector(0, 1, 0))
+    discard_pile = card
+    return
+  end
+  local merged = pile.putObject(card)
+  if pile.tag ~= "Deck" and merged ~= nil then discard_pile = merged end
+end
+
+-- before drawing `count` zoo cards: when the zoo deck runs out, the discard pile is
+-- shuffled into a new zoo deck (rules)
+function zoo_deck_needs(count)
+  local deck = live_zoo_deck()
+  if pile_quantity(deck) >= count then return end
+  local pile = live_discard_pile()
+  if pile == nil then return end
+  printToAll("The zoo deck is running out: the discard pile is shuffled into a new zoo deck.")
+  pile.setRotation({ 0, 180, 180 })
+  if deck == nil then
+    pile.setPosition(getObjectFromGUID(cnsts.zoo_deck_guid).getPosition() + Vector(0, 1, 0))
+    zoo_deck = pile
+  else
+    zoo_deck = deck.putObject(pile) or deck
+  end
+  discard_pile = nil
+  if zoo_deck.tag == "Deck" then zoo_deck.shuffle() end
+end
+
 function deal_cards_to_hand(deck, count, player, index, tag, callback)
+  -- FIXPILE: the pile is read again for every card (it may turn into its last card, or
+  -- run out); only the cards actually dealt are waited for and passed on
+  local from_discard = deck ~= nil and deck == discard_pile
+  local from_zoo = not from_discard and (deck == nil or deck == zoo_deck)
   local dealt = {}
   for _ = 1, count do
-    dealt[#dealt + 1] = deal_tagged_card(deck, nil, player.color, index, tag)
+    local pile = deck
+    if from_discard then pile = live_discard_pile() elseif from_zoo then pile = zoo_deck end
+    if from_discard and pile == nil then break end
+    local card = deal_tagged_card(pile, nil, player.color, index, tag)
+    if card == nil then break end
+    dealt[#dealt + 1] = card
+  end
+  if #dealt < count then
+    printToAll(string.format("%s gets %d of %d cards: the pile ran out.", player.steam_name, #dealt, count))
   end
   wait_for_cards_in_hand(player, index, dealt, callback)
 end
@@ -10678,7 +10809,7 @@ function player_has_animal_in_hand(player)
 end
 
 function deck_top_card_name()
-  local top = zoo_deck.getObjects()[1]
+  local top = pile_objects(live_zoo_deck())[1]                       -- FIXPILE
   return top ~= nil and top.name or nil
 end
 
@@ -10793,11 +10924,21 @@ function animal_panel_xml(color, state)
     end
     height = height + 30
     if state.selected ~= nil then
-      body = body .. string.format([[
+      local problem = animal_selection_problem(state)                -- FIXANIMAL
+      if problem == nil then
+        body = body .. string.format([[
         <Text fontSize="18" color="#FFFFFF">%s</Text>
         <Button id="animalConfirmButton_%s" onClick="on_animal_confirm_clicked(%s)" fontSize="16" width="240" height="34" minHeight="34" color="#4A90D9" textColor="#FFFFFF">Confirm</Button>
         <Text fontSize="18" color="#FFFFFF"></Text>
       ]], "You have selected:\n" .. string.sub(state.selected.getName(), 7), color, color)
+      else
+        body = body .. string.format([[
+        <Text fontSize="18" color="#FFFFFF">%s</Text>
+        <Text fontSize="16" color="#FF8080" minHeight="34">Cannot be played (%s).
+Select another animal.</Text>
+        <Text fontSize="18" color="#FFFFFF"></Text>
+      ]], "You have selected:\n" .. string.sub(state.selected.getName(), 7), problem)
+      end
       height = height + 70 + 40 + 30
     end
     if animal_discount_offered(state) then
@@ -11095,41 +11236,50 @@ function on_animal_pass_clicked(_, color, _)
   render_claims_table(state.player)
 end
 
-function on_animal_confirm_clicked(_, color, _)
-  local state = animal_actions[color]
-  if state == nil or state.phase ~= "pick" or state.selected == nil then return end
-
+-- FIXANIMAL: why the selected animal cannot be played with the discounts switched on now
+-- (nil: it can), shared by the panel and Confirm. The panel offers Confirm only for an animal
+-- that can be played: a Confirm that did nothing still committed the choice (no more Back to
+-- action choice), which left a player without a playable animal stuck.
+function animal_selection_problem(state)
   local player = state.player
   local card = card_data_for(state.selected.getName())
   local discounts = animal_action_discounts(state)
   local display_pos = state.offers[state.selected.getGUID()] or nil
 
   if waza_assignment_blocks(card, player) then
-    broadcastToColor("You cannot play that animal! (Waza Special Assignment)",
-      color, "Red")
-    return
+    return "Waza Special Assignment"
   end
-
   local cost = animal_play_cost(card, player, display_pos) - discounts.money
   if get_counter_value(player.money_counter) < cost then
-    broadcastToColor("You cannot play that animal! (Insufficient money: need " ..
-      cost .. ")", color, "Red")
-    return
+    return "Insufficient money: need " .. cost
   end
-
-  local options = valid_animal_enclosures(card, player)
-  local flock = flock_available(card, player) and flock_size(card) or nil
-  if #options == 0 and flock == nil then
-    broadcastToColor("You cannot play that animal! (No valid enclosure)", color, "Red")
-    return
+  if #valid_animal_enclosures(card, player) == 0 and not flock_available(card, player) then
+    return "No valid enclosure"
   end
-
   local unmet = animal_conditions_unmet(card, player) - discounts.condition
   if unmet > 0 then
-    broadcastToColor("You cannot play that animal! (Unmet conditions: " .. unmet .. ")",
-      color, "Red")
+    return "Unmet conditions: " .. unmet
+  end
+  return nil
+end
+
+function on_animal_confirm_clicked(_, color, _)
+  local state = animal_actions[color]
+  if state == nil or state.phase ~= "pick" or state.selected == nil then return end
+
+  local problem = animal_selection_problem(state)
+  if problem ~= nil then
+    broadcastToColor("You cannot play that animal! (" .. problem .. ")", color, "Red")
     return
   end
+
+  local player = state.player
+  local card = card_data_for(state.selected.getName())
+  local discounts = animal_action_discounts(state)
+  local display_pos = state.offers[state.selected.getGUID()] or nil
+  local cost = animal_play_cost(card, player, display_pos) - discounts.money
+  local options = valid_animal_enclosures(card, player)
+  local flock = flock_available(card, player) and flock_size(card) or nil
 
   state.cost = cost
   state.card = card
@@ -12079,7 +12229,10 @@ function refill_display(done, leaving)
     end
   end
 
-  local deck_objects = zoo_deck.getObjects()
+  -- FIXPILE: the zoo deck refills from the discard pile when it runs out; with both empty
+  -- the display stays short
+  zoo_deck_needs(6 - #virtual + 2)
+  local deck_objects = pile_objects(live_zoo_deck())
   local drawn = 0
   local washed = {}
   local washed_by = {}
@@ -12087,6 +12240,10 @@ function refill_display(done, leaving)
   while #virtual < 6 do
     drawn = drawn + 1
     local info = deck_objects[drawn]
+    if info == nil then
+      printToAll("The zoo deck is empty: the display cannot be refilled.")
+      break
+    end
     table.insert(virtual, { guid = info.guid })
 
     if card_has_wave(info.name) then
@@ -12106,7 +12263,7 @@ function refill_display(done, leaving)
       leaving[#leaving + 1] = { guid = guid, color = marker.color }
     else
       leaving[#leaving + 1] = { guid = guid }
-      Wait.condition(function() card.locked=false discard_pile.putObject(card) end,
+      Wait.condition(function() card.locked=false put_on_discard_pile(card) end,
                      function() return not card.isSmoothMoving() end)
     end
   end
@@ -12119,7 +12276,7 @@ function refill_display(done, leaving)
       entry.card.setPositionSmooth(cnsts.display_locs[i], false, false)
       move_display_mark(i, cnsts.display_locs[i])
     else
-      local card = zoo_deck.takeObject({
+      local card = take_from_pile(live_zoo_deck(), {                 -- FIXPILE
         guid = entry.guid,
         position = cnsts.display_locs[i],
         rotation = { 0, 180, 0 },
@@ -12136,6 +12293,7 @@ function refill_display(done, leaving)
       end
     end
   end
+  for i = #virtual + 1, 6 do display_cards[i] = nil end              -- FIXPILE: short display
 
   wait_for_departures(leaving, done)
 end
@@ -12293,7 +12451,7 @@ function break_phase_display()
         discarded[#discarded + 1] = name
         leaving[#leaving + 1] = { guid = guid }
         card.locked = false
-        discard_pile.putObject(card)
+        put_on_discard_pile(card)
       end
     end
     display_cards[slot] = nil
@@ -12676,8 +12834,15 @@ function action_reward_refusal(player, action_name)
   if max_action_strength(player, action_card_slot_named(player, action_name)) < 1 then
     return "Your " .. string.upper(action_name) .. " action is not strong enough to take!"
   end
-  if action_name == "build" and not build_action_available(player) then
-    return "You don't have enough money to build!"
+  if action_name == "build" then
+    local slot = action_card_slot_named(player, action_name)
+    if not build_action_available(player) then
+      return "You don't have enough money to build!"
+    end
+    local num = string.sub(action_card_object(player, slot).getName(), -1)
+    if not build_action_available(player, max_action_strength(player, slot), num) then   -- FIXBUILD
+      return "You have nowhere to build!"
+    end
   end
   if action_name == "association" and not association_action_reachable(player) then
     return "You have no Association task you could take!"
@@ -12950,21 +13115,37 @@ function check_venom_fee(player)
   return true
 end
 
+-- FIXVENOM: at the end of the turn a player with less than 2 money pays what they have
+-- (owner's ruling to confirm); the panel used to refuse with no other way on
+function venom_fee_due(player)
+  return math.min(2, get_counter_value(player.money_counter))
+end
+
 function show_venom_fee_panel(player)
   local color = player.color
+  local due = venom_fee_due(player)
+  local label = due >= 2 and "Pay Venom Fee: 2 Money"
+    or string.format("Pay Venom Fee: %d Money (all you have)", due)
   set_player_panel(color, string.format([[
     <Panel id="venomFeePanel_%s" visibility="%s" rectAlignment="MiddleRight" width="280" height="50" color="#222222DD">
       <VerticalLayout spacing="6" padding="8 8 8 8" childAlignment="MiddleCenter" childForceExpandHeight="false">
-        <Button id="venomFeeButton_%s" onClick="on_venom_fee_clicked(%s)" fontSize="16" width="240" height="34" minHeight="34" color="#4A90D9" textColor="#FFFFFF">Pay Venom Fee: 2 Money</Button>
+        <Button id="venomFeeButton_%s" onClick="on_venom_fee_clicked(%s)" fontSize="16" width="240" height="34" minHeight="34" color="#4A90D9" textColor="#FFFFFF">%s</Button>
       </VerticalLayout>
     </Panel>
-  ]], color, color, color, color))
+  ]], color, color, color, color, label))
 end
 
 function on_venom_fee_clicked(_, color, _)
   local player = find_player_by_color(color)
   if player == nil or not player.venom_unpaid then return end
-  if not pay_venom_fee(player) then return end
+  local due = venom_fee_due(player)
+  if due < 2 then
+    if due > 0 then update_money(player, -due, "venom fee (all they have)") end
+    printToAll(player.steam_name .. " cannot pay the full venom fee and pays " .. due .. " money.")
+    settle_venom_fee(player)
+  elseif not pay_venom_fee(player) then
+    return
+  end
 
   clear_player_panel(color)
   finish_player_turn(player)
@@ -15267,7 +15448,7 @@ function finish_shark_attack(player, entries, source)
     entry.card.drop()
     if not redirect_marked_discard(entry.slot, entry.card) then
       entry.card.locked = false
-      discard_pile.putObject(entry.card)
+      put_on_discard_pile(entry.card)
     end
     display_cards[entry.slot] = nil
   end
@@ -15746,8 +15927,15 @@ function buildable_terrain(player)
   }
 end
 
-function build_action_available(player)
-  return get_counter_value(player.money_counter) >= 2
+-- FIXBUILD: with a strength, BUILD is only available when something can be built at it
+-- (build_candidates: a tile that fits, money for it); it used to check the 2 money only,
+-- then left the player with "nowhere to build, use rewind"
+function build_action_available(player, strength, num)
+  if get_counter_value(player.money_counter) < 2 then return false end
+  if strength == nil then return true end
+  local effective = strength + (num == "3" and 1 or 0)
+  return #build_candidates(player, { upgd = player.build_flipped, num = num or "0", built = {},
+                                     remaining = effective }) > 0
 end
 
 function build_tile_search_name(button_text)

@@ -117,6 +117,21 @@ Install: see README ("Play").
   upgrades it; supporting a project with only one project and one open slot goes straight
   to the project cube, but with a Wildcard token the slot is still asked (AUTOONE).
 
+## I. Dead-end fixes (every game)
+
+- [ ] **I1 — BUILD greyed out.** Fill your map (or have too little money for anything that
+  fits): the BUILD row in the action panel is greyed out. With room again it is offered.
+- [ ] **I2 — venom fee with 1 money** (Marine Worlds). End a turn with a venom token on one
+  of your action cards and 1 money: the button reads "Pay Venom Fee: 1 Money (all you have)",
+  it takes the 1 and the next player's turn starts.
+- [ ] **I3 — animal that cannot be played.** Choose ANIMALS, pick an animal you cannot
+  afford: the panel says "Cannot be played (Insufficient money: need N)", there is no
+  Confirm, and "Back to action choice" is still there.
+- [ ] **I4 — scavenging with a short discard pile.** Scavenge with fewer cards in the
+  discard pile than asked: you get the cards that are there (none: a chat line, play goes on).
+- [ ] **I5 — the discard pile down to one card, or gone, then a discard:** the card lands
+  in the discard pile spot and later discards stack on it.
+
 ## G. Things to report if they happen
 
 - Chat: `[ARNO] ERROR in step …` (the turn continues; press *Run ARNO turn* or rewind).
