@@ -532,6 +532,8 @@ Found on the way:
 | 2026-10-31 | Round 1 (network self-play) | stopped by the system (low memory while idle); not restarted |
 | 2026-10-31 | Levels calibrated (budgets Hard 0.8, Medium 1.3, Easy 1.6; personalities for Easy and Medium) | ladder below; 0 stalls in the last 200 games |
 | 2026-10-31 | The base-mod dead ends found by the AI fixed in the mod (FIXBUILD, FIXVENOM, FIXANIMAL, FIXSCAV, FIXPILE; on master) and merged in | the AI's own dead-end filter removed; all tests pass |
+| 2026-10-31 | Network round 1: 1500 games of the round-0 network against itself (budgets 1 and 2), trained on rounds 0+1 (1.5M decisions) | **beats round 0: +17.0 margin, 68% of 100 games**; bundled |
+| 2026-10-31 | Ladder with the round-1 network (same budgets), 100 games each | Expert vs Hard +15.5 (66%), Hard vs Medium +13.4 (67%), Medium vs Easy +15.3 (65%): even steps, 0 stalls in 300 games |
 
 Ladder (2-seat games, seats swapped, `tools/ai_train.py match`; a margin is the average
 final score difference; ±4 points is noise at 100 games):
