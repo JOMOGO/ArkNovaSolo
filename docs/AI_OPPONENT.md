@@ -159,6 +159,61 @@ the mod's state is global and physical, so lookahead runs on the snapshot only.
 (`DECISION.md` §1.5) replays the same choices. The intent is not saved: it is recomputed
 from the snapshot at the turn start, which gives the same result.
 
+## 4a. A neural network in place of the hand-written evaluation
+
+Goal: a stronger AI that still runs on any PC, inside the save, with nothing to install.
+No GPU, no local AI program, no internet.
+
+**The rules stay in the mod.** The network never learns the rules or generates moves. The
+mod's panels and predicates list the legal choices (§3), and the network only replaces
+`eval.lua`: it scores the position after each candidate intent, and the best score wins. A
+badly trained network can play weakly but never illegally.
+
+**Measured cost** (MoonSharp, the TTS interpreter, plain Lua MLP with flat weight arrays,
+2 ReLU hidden layers, 1 output; `tools/moonsharp` runner on the owner's PC, 2026-10-31):
+
+| Network | Weights | Per evaluation |
+|---|---|---|
+| 200 inputs, 2 × 64 | 17k | 7 ms |
+| 300 inputs, 2 × 128 | 55k | 22 ms |
+| 500 inputs, 2 × 256 | 194k | 84 ms |
+
+That is about 2.3 M multiply-adds per second. Conclusions:
+
+- A **~200 × 64 × 64** network fits. With 30-80 candidate intents per turn that is
+  0.2-0.6 s of thinking. Tiny networks for the sub-panels (claims, discards) cost less.
+- **Spread over frames.** TTS runs Lua on the main thread, so a 0.5 s loop freezes the
+  table. The driver scores a few candidates per frame (a coroutine resumed by `Wait.frames`)
+  and shows "AI is thinking".
+- **Sparse inputs.** Cards in hand, the display and the played cards are one-hot. The first
+  layer only adds the columns of the inputs that are set, which makes it several times cheaper
+  than the dense benchmark.
+- **No big networks, no tree search** (AlphaZero style): too slow in MoonSharp, and the mod's
+  state cannot be cloned to search on.
+- Speed in TTS itself still has to be measured (probe P5). If it is slower, use fewer
+  candidates (pre-filtered by the heuristic) or a smaller network.
+
+**Size.** 17k weights saved as numbers rounded to 3-4 digits come to about 100-150 KB of
+Lua text in the save. That is fine.
+
+**Training happens offline, once, on the developer's PC.** Players only get the finished
+weights.
+
+1. Play many headless games with the heuristic AI (M2) through the existing harness. Log the
+   feature vector of each position and the final score difference.
+2. Fit the network to predict the outcome (supervised, Python/PyTorch on the logs). Export
+   the weights to a generated Lua table (like `tools/gen_cards_data.py` does for ARNO's
+   cards).
+3. Self-play with the network, then retrain on the new games. Repeat while the strength report
+   improves.
+4. Keep it only if it beats the tuned heuristic in the strength report. Otherwise the
+   heuristic ships.
+
+Open point: self-play speed. Games run in the slow interpreter too, so training needs many
+games in parallel processes (overnight runs). Measure games per hour first (P6).
+
+Levels with a network: easy and normal can add noise to its scores or mix in the heuristic.
+
 ## 5. Tests
 
 On the built Global, with `sim_lib` as today:
@@ -189,7 +244,8 @@ the AI over the hand limit, game end and scoring, MW draft.
 | M2 | Snapshot, intent, heuristic policy, 3 levels; in TTS 1 human + 1 AI | tests 2-5; one full game played in TTS |
 | M3 | Mixed tables: 1-3 AIs, with ARNOs and humans; map choice for the AI (best map for its start, or random) | tests in every mix; TESTING.md checklist |
 | M4 | Tuning and strength report; Workshop release | report in this doc |
-| M5 (optional) | LLM policy: the same interface, sent to a local bridge over `WebRequest` (host only, `DECISION.md` §2), one request per intent, timeout → heuristic fallback | probe P4; not deterministic, so a rewind keeps the fallback's choice |
+| M4b | Neural-network evaluation (§4a): logging, training, Lua export, frame-spread scoring | beats the heuristic in the strength report; in TTS no visible freeze |
+| M5 (optional, only for players with a local AI) | LLM policy: the same interface, sent to a local bridge over `WebRequest` (host only, `DECISION.md` §2), one request per intent, timeout → heuristic fallback | probe P4; not deterministic, so a rewind keeps the fallback's choice |
 
 ## 7. Open questions, each with how to settle it
 
@@ -199,6 +255,8 @@ the AI over the hand limit, game end and scoring, MW draft.
 | P2 | Does moving a placement tile by script and calling `refresh_placement_validity` in the next frame behave as a human drag does (the building-tile script callbacks)? | TTS probe on one build; headless already passes with fakes |
 | P3 | How long does enumerating every placement of a size-5 tile on a late-game map take in MoonSharp? | timing in the headless runner (same interpreter); cap the candidates if it is over ~50 ms |
 | P4 | Does TTS v14 allow `http://127.0.0.1` WebRequests? (only for M5) | the probe already listed in `DECISION.md` §2 |
+| P5 | Network speed inside TTS (same MoonSharp, but in Unity) | time 100 evaluations from a button in TTS, compare with the 7 ms headless |
+| P6 | Headless games per hour on one core (training data) | time the existing full-game soak |
 | Q1 | Interactive effects a human aims at the AI (hypnosis, pilfer): which colour gets the panel? | read `hypnosis` 8707, `start_pilfer` 8765, `pilfer_panel_xml` 8796; test |
 | Q2 | Solo challenge (`#players == 1`, 27 cubes): an AI makes it a 2-player game. Keep the challenge only for no-AI games? | owner decision; default: yes |
 | Q3 | Names and labels: "AI" next to "ARNO" in the setup panel and the Workshop text | owner decision |
