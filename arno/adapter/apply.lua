@@ -267,7 +267,7 @@ function M.discard_sponsor(player, obj, data)
   bot.sponsor_discards = (bot.sponsor_discards or 0) + 1
   report_discard(player, { obj }, true)
   obj.locked = false
-  discard_pile.putObject(obj)
+  put_on_discard_pile(obj)                 -- FIXPILE: also when the pile is a single card or gone
   if data and data.icons and #data.icons > 0 then apply_hooks(player, data.icons) end
 end
 
@@ -576,11 +576,12 @@ end
 
 function M.break_draw(player, done)
   local bot = bot_of(player)
-  local n = math.min(3, #zoo_deck.getObjects())
+  zoo_deck_needs(3)                        -- FIXPILE: refill from the discard pile, last card, empty
+  local n = math.min(3, pile_quantity(live_zoo_deck()))
   local got_project, got_animal = false, false
   state.note(player, "Break: draws " .. n .. " card(s)")
   for i = 1, n do
-    local card = zoo_deck.takeObject({ position = at(player, "reveal", 2.6 * (i - 1), 0, 0), rotation = { 0, 180, 0 }, smooth = false })
+    local card = take_from_pile(live_zoo_deck(), { position = at(player, "reveal", 2.6 * (i - 1), 0, 0), rotation = { 0, 180, 0 }, smooth = false })
     card.addTag("zoo_card")
     local data = card_data_for(card.getName())
     if data.type == "project" and not got_project then
@@ -595,7 +596,7 @@ function M.break_draw(player, done)
     else
       state.note(player, "  discards " .. card_name(card))
       report_discard(player, { card }, true)
-      discard_pile.putObject(card)
+      put_on_discard_pile(card)
     end
   end
   if arno_state.project_module then require("ui.panel").render(nil) end
