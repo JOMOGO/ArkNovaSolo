@@ -38,4 +38,138 @@ function M.first()
   return function(_, choices) return forward(choices)[1] end
 end
 
+-- ---------------------------------------------------------------- hand-written policy
+-- Scores every choice in points with ai.value and takes the best (ties broken by the
+-- seeded RNG). The bootstrap for the network (docs/AI_OPPONENT.md §4a) and its fallback.
+
+local value = require("ai.value")
+local choices_mod = require("ai.choices")
+
+local function panel_id(player)
+  local xml = active_panels and active_panels[player.color]
+  return xml and xml:match('id="(%a+)')
+end
+
+local function card_label(label)
+  return label:match(": (.+)$") or label
+end
+
+local function placement_value(player, choice)
+  local state = tile_placements and tile_placements[player.color]
+  local opts = (state and state.opts) or (player.pending_building and player.pending_building.opts) or {}
+  local v = 0
+  -- the map rewards under the tile (Board:previewReward: tags like "x_token", "2 money")
+  local ok, reward = pcall(function() return player.map:previewReward(choice.cells, opts) end)
+  if ok and type(reward) == "table" then
+    for _, tag in ipairs(reward.tags or {}) do v = v + value.reward(tostring(tag), player) end
+    if reward.clearedBoard then v = v + 5 end
+  end
+  return v
+end
+
+local function enclosure_value(player, choice)
+  local id = tonumber(choice.label:match("(%d+)$") or "")
+  local tile = id and player.map.tiles[id]
+  if tile == nil then return 0 end
+  -- the smallest enclosure that fits, so the big ones stay free for big animals
+  return -#tile.cells * 0.3
+end
+
+local function selection_value(player, card_value)
+  local state = selection_panels and selection_panels[player.color]
+  local action = state and state.action or ""
+  if action:find("discard", 1, true) or action == "sell" then return -card_value end
+  return card_value
+end
+
+function M.score(player, c)
+  if c.tag == "back" then return -50 end
+  local panel = panel_id(player)
+  if c.kind == "click" then
+    if c.handler == "on_action_card_button_clicked" then
+      local strength = choices_mod.strength(player, c) or 1
+      return value.action(c.label:match("^(%a+)") or c.label, strength, player)
+    end
+    if c.handler == "on_take_x_token_clicked" then return 0.9 end
+    if c.handler == "on_x_token_spin_clicked" then return -1 end
+    if c.handler and c.handler:find("spin", 1, true) then return 0 end
+    if c.tag == "confirm" then return 30 end
+    if c.tag == "pass" then return 0 end
+    if panel == "incomePanel" or (c.handler or ""):find("income", 1, true) then return 5 end
+    return value.reward(c.label, player)
+  elseif c.kind == "pick_up" then
+    local label = c.label
+    local name = card_label(label)
+    if label:find("^play animal") then
+      local ok, playable = pcall(is_animal_playable, name, player, nil)
+      return (ok and playable) and 10 + value.card(name, player) or -10
+    elseif label:find("^select") then
+      return selection_value(player, value.card(name, player))
+    elseif label:find("^take from the deck") then
+      return 1
+    end
+    return value.card(name, player)
+  elseif c.kind == "drop_tile" then
+    return placement_value(player, c)
+  elseif c.kind == "pick_up_tile" then
+    return enclosure_value(player, c)
+  end
+  return 0
+end
+
+-- { choice, score, heuristic } for every choice but Back (unless Back is all there is)
+local function scored(player, choices)
+  local out = {}
+  for _, c in ipairs(forward(choices)) do
+    local ok, s = pcall(M.score, player, c)
+    s = (ok and type(s) == "number") and s or 0
+    out[#out + 1] = { choice = c, score = s, heuristic = s }
+  end
+  return out
+end
+
+function M.heuristic(r)
+  return M.budgeted(r, 0)
+end
+
+-- the network's scores (Q: expected change of the margin, in points); the hand-written
+-- score is one of its inputs. Falls back to the hand-written scores without weights.
+local features = require("ai.features")
+local net = require("ai.net")
+
+local function q_scored(player, choices)
+  local list = scored(player, choices)
+  if not net.available() or #list < 2 then return list end
+  local state = features.state(player)
+  for _, e in ipairs(list) do
+    local x = {}
+    for i, v in ipairs(state) do x[i] = v end
+    for _, v in ipairs(features.choice(player, e.choice, e.heuristic)) do x[#x + 1] = v end
+    -- Back stays last whatever the network says (it never ends a turn by itself)
+    e.score = (e.choice.tag == "back") and -1000 or net.forward(x)
+  end
+  return list
+end
+M.q_scored = q_scored
+
+-- the best choice, or (budget > 0) a seeded random one among those within `budget` points
+-- of the best: a level that gives up points where choices are close.
+-- opts.network: score with the network (when trained), else the hand-written scores
+function M.budgeted(r, budget, opts)
+  return function(player, choices)
+    local list = (opts and opts.network) and q_scored(player, choices) or scored(player, choices)
+    local best
+    for _, e in ipairs(list) do
+      if best == nil or e.score > best then best = e.score end
+    end
+    local near = {}
+    for _, e in ipairs(list) do
+      if e.score >= best - (budget or 0) - 1e-9 then near[#near + 1] = e end
+    end
+    local pick = near[math.floor(rng.next(r) * #near) + 1]
+    if M.on_decision then M.on_decision(player, list, pick) end    -- training logs
+    return pick.choice
+  end
+end
+
 return M

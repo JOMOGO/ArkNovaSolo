@@ -3,7 +3,8 @@
 --
 -- Setup integration (docs/DESIGN.md §9, hooks H1-H3, H5-H8):
 --  * setup panel rows: one ARNO toggle per unseated colour (Off / Level 1..10) + module
---  * add_bots: ARNO entries join `players` before setup_game builds components (H2)
+--  * add_bots: ARNO entries and AI seats join `players` before setup_game builds
+--    components (H2); an AI seat is a full entry and takes part in every setup prompt
 --  * starting_player: a random HUMAN starts (H3, rules p3)
 --  * humans-only window: from map setup until start_game the mod's simultaneous prompts
 --    (maps, Marine Worlds draft, setup discard) run with `players` = humans only; ARNO
@@ -18,8 +19,11 @@ local M = {}
 M.COLORS = { "White", "Red", "Blue", "Yellow" }
 M.MAX_LEVEL = 10       -- L7+ = level 6 values + 1 CP per level above 6 (rules p3, p5)
 
--- transient setup choices (before the game exists)
-arno_setup = arno_setup or { levels = {}, project_module = false }
+-- transient setup choices (before the game exists); ai[color] = an AI level name
+-- (docs/AI_OPPONENT.md): the same row offers ARNO levels, then the AI levels
+arno_setup = arno_setup or { levels = {}, ai = {}, project_module = false }
+M.AI_LEVELS = { "easy", "medium", "hard", "expert" }
+M.AI_LABELS = { easy = "Easy", medium = "Medium", hard = "Hard", expert = "Expert" }
 
 local function seated_colors()
   local seated = {}
@@ -51,7 +55,8 @@ end
 
 -- ---------------------------------------------------------------- setup panel (H1)
 
-local function level_label(level)
+local function level_label(level, ai)
+  if ai ~= nil then return "AI " .. M.AI_LABELS[ai] end
   if level == nil or level == 0 then return "Off" end
   if level > 6 then return "Level " .. level .. " (L6 +" .. (level - 6) .. " CP)" end
   return "Level " .. level
@@ -66,10 +71,10 @@ function M.setup_rows_xml()
       any = true
       rows[#rows + 1] = string.format([[
         <HorizontalLayout spacing="10" minHeight="42" preferredHeight="42" childForceExpandWidth="false" childAlignment="MiddleLeft">
-          <Text fontSize="18" color="#FFFFFF" alignment="MiddleLeft" preferredWidth="370" flexibleWidth="0">ARNO opponent (%s):</Text>
+          <Text fontSize="18" color="#FFFFFF" alignment="MiddleLeft" preferredWidth="370" flexibleWidth="0">ARNO or AI opponent (%s):</Text>
           <Button id="arnoSetup_%s" onClick="on_arno_setup_clicked(%s)" fontSize="16" minHeight="36" preferredWidth="170" flexibleWidth="0" color="#8A6D1F" textColor="#FFFFFF">%s</Button>
         </HorizontalLayout>
-]], color, color, color, level_label(arno_setup.levels[color]))
+]], color, color, color, level_label(arno_setup.levels[color], (arno_setup.ai or {})[color]))
     end
   end
   if any then
@@ -95,11 +100,28 @@ function M.extend_setup_panel(xml)
     function(h) return 'id="gameSetupPanel" rectAlignment="MiddleCenter" width="600" height="' .. (tonumber(h) + 48 * n) .. '"' end, 1))
 end
 
+-- Off -> ARNO level 1..10 -> AI Easy, Medium, Hard, Expert -> Off
 function M.on_setup_clicked(color)
-  local level = (arno_setup.levels[color] or 0) + 1
-  if level > M.MAX_LEVEL then level = 0 end
+  arno_setup.ai = arno_setup.ai or {}
+  local ai = arno_setup.ai[color]
+  local level = arno_setup.levels[color] or 0
+  if ai ~= nil then
+    local next_ai
+    for i, name in ipairs(M.AI_LEVELS) do
+      if name == ai then next_ai = M.AI_LEVELS[i + 1] end
+    end
+    arno_setup.ai[color] = next_ai
+    level = 0
+  elseif level >= M.MAX_LEVEL then
+    arno_setup.ai[color] = M.AI_LEVELS[1]
+    level = 0
+  else
+    level = level + 1
+  end
   arno_setup.levels[color] = level
-  if set_ui_attributes then set_ui_attributes("arnoSetup_" .. color, { text = level_label(level) }) end
+  if set_ui_attributes then
+    set_ui_attributes("arnoSetup_" .. color, { text = level_label(level, arno_setup.ai[color]) })
+  end
 end
 
 function M.on_module_clicked()
@@ -115,6 +137,16 @@ end
 function M.add_bots(list)
   local seated = {}
   for _, p in ipairs(list) do seated[p.color] = true end
+  -- AI seats (docs/AI_OPPONENT.md §2): full players entries like a human's; setup_game
+  -- gives them their components as for every entry of `players`
+  for _, color in ipairs(M.COLORS) do
+    local ai = (arno_setup.ai or {})[color]
+    if ai ~= nil and not seated[color] then
+      table.insert(list, { color = color, steam_name = "AI " .. M.AI_LABELS[ai] .. " (" .. color .. ")",
+                           is_ai = true, ai_level = ai })
+      seated[color] = true
+    end
+  end
   local colors = {}
   for _, color in ipairs(M.COLORS) do
     if (arno_setup.levels[color] or 0) > 0 and not seated[color] then colors[#colors + 1] = color end

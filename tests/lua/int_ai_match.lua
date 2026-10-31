@@ -1,0 +1,53 @@
+-- Matches between AI policies on the BUILT Global.lua (docs/AI_OPPONENT.md §5, test 6):
+-- whole 2-seat games, each pairing played with the seats both ways round (the start player
+-- matters), reporting wins and average scores. Gate: the hand-written policy beats the
+-- random one clearly.
+local T = require("tests.lib")
+local OPTIONS = require("tests.options")
+local game = require("tests.ai_game")
+local policy = require("ai.policy")
+local rng = require("core.rng")
+
+local POLICIES = {
+  random = function(seed) return policy.random(rng.new(seed * 7 + 1)) end,
+  heuristic = function(seed) return policy.heuristic(rng.new(seed * 7 + 2)) end,
+}
+
+-- plays `games` seeds twice (a as Red, then a as Blue); returns a's results
+local function match(a, b, games)
+  local res = { wins = 0, losses = 0, draws = 0, score = 0, opp = 0, n = 0, outcomes = {} }
+  for seed = 1, games do
+    for _, a_first in ipairs({ true, false }) do
+      local ca, cb = a_first and "Red" or "Blue", a_first and "Blue" or "Red"
+      local outcome, _, scores = game.play(seed, { policies = { [ca] = POLICIES[a], [cb] = POLICIES[b] },
+                                                   mw = seed % 3 == 0 })
+      res.outcomes[outcome] = (res.outcomes[outcome] or 0) + 1
+      res.n = res.n + 1
+      res.score, res.opp = res.score + scores[ca], res.opp + scores[cb]
+      if scores[ca] > scores[cb] then res.wins = res.wins + 1
+      elseif scores[ca] < scores[cb] then res.losses = res.losses + 1
+      else res.draws = res.draws + 1 end
+    end
+  end
+  return res
+end
+
+local function report(a, b, res)
+  local outcomes = {}
+  for k, n in pairs(res.outcomes) do outcomes[#outcomes + 1] = k .. " " .. n end
+  table.sort(outcomes)
+  print(string.format("%s vs %s: %d-%d-%d (win %.0f%%), average score %.1f vs %.1f (%s)",
+    a, b, res.wins, res.losses, res.draws, 100 * res.wins / res.n, res.score / res.n, res.opp / res.n,
+    table.concat(outcomes, ", ")))
+end
+
+local GAMES = OPTIONS.quick and 3 or (OPTIONS.games or 10)
+
+-- gate on the average margin: a handful of games says little about a win rate
+T.test("the hand-written policy beats the random one", function()
+  local res = match("heuristic", "random", GAMES)
+  report("heuristic", "random", res)
+  T.ok((res.score - res.opp) / res.n >= 10, "heuristic scores at least 10 points more on average")
+end)
+
+T.finish("integration AI match")

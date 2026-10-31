@@ -140,6 +140,7 @@ def main(argv=None) -> int:
     ap.add_argument("-k", help="only Lua tests whose file name contains this")
     ap.add_argument("--quick", action="store_true",
                     help="int_cards: only the map A pass (skip the upgraded pass over every map)")
+    ap.add_argument("--games", type=int, help="int_ai_games: number of whole games (default 20)")
     args = ap.parse_args(argv)
     failures = []
 
@@ -195,10 +196,16 @@ def main(argv=None) -> int:
         if args.k and args.k not in test_file.name:
             continue
         body = test_file.read_text(encoding="utf-8")
-        names = card_names_module() if "tests.card_names" in body else ""
+        shared = ""
+        if "tests.ai_game" in body:       # whole AI games, shared by the AI suites
+            ai_game = (ROOT / "tests" / "lua" / "ai_game.lua").read_text(encoding="utf-8")
+            shared = 'ARNO_MODULES["tests.ai_game"] = function(require)\n' + ai_game + "\nend\n"
+        names = card_names_module() if "tests.card_names" in body + shared else ""
+        names += shared
         if "tests.options" in body:
             names += ('ARNO_MODULES["tests.options"] = function(require)\nreturn { quick = '
-                      + ("true" if args.quick else "false") + " }\nend\n")
+                      + ("true" if args.quick else "false")
+                      + (f", games = {args.games}" if args.games else "") + " }\nend\n")
         suite = out_dir / test_file.name
         suite.write_text(stubs + "\n" + sim + "\n" + built + "\nsim.cnsts, sim.HexBoard = cnsts, HexBoard\n"
                          + 'ARNO_MODULES["tests.lib"] = function(require)\n' + lib + "\nend\n" + names

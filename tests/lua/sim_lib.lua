@@ -6,18 +6,35 @@
 sim = { queue = {}, objects = {}, next_guid = 1, calls = {} }
 
 -- ---------------------------------------------------------------- scheduler
-local function push(item) sim.queue[#sim.queue + 1] = item; return #sim.queue end
+-- items run in the order they were queued; finished ones are dropped from the queue now
+-- and then (a whole game queues hundreds of thousands), so ids are kept in sim.by_id
+sim.by_id, sim.next_id = {}, 0
+local function push(item)
+  sim.next_id = sim.next_id + 1
+  item.id = sim.next_id
+  sim.queue[#sim.queue + 1] = item
+  sim.by_id[item.id] = item
+  return item.id
+end
 Wait = {
   frames = function(fn, _) return push({ fn = fn }) end,
   time = function(fn, _) return push({ fn = fn }) end,
   condition = function(fn, cond) return push({ fn = fn, cond = cond }) end,
-  stop = function(id) if id and sim.queue[id] then sim.queue[id].dead = true end end,
+  stop = function(id) if id and sim.by_id[id] then sim.by_id[id].dead = true end end,
 }
+local function compact()
+  local live = {}
+  for _, item in ipairs(sim.queue) do
+    if item.done or item.dead then sim.by_id[item.id] = nil else live[#live + 1] = item end
+  end
+  sim.queue = live
+end
 function sim.pump(limit)
   limit = limit or 100000
   local steps = 0
   while true do
     local progressed = false
+    if steps % 256 == 0 then compact() end
     for _, item in ipairs(sim.queue) do
       local ready = item.cond == nil
       if not ready and not item.dead and not item.done then
@@ -101,6 +118,7 @@ function sim.fake(name, pos, guid)
   o.setRotation = rotate
   o.setRotationSmooth = rotate
   o.getScale = function() return Vector(1, 1, 1) end
+  o.getBounds = function() return { center = state.pos, size = Vector(1, 0.1, 1), offset = Vector(0, 0, 0) } end
   -- local -> world without rotation or scale (enough for placing cubes on a tile)
   o.positionToWorld = function(p)
     local v = Vector(p)
@@ -363,4 +381,121 @@ function sim.human_game(mw, map_key)
     pl.deployed_workers[#pl.deployed_workers + 1] = { guid = "w", task = task }
   end)
   return p
+end
+
+-- ---------------------------------------------------------------- whole games of AI seats
+-- a table of AI seats (colors, e.g. { "Red", "Blue" }) on map A as setup_game leaves it
+-- (counters, base projects, break track), each with opts.hand zoo cards and 2 final scoring
+-- cards, the display filled, every physical primitive recorded or emulated. Then
+-- start_player_turn(players[1]) runs the real game loop: turns, breaks, income, game end,
+-- final scoring, announce_winner (recorded: sim.calls.announce_winner).
+-- deck: card numbers, dealt in order (hands, display, discard pile, then the zoo deck);
+-- opts.names: card number -> card name (as in the save)
+function sim.ai_table(colors, deck, opts)
+  opts = opts or {}
+  local first = sim.human_game(opts.mw, "map_A")
+  first.color = colors[1]
+  local function seat(color, i)
+    local p = i == 1 and first or sim.make_player(color, false)
+    if p ~= first then
+      p.x_tokens = {}
+      p.map = sim.HexBoard.Board.new(sim.cnsts.map_data.map_A.cells)
+      p.building_tiles, p.pouched_cards = {}, {}
+      for _, tile in pairs(p.map.tiles) do
+        p.building_tiles[tile.id] = sim.fake((string.upper(tile.tags.type):gsub("_", " ")))
+      end
+      for _, rec in ipairs(p.action_cards) do getObjectFromGUID(rec.guid).is_face_down = false end
+      p.project_cubes = {}
+      for k = 1, sim.cnsts.project_cube_count do p.project_cubes[k] = sim.fake("cube " .. k).getGUID() end
+    end
+    p.map_A, p.map_key = true, "map_A"
+    p.is_ai = true
+    p.steam_name = "AI " .. color
+    p.turns_taken = 0
+    p.x_tokens = p.x_tokens or {}
+    return p
+  end
+  players = {}
+  for i, color in ipairs(colors) do
+    local p = seat(color, i)
+    players[i] = p
+    set_counter(p.appeal_counter, i - 1, sim.cnsts.counter_style.cp)   -- seat order (rules)
+    set_counter(p.score_counter, -14 + (i - 1), sim.cnsts.counter_style.cp)
+  end
+  action_selection_state = {}
+  current_player = players[1]
+  -- the mod's transient per-colour action states start empty in every game
+  enclosure_vacates, cut_down_actions, reconstruction_actions, expand_actions = {}, {}, {}, {}
+  marketing_plays, post_action_panels = {}, {}
+  mark_state, shark_attack_state, digging_player, digging_selected = nil, nil, nil, nil
+  draft_state, setup_discard_state = nil, nil
+  for _, p in ipairs(players) do p.pending_building = nil end
+
+  local names = opts.names or {}
+  local function card(n)
+    return sim.fake(names[n] or string.format("(%03d) Card %d", n, n))
+  end
+  local at = 1
+  for _, p in ipairs(players) do
+    for _ = 1, opts.hand or 4 do card(deck[at]).deal(1, p.color, 1); at = at + 1 end
+  end
+  display_cards, display_marks = {}, {}
+  for i = 1, 6 do display_cards[i] = card(deck[at]); at = at + 1 end
+  discard_pile = sim.fake("discard pile"); discard_pile.tag = "Deck"
+  for _ = 1, opts.discards or 10 do discard_pile.putObject(card(deck[at])); at = at + 1 end
+  zoo_deck = sim.fake("zoo deck"); zoo_deck.tag = "Deck"
+  for i = at, #deck do zoo_deck.putObject(card(deck[i])) end
+  final_scoring_deck = sim.deck({ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 })
+  for _, p in ipairs(players) do
+    for _ = 1, 2 do final_scoring_deck.takeObject({}).deal(1, p.color, 2) end
+  end
+
+  base_conservation_deck = sim.deck({ 104, 105, 106 })
+  base_projects = {}
+  for i, n in ipairs({ 101, 102, 103 }) do
+    base_projects[i] = { sim.fake(names[n] or string.format("(%03d) Project %d", n, n)).getGUID(), {} }
+  end
+  added_projects = {}
+  break_init_val = ({ [2] = 9, [3] = 12, [4] = 15 })[#players]
+  break_current_val = break_init_val
+  break_token = sim.fake("break token")
+  game_end_triggered, final_turn_player = false, nil
+  final_scoring_discard_triggered = false
+  game_started = true
+  checkpoint_open = false
+
+  for _, name in ipairs({ "take_checkpoint", "stop_rewind_checkpoints", "announce_winner",
+                          "move_break_token", "refill_association_board", "move_display_mark",
+                          "send_worker_home", "report_discard", "refresh_status_panels",
+                          "lock_display_cards" }) do
+    sim.record(name)
+  end
+  sim.record("end_player_turn", function(orig, ...) return orig(...) end)
+  sim.record("finish_player_turn", function(orig, ...) return orig(...) end)
+  sim.record("start_player_turn", function(orig, ...) return orig(...) end)
+  sim.record("available_partner_zoos", function() return { "america", "europe", "asia", "africa", "australia" } end)
+  sim.record("available_universities", function() return { "hand_size", "double_rep", "double_research" } end)
+  sim.record("take_partner_zoo", function(_, p, owner)
+    p.acquired_partner_zoos[#p.acquired_partner_zoos + 1] = owner
+    create_claims_from_reward_groups(p, { { rewards = sim.cnsts.map_data[p.map_key].partner_zoo_rewards[#p.acquired_partner_zoos] or {},
+      source = "partner zoo" } }, false)
+  end)
+  sim.record("take_university", function(_, p, key)
+    p.acquired_universities[#p.acquired_universities + 1] = key
+    local rewards = {}
+    for _, r in ipairs(sim.cnsts.map_data[p.map_key].university_rewards[#p.acquired_universities] or {}) do rewards[#rewards + 1] = r end
+    for _, r in ipairs(sim.cnsts.universities[key].rewards or {}) do rewards[#rewards + 1] = r end
+    create_claims_from_reward_groups(p, { { rewards = rewards, source = "university" } }, false)
+  end)
+  sim.record("donation_slot", function() return 2, nil end)
+  sim.record("donation_12_position", function() return Vector(0, 0, 0) end)
+  sim.record("donation_12_count", function() return 0 end)
+  -- a player's cube carries the colour tag, as the real ones (cube_owner_color reads it)
+  sim.record("take_player_cube", function(_, p)
+    local cube = sim.fake("cube " .. p.color)
+    cube.addTag(p.color)
+    return cube
+  end)
+  sim.record("take_cube", function() return sim.fake("cube") end)
+  return players
 end

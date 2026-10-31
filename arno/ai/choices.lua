@@ -143,12 +143,59 @@ local function offer_choices(list, color, state, why)
   for _, guid in ipairs(guids) do pick_up(list, color, getObjectFromGUID(guid), why) end
 end
 
--- what the AI sees: its panel and every choice on offer. An input that leaves this
--- unchanged was not taken in by the mod (a Confirm that cannot confirm, ...).
-function M.fingerprint(player, list)
-  local labels = {}
-  for i, c in ipairs(list or M.list(player)) do labels[i] = c.label end
-  return tostring(active_panels and active_panels[player.color]) .. "\0" .. table.concat(labels, "\0")
+-- what the AI sees, cheaply: its panel and the state its inputs change (selections, the
+-- phase of an action, tiles, hand, display, money, claims). An input that leaves this
+-- unchanged was not taken in by the mod (a Confirm that cannot confirm, ...). Polled every
+-- frame while an input settles, so it must not search placements.
+local function guid_of(obj) return obj and obj.getGUID() or "-" end
+
+function M.fingerprint(player)
+  local color = player.color
+  local parts = { tostring(active_panels and active_panels[color]) }
+  local function put(v) parts[#parts + 1] = tostring(v) end
+  local selection = selection_panels and selection_panels[color]
+  put(selection and #selection.selected)
+  local discard = setup_discard_state and setup_discard_state[color]
+  if discard then put(#discard.selected); put(discard.confirmed) end
+  local draft = draft_state and draft_state[color]
+  if draft then
+    put(draft.phase); put(draft.selected_guid); put(#draft.chosen); put(draft.confirmed)
+    put(draft_round); put(draft_transition_pending)
+  end
+  local animal = animal_actions and animal_actions[color]
+  -- spin buttons (cube allocation, X-tokens) change counts the mod shows with
+  -- UI.setAttribute, not in the panel XML
+  local function counts(t)
+    if type(t) ~= "table" then return end
+    local keys = {}
+    for k in pairs(t) do keys[#keys + 1] = tostring(k) end
+    table.sort(keys)
+    for _, k in ipairs(keys) do put(k .. "=" .. tostring(t[k] or t[tonumber(k)])) end
+  end
+  if animal then
+    put(animal.phase); put(guid_of(animal.selected)); put(animal.chosen and #animal.chosen)
+    put(animal.discount_on); put(animal.condition_token_on)
+    counts(animal.allocation)
+  end
+  local vacate = enclosure_vacates and enclosure_vacates[color]
+  if vacate then put(vacate.phase); put(vacate.chosen); counts(vacate.allocation) end
+  local sel = action_selection_state and action_selection_state[color]
+  if sel then put(sel.x_tokens_used); put(sel.x_token_active) end
+  for _, states in ipairs({ sponsor_actions, marketing_plays }) do
+    local s = states and states[color]
+    put(s and guid_of(s.selected))
+  end
+  local placement = tile_placements and tile_placements[color]
+  put(placement and placement.can_confirm); put(placement and placement.kind)
+  put(player.pending_building and player.pending_building.tile_guid)
+  put(snap_player and snap_player.color); put(rep_draw_player and rep_draw_remaining)
+  put(mark_state and mark_state.player.color); put(shark_attack_state and shark_attack_state.player.color)
+  put(digging_player and guid_of(digging_selected))
+  -- not the hand or the display: a dealt card shows up there before the mod has finished
+  -- with it (its callbacks wait for the card to land)
+  put(get_counter_value(player.money_counter))
+  put(#player.claims); put(player.claims[#player.claims] and #player.claims[#player.claims])
+  return table.concat(parts, "\0")
 end
 
 -- all choices for the player's colour right now (empty: nothing to answer)
@@ -162,6 +209,65 @@ function M.list(player)
     for _, card in ipairs(selection.selected) do chosen[card.getGUID()] = true end
     for _, card in ipairs(selection.pool) do
       if not chosen[card.getGUID()] then pick_up(list, color, card, "select") end
+    end
+    -- a final scoring card is discarded by taking it out of the hand: the mod waits for
+    -- the hand to hold one card less (discard_final_scoring_cards), so it is put down next
+    -- to the board, as a human would drop it on the table
+    if selection.action == "final scoring discard" then
+      for _, c in ipairs(list) do
+        local obj, apply = c.obj, c.apply
+        c.apply = function(done)
+          apply(function() end)
+          local at = player.player_board.getPosition()
+          obj.setPosition({ x = at.x, y = at.y + 2, z = at.z - 12 })
+          done()
+        end
+      end
+    end
+  end
+
+  -- setup: discard 4 of the 8 cards (one panel for every player, UI.setXml)
+  local discard = setup_discard_state and setup_discard_state[color]
+  if discard ~= nil and not discard.confirmed then
+    local chosen = {}
+    for _, card in ipairs(discard.selected) do chosen[card.getGUID()] = true end
+    if #discard.selected < discard.num then
+      for _, card in ipairs(discard.pool) do
+        if not chosen[card.getGUID()] then pick_up(list, color, card, "setup discard") end
+      end
+    else
+      add(list, { kind = "click", label = "Confirm", tag = "confirm", handler = "on_setup_discard_clicked",
+                  arg = color, apply = now(function() inputs.click("on_setup_discard_clicked", color) end) })
+    end
+  end
+
+  -- Marine Worlds: the action-card draft (pick one per round, then 2 to play)
+  local draft = draft_state and draft_state[color]
+  if draft ~= nil and not draft.confirmed and not draft_transition_pending then
+    local ready
+    if draft.phase == "final_pick" then
+      local chosen = {}
+      for _, guid in ipairs(draft.chosen) do chosen[guid] = true end
+      if #draft.chosen < 2 then
+        for _, card in ipairs(Player[color].getHandObjects(DRAFT_SELECTED_INDEX)) do
+          if not chosen[card.getGUID()] then pick_up(list, color, card, "draft keep") end
+        end
+      end
+      ready = #draft.chosen == 2
+    else
+      if draft.selected_guid == nil then
+        local guids = {}
+        for guid in pairs(draft.pool) do
+          if not draft.locked[guid] then guids[#guids + 1] = guid end
+        end
+        table.sort(guids)
+        for _, guid in ipairs(guids) do pick_up(list, color, getObjectFromGUID(guid), "draft pick") end
+      end
+      ready = draft.selected_guid ~= nil
+    end
+    if ready then
+      add(list, { kind = "click", label = "Confirm", tag = "confirm", handler = "on_draft_confirm_clicked",
+                  arg = color, apply = now(function() inputs.click("on_draft_confirm_clicked", color) end) })
     end
   end
 
@@ -177,6 +283,25 @@ function M.list(player)
         add(list, { kind = "pick_up_tile", label = "enclosure " .. tostring(option.id),
                     apply = now(function() inputs.pick_up_tile(color, tile) end) })
       end
+    end
+  end
+
+  -- actions that ask for one of the player's own building tiles (on_building_tile_picked_up):
+  -- every tile is offered, the ones the mod does not take change nothing and drop out
+  local vacate = enclosure_vacates and enclosure_vacates[color]
+  local recon = reconstruction_actions and reconstruction_actions[color]
+  local expand = expand_actions and expand_actions[color]
+  if (vacate ~= nil and vacate.phase == "standard" and vacate.chosen == nil)
+     or (cut_down_actions and cut_down_actions[color] ~= nil)
+     or (recon ~= nil and recon.phase == "select")
+     or (expand ~= nil and expand.phase == "select") then
+    local ids = {}
+    for id in pairs(player.building_tiles or {}) do ids[#ids + 1] = id end
+    table.sort(ids, function(a, b) return tostring(a) < tostring(b) end)
+    for _, id in ipairs(ids) do
+      local tile = player.building_tiles[id]
+      add(list, { kind = "pick_up_tile", label = "tile " .. tostring(id),
+                  apply = now(function() inputs.pick_up_tile(color, tile) end) })
     end
   end
 
@@ -204,12 +329,51 @@ function M.list(player)
 
   if player_prompted and player_prompted[color] then
     for _, b in ipairs(M.buttons(active_panels[color])) do
+      if not M.dead_end(player, b) then
       add(list, { kind = "click", label = b.label, tag = tag_of(b.label), handler = b.handler, arg = b.arg,
                   apply = now(function() inputs.click(b.handler, b.arg) end) })
+      end
     end
   end
 
+  -- labels name a choice in the driver's memory: buttons with the same text (the + and -
+  -- of every row of a cube allocation) get their argument added
+  local seen = {}
+  for _, c in ipairs(list) do seen[c.label] = (seen[c.label] or 0) + 1 end
+  for _, c in ipairs(list) do
+    if seen[c.label] > 1 and c.arg ~= nil then c.label = c.label .. " [" .. c.arg .. "]" end
+  end
+
   return list
+end
+
+-- the strength an action button plays at, as the mod computes it (slot, X-tokens chosen,
+-- map bonuses, a constriction token: action_strength); nil for any other button
+function M.strength(player, button)
+  if button.handler ~= "on_action_card_button_clicked" then return nil end
+  local slot = tonumber((button.arg or ""):match("_(%d+)$") or "")
+  if slot == nil then return nil end
+  local state = action_selection_state and action_selection_state[player.color]
+  local owner = state and state.hypnosis and state.hypnosis.target or player
+  local ok, s = pcall(action_strength, player, slot, state and state.x_tokens_used or 0, owner)
+  return ok and s or slot
+end
+
+-- an action button that leads to a dead end, as a human could see on the map: BUILD with
+-- nowhere to build at that strength. The mod only checks the money (build_action_available)
+-- and then shows "Use rewind to undo this action" (build_dead_end_xml), which the AI cannot.
+function M.dead_end(player, button)
+  if button.handler ~= "on_action_card_button_clicked" then return false end
+  if not (button.label or ""):upper():find("^BUILD") then return false end
+  local state = action_selection_state and action_selection_state[player.color]
+  -- (X-token mode turns the card into an X-token, it does not build; a multiplier's second
+  -- BUILD does build, at the card's strength)
+  if state == nil or state.x_token_active then return false end
+  local strength = M.strength(player, button)
+  if strength == nil then return false end
+  local ok, candidates = pcall(build_candidates, player,
+    { upgd = player.build_flipped, num = "0", built = {}, remaining = strength })
+  return ok and #candidates == 0
 end
 
 return M

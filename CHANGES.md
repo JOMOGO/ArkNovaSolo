@@ -67,6 +67,10 @@ The Global script is the base script plus:
 | PANEL | `resume_checkpoint` | re-draws the ARNO panel after load or rewind |
 | AI1 | `set_active_panel` (`arno/ai/hooks.lua`) | **AI opponent (in development, `docs/AI_OPPONENT.md`):** a panel for an AI seat wakes the AI driver, which answers it through the same buttons and pick-ups a human uses. No-op without an AI seat |
 | AI2 | `start_player_turn` (`arno/ai/hooks.lua`) | AI opponent: starts the AI's per-turn input count (loop guard). No-op for every other player |
+| AI3 | `setup_game` (`arno/ai/hooks.lua`) | AI opponent: with an AI seat, a heartbeat (every 0.5 s until the game starts) lets the AI answer the table-wide setup panels (setup discard, Marine Worlds draft), which the mod shows with `UI.setXml`/`UI.setAttribute` |
+| AI4 | `show_map_ready_panels` (`arno/ai/hooks.lua`) | AI opponent: classic match: the AI keeps the top map of its tile and clicks Ready. Custom setup: the AI plays map A and is out of `players` for the humans' Ready step |
+| AI5 | `finish_map_setup` (`arno/ai/hooks.lua`) | AI opponent: after a custom map setup the AI seats rejoin `players` in their seat order |
+| H2 (AI) | `adapter/setup.lua` `add_bots`, setup row | the ARNO row also offers AI Easy, Medium, Hard, Expert (after ARNO level 10); an AI seat joins `players` as a full entry (`is_ai`, `ai_level`, saved with the player) |
 
 ## 3. Additions to base data (at load time)
 
