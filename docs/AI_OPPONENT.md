@@ -146,31 +146,45 @@ track (the score), plus weighted income, money, reputation, icons toward project
 partner-zoo/university value, free enclosure space against animals in hand, action-card
 strength (an upgrade), X-tokens and the tempo to the break. Weights live in one table.
 
-**Levels.** Four, set per AI seat in the setup panel. Every level plays by the same rules
+**Levels.** Four, set per AI seat in the setup panel: Easy, Medium, Hard, Expert. **All four
+use the same trained network** (§4a). The lower levels are weaker because they play below
+their best on purpose, not because they think less. Every level plays by the same rules
 with the same resources: **no level gets extra money, cards or CP** (unlike ARNO 7-10). A
 level is only a parameter table for the same code, so there is one code path to test.
 
+How a level plays below its best (all three can be combined, the table sets the amounts):
+
+1. **Temperature.** The network scores every legal move. Expert always takes the best.
+   The other levels pick at random among the moves, weighted by score (a softmax with a
+   temperature). A high temperature often picks the 2nd-4th best move. A low one only
+   now and then picks the 2nd best. Moves far below the best are never picked, so a weak
+   level makes plausible mistakes, not silly ones.
+2. **Blind spots.** Some network inputs are set to "unknown" for that level, so it plays as
+   if it did not see them: the opponents' boards, its final scoring card, the break
+   track. That is the kind of thing a beginner overlooks.
+3. **Fewer options.** Only part of the legal moves is scored, for example no X-token
+   combinations, and only the first few placements of a tile.
+
 | | Easy | Medium | Hard | Expert |
 |---|---|---|---|---|
-| Evaluation | heuristic | heuristic | heuristic, tuned | neural network (§4a) |
-| Mistakes: picks among the top moves by score with a temperature | high: often the 2nd-4th best, sometimes a clearly weaker one | low: now and then the 2nd best | none | none |
-| Candidates per turn | first 10 found, no X-tokens or multiplier | all, X-tokens up to 1 | all, every X-token count | all |
-| Horizon | this turn only | this turn + the next break (income, hand limit) | + end game: final scoring cards, race to the end | as Hard, learned |
-| Upgrades (action card flips) | when offered, the first card | the card it uses most | planned toward its strategy | learned |
-| Opponents | ignored | ignored | takes display cards and project slots they need, watches their score | learned |
-| Thinking time | instant | < 0.5 s | < 1 s | < 1 s (frame-spread) |
+| Temperature | high | medium | low | 0 (always the best) |
+| Blind spots | opponents, final scoring card, break track | opponents | none | none |
+| Options scored | a part, no X-tokens | all, X-tokens up to 1 | all | all |
+| Target average score (illustrative; set by measurement) | Expert − 30 | Expert − 20 | Expert − 10 | best |
 
-The mistake noise comes from the seeded RNG, so a rewind replays the same game at every
+**Calibrated on the average score.** The amounts in the table are not guessed. For each
+level, headless games measure its average final score (and win rate). The temperature is
+then turned until the levels sit at even steps below Expert, each beating the one below in
+about 65% of games. ARNO gives a fixed yardstick ("Medium ≈ ARNO 5"); the real numbers come
+from the measurements.
+
+The random picks come from the seeded RNG, so a rewind replays the same game at every
 level (§4, determinism).
 
-**The levels must really differ.** The strength report (test 6) gates the release: each level
-beats the one below in at least ~65% of headless games, and each is placed against ARNO
-(for example "Easy ≈ ARNO 2, Medium ≈ ARNO 5, Hard > ARNO 8"; the real numbers come from
-the measurements). If two levels measure the same, their table is changed until they don't.
-
-**Three first, four later.** Easy, Medium and Hard ship with the heuristic (M2-M4). Expert
-appears in the setup panel only once the network beats Hard (M4b). Until then there are
-three levels.
+**One consequence: no level ships before the network.** The hand-written evaluation is
+still built (M2), but only to bootstrap the training games, as the fallback if the network
+cannot load, and as a sanity check ("the network beats the formula"). It is not a level in
+the setup panel.
 
 **Tuning offline.** The headless harness plays whole games in a few seconds. Self-play
 (AI vs AI, AI vs ARNO level N) over hundreds of seeds tunes the weights and gives each level a
@@ -229,14 +243,83 @@ weights.
    cards).
 3. Self-play with the network, then retrain on the new games. Repeat while the strength report
    improves.
-4. Keep it only if it beats the tuned heuristic in the strength report. Otherwise the
-   heuristic ships.
+4. Release only once Expert clearly beats the hand-written evaluation. Until then,
+   train more (more games, better inputs from the checklist in §4b).
 
 Open point: self-play speed. Games run in the slow interpreter too, so training needs many
 games in parallel processes (overnight runs). Measure games per hour first (P6).
 
-The network is the Expert level (§4, Levels). Easy to Hard keep the heuristic, so they cost
-nothing to run and do not depend on the training.
+The network drives every level (§4, Levels). Easy to Hard cost the same to run as Expert
+(they score as many or fewer moves).
+
+## 4b. Expert checklist: what a strong player looks out for
+
+This list has two uses:
+- **Network inputs.** The network can only learn from what it is shown, so every point
+  here becomes one or more input features in `snapshot.lua`.
+- **Test positions.** Each point gets a few set-up positions where the strong move is
+  known (test 4). Expert must find it. The weaker levels may miss it, as long as they do it
+  at their measured rate.
+
+**Score and game end**
+- The real score is where appeal and CP stand against each other on the scoring track,
+  not either number alone. CP are worth more per point later on (the conversion steps up),
+  so CP and appeal are not interchangeable.
+- Who triggers the game end, and when. Everyone else gets one more turn: end it when
+  ahead, and never trigger it while behind.
+- Its own final scoring card(s): what they reward and how far it is from each threshold.
+- The last 2-3 turns: switch to moves that score now (appeal, CP) over moves that pay off
+  later (income, cards).
+
+**Economy and tempo**
+- Income early: appeal income and buildings that pay at every break compound over the game.
+- The break track: how close the break is, who will trigger it, and what it brings
+  (income, refilled display, hand limit). Don't hold more cards than the limit allows.
+- Money for next turn: the action it wants next must be affordable.
+- Turns are the scarcest resource. A move that does two things beats two moves.
+
+**Action cards**
+- The strength of each card is its slot (1-5), and a card moves to slot 1 when used. Plan
+  which card will be strong next turn, and don't waste a strong slot on a weak move.
+- X-tokens: bank them when there is no good move (the X action), spend them to push a key
+  action over a threshold.
+- Which card to upgrade when a flip comes, matched to its strategy (animals, building,
+  association, cards, sponsors).
+
+**Zoo map**
+- Build enclosures that fit the animals it holds or will soon get, in the right sizes and
+  next to water or rock where the animals need it.
+- Special enclosures (reptile house, large bird aviary, petting zoo, Marine Worlds
+  aquariums) only when the animals for them are coming.
+- Map bonuses: covering bonus spaces and filling map areas.
+- Kiosks and pavilions where they earn the most. Keep free space for later big buildings
+  (no dead corners).
+
+**Cards and the display**
+- The value of a card depends on the plan: icons it needs for projects, sponsors that pay
+  every break, animals that fit the enclosures it has.
+- Reputation sets how far into the display it can reach. Higher reputation means more
+  choice.
+- What the opponents need from the display: take or snap a card they want when it costs
+  little.
+- Card effects and their timing: immediate, at every break, at the end of the game.
+
+**Conservation and the association**
+- Conservation projects: the requirement (icons, released animals) and the race for the
+  better slots. Another player may take the slot first.
+- Partner zoos make animals of that continent cheaper. Universities give reputation and
+  science icons.
+- Workers are limited. Each association task costs a worker, so choose the tasks.
+- CP bonus tiles and reputation milestones: the next step that gives a bonus.
+
+**Opponents**
+- Their score, how close they are to ending the game, and which projects and display
+  cards they need.
+- Effects aimed at it (pilfer, hypnosis, Marine Worlds venom and constriction tokens): keep
+  money and cards less exposed when those are around.
+
+**Marine Worlds** (when enabled)
+- Sea animals and the reef, aquariums, and the draft at the start: draft toward one plan.
 
 ## 5. Tests
 
@@ -250,10 +333,12 @@ On the built Global, with `sim_lib` as today:
 3. **Every card through the AI:** `int_cards.lua` run with the AI driver instead of the test
    driver.
 4. **Policy unit tests** on snapshots: the obvious move wins (affordable animal + free
-   enclosure + appeal), and no illegal intent.
+   enclosure + appeal), no illegal intent, and the §4b test positions (Expert finds the
+   strong move).
 5. **Replay determinism:** the same seed gives the same game, also after a resume from a
    checkpoint.
-6. **Strength report** (not a pass/fail): win rates per level against ARNO levels.
+6. **Strength report:** average final score and win rate per level, against each other and
+   against ARNO levels. It gates the release (M4b).
 7. Strict globals and the "0 AIs = base mod" build check, as today.
 
 `TESTING.md` gets an in-TTS checklist: a seat in each colour, a rewind mid-turn, a break with
@@ -265,10 +350,10 @@ the AI over the hand limit, game end and scoring, MW draft.
 |---|---|---|
 | M0 | Probes P1-P3 in TTS | answers written into this doc |
 | M1 | Seat + hand + driver + random policy | test 1 green for 200 seeds, base + MW |
-| M2 | Snapshot, intent, heuristic policy, levels Easy / Medium / Hard; in TTS 1 human + 1 AI | tests 2-5; one full game played in TTS |
+| M2 | Snapshot (with the §4b inputs), intent, hand-written evaluation (bootstrap only, not a level); in TTS 1 human + 1 AI | tests 2-5; one full game played in TTS |
 | M3 | Mixed tables: 1-3 AIs, with ARNOs and humans; map choice for the AI (best map for its start, or random) | tests in every mix; TESTING.md checklist |
-| M4 | Tuning and strength report; Workshop release with 3 levels | each level beats the one below in ≥ ~65% of games; report in this doc |
-| M4b | Expert level: neural-network evaluation (§4a), logging, training, Lua export, frame-spread scoring | Expert beats Hard in ≥ ~65% of games; in TTS no visible freeze |
+| M4 | Neural network (§4a): logging, training, Lua export, frame-spread scoring | Expert clearly beats the hand-written evaluation; the §4b test positions pass; in TTS no visible freeze |
+| M4b | Levels Easy / Medium / Hard / Expert: calibrate temperature, blind spots and options on the average score; strength report; Workshop release | each level beats the one below in ≥ ~65% of games; report in this doc |
 | M5 (optional, only for players with a local AI) | LLM policy: the same interface, sent to a local bridge over `WebRequest` (host only, `DECISION.md` §2), one request per intent, timeout → heuristic fallback | probe P4; not deterministic, so a rewind keeps the fallback's choice |
 
 ## 7. Open questions, each with how to settle it
