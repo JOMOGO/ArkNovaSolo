@@ -88,9 +88,26 @@ function M.score(player, c)
   if c.kind == "click" then
     if c.handler == "on_action_card_button_clicked" then
       local strength = choices_mod.strength(player, c) or 1
-      return value.action(c.label:match("^(%a+)") or c.label, strength, player)
+      local v = value.action(c.label:match("^(%a+)") or c.label, strength, player)
+      -- a venom fee is due: using the poisoned card settles it
+      local slot = tonumber((c.arg or ""):match("_(%d+)$") or "")
+      if player.venom_unpaid and slot and action_card_has_token(player, slot, "venom") then
+        v = v + 1.5
+      end
+      return v
     end
     if c.handler == "on_take_x_token_clicked" then return 0.9 end
+    -- the venom fee is due at the end of the turn and cannot be paid without 2 money (a
+    -- dead end in the mod): pay it as soon as it is offered
+    if (c.label or ""):find("Venom Fee", 1, true) then return 40 end
+    -- the -1 condition / -3 conditions toggles: on when the chosen animal needs them
+    if c.handler == "on_animal_discount_clicked" or c.handler == "on_animal_condition_token_clicked" then
+      local state = animal_actions and animal_actions[player.color]
+      if state and state.selected and not choices_mod.animal_playable(player, state, state.selected, false) then
+        return 40
+      end
+      return -5
+    end
     if c.handler == "on_x_token_spin_clicked" then return -1 end
     if c.handler and c.handler:find("spin", 1, true) then return 0 end
     if c.tag == "confirm" then return 30 end
@@ -101,8 +118,10 @@ function M.score(player, c)
     local label = c.label
     local name = card_label(label)
     if label:find("^play animal") then
-      local ok, playable = pcall(is_animal_playable, name, player, nil)
-      return (ok and playable) and 10 + value.card(name, player) or -10
+      -- (only playable animals are offered, ai.choices); display cards cost their slot
+      local state = animal_actions and animal_actions[player.color]
+      local pos = state and c.obj and state.offers[c.obj.getGUID()]
+      return 10 + value.card(name, player) - (pos or 0) * value.money()
     elseif label:find("^select") then
       return selection_value(player, value.card(name, player))
     elseif label:find("^take from the deck") then
@@ -137,11 +156,17 @@ end
 local features = require("ai.features")
 local net = require("ai.net")
 
+-- set by the driver while the policy runs in its coroutine: the network's scoring then
+-- yields every YIELD_EVERY choices, so a big decision is spread over several frames
+M.yielding = false
+M.YIELD_EVERY = 8
+
 local function q_scored(player, choices)
   local list = scored(player, choices)
   if not net.available() or #list < 2 then return list end
   local state = features.state(player)
-  for _, e in ipairs(list) do
+  for i, e in ipairs(list) do
+    if M.yielding and i % M.YIELD_EVERY == 0 then coroutine.yield() end
     local x = {}
     for i, v in ipairs(state) do x[i] = v end
     for _, v in ipairs(features.choice(player, e.choice, e.heuristic)) do x[#x + 1] = v end

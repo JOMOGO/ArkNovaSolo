@@ -45,7 +45,7 @@ def module_files(base: Path = ARNO_DIR, packages: tuple[str, ...] | None = None)
 
 STRICT_PRELUDE = """\
 -- tests only: an ARNO module may set a global the mod has (ARNO_MOD_GLOBALS, or one with a
--- value) or one of ARNO's own (CHANGES.md §3: ARNO, arno_state, arno_setup, on_arno_*,
+-- value) or one of ARNO's own (CHANGES.md §3: ARNO, arno_state, arno_setup, ai_state, on_arno_*,
 -- arno_back_clicked); any other new global is a mistake, usually a missing `local`
 local ARNO_MOD_GLOBALS = {%s}
 local function arno_strict_env(module)
@@ -53,7 +53,7 @@ local function arno_strict_env(module)
     __index = _G,
     __newindex = function(_, k, v)
       if rawget(_G, k) ~= nil or ARNO_MOD_GLOBALS[k] or k == "ARNO" or k == "arno_state"
-         or k == "arno_setup" or k == "arno_back_clicked"
+         or k == "arno_setup" or k == "ai_state" or k == "arno_back_clicked"
          or (type(k) == "string" and k:match("^on_arno_")) then
         rawset(_G, k, v)
       else

@@ -35,11 +35,21 @@ function M.budget(level)
   return spec.budget
 end
 
--- the policy of a level, with its own seeded stream
+local function color_code(color)
+  local n = 0
+  for i = 1, #color do n = n * 31 + color:byte(i) end
+  return n
+end
+
+-- the policy of a level. Every decision draws from its own stream, seeded by the game's
+-- seed (ai_state, saved in the mod's checkpoints), the seat, the turn and the input of the
+-- turn: a rewind to the turn checkpoint replays the same choices.
 function M.policy(level, seed)
-  local r = rng.new(seed or 1)
-  return function(player, choices)
-    return policy.budgeted(r, M.budget(level), { network = true })(player, choices)
+  return function(player, choices, step)
+    local base = seed or (ai_state and ai_state.seed) or 1
+    local mixed = (base + color_code(player.color) * 7919 + (player.turns_taken or 0) * 104729
+                   + (step or 0) * 1299709) % 4294967296
+    return policy.budgeted(rng.new(mixed), M.budget(level), { network = true })(player, choices)
   end
 end
 

@@ -275,7 +275,18 @@ function M.list(player)
 
   local animal = animal_actions and animal_actions[color]
   if animal ~= nil and animal.phase == "pick" then
+    -- only animals that can be played (with the discounts this action can give), as a
+    -- player reads the cards: the panel offers every animal in hand, and Confirm on one that
+    -- cannot be played does nothing (and ends the H20 Back offer, a dead end)
+    local before = #list
     offer_choices(list, color, animal, "play animal")
+    local keep = {}
+    for i = before + 1, #list do
+      local c = list[i]
+      if M.animal_playable(player, animal, c.obj, true) then keep[#keep + 1] = c end
+      list[i] = nil
+    end
+    for _, c in ipairs(keep) do list[#list + 1] = c end
   elseif animal ~= nil and animal.phase == "enclosure" and animal.chosen == nil then
     for _, option in ipairs(animal.options or {}) do
       local tile = player.building_tiles[option.id]
@@ -328,10 +339,21 @@ function M.list(player)
   end
 
   if player_prompted and player_prompted[color] then
-    for _, b in ipairs(M.buttons(active_panels[color])) do
-      if not M.dead_end(player, b) then
-      add(list, { kind = "click", label = b.label, tag = tag_of(b.label), handler = b.handler, arg = b.arg,
-                  apply = now(function() inputs.click(b.handler, b.arg) end) })
+    -- dead-end actions are left out, unless nothing else would be left to do (then the AI
+    -- takes its chances, as a human without a better option would)
+    local buttons, any_way_on = M.buttons(active_panels[color]), false
+    local dead = {}
+    for i, b in ipairs(buttons) do
+      dead[i] = M.dead_end(player, b)
+      if (b.handler == "on_action_card_button_clicked" or b.handler == "on_take_x_token_clicked")
+         and not dead[i] then
+        any_way_on = true
+      end
+    end
+    for i, b in ipairs(buttons) do
+      if not dead[i] or not any_way_on then
+        add(list, { kind = "click", label = b.label, tag = tag_of(b.label), handler = b.handler, arg = b.arg,
+                    apply = now(function() inputs.click(b.handler, b.arg) end) })
       end
     end
   end
@@ -345,6 +367,22 @@ function M.list(player)
   end
 
   return list
+end
+
+-- can `obj` be played in this animal action? with_offers: count the discounts the panel
+-- offers (-1 condition, the -3 conditions token) as if switched on
+function M.animal_playable(player, state, obj, with_offers)
+  if obj == nil then return false end
+  local discounts = animal_action_discounts(state)
+  if with_offers then
+    discounts = {
+      condition = (animal_discount_offered(state) and 1 or 0) + (animal_condition_token_offered(state) and 3 or 0),
+      money = discounts.money,
+    }
+  end
+  local pos = state.offers[obj.getGUID()]
+  local ok, playable = pcall(is_animal_playable, obj.getName(), player, pos or nil, discounts)
+  return ok and playable == true
 end
 
 -- the strength an action button plays at, as the mod computes it (slot, X-tokens chosen,
@@ -362,10 +400,21 @@ end
 -- an action button that leads to a dead end, as a human could see on the map: BUILD with
 -- nowhere to build at that strength. The mod only checks the money (build_action_available)
 -- and then shows "Use rewind to undo this action" (build_dead_end_xml), which the AI cannot.
+-- Also (Marine Worlds): a venom fee due at the end of the turn with less than 2 money: only
+-- the poisoned card (using it settles the fee, use_action_card) or SPONSORS (it can earn
+-- money) avoid the end-of-turn "Pay Venom Fee" panel that cannot be paid.
 function M.dead_end(player, button)
   if button.handler ~= "on_action_card_button_clicked" then return false end
-  if not (button.label or ""):upper():find("^BUILD") then return false end
   local state = action_selection_state and action_selection_state[player.color]
+  if player.venom_unpaid and state ~= nil and state.hypnosis == nil and not state.x_token_active
+     and get_counter_value(player.money_counter) < 2 then
+    local slot = tonumber((button.arg or ""):match("_(%d+)$") or "")
+    if slot ~= nil and not action_card_has_token(player, slot, "venom")
+       and not (button.label or ""):upper():find("^SPONSORS") then
+      return true
+    end
+  end
+  if not (button.label or ""):upper():find("^BUILD") then return false end
   -- (X-token mode turns the card into an X-token, it does not build; a multiplier's second
   -- BUILD does build, at the card's strength)
   if state == nil or state.x_token_active then return false end

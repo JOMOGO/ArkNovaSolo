@@ -13,6 +13,7 @@ local hidden_for_maps = nil
 function M.install(wrap)
   table.insert(cnsts.saved_player_fields, "is_ai")
   table.insert(cnsts.saved_player_fields, "ai_level")
+  table.insert(cnsts.saved_globals, "ai_state")   -- { seed }: replay-safe AI choices
 
   -- AI3: during setup the prompts are table-wide panels (UI.setXml, UI.setAttribute) that
   -- the panel hook does not see; a heartbeat looks for AI choices until the game starts

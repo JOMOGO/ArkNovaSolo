@@ -8,9 +8,13 @@ local game = require("tests.ai_game")
 local policy = require("ai.policy")
 local rng = require("core.rng")
 
+local levels = require("ai.levels")
+local net = require("ai.net")
+
 local POLICIES = {
   random = function(seed) return policy.random(rng.new(seed * 7 + 1)) end,
   heuristic = function(seed) return policy.heuristic(rng.new(seed * 7 + 2)) end,
+  expert = function(seed) return levels.policy("expert", seed * 7 + 3) end,     -- the bundled network
 }
 
 -- plays `games` seeds twice (a as Red, then a as Blue); returns a's results
@@ -48,6 +52,13 @@ T.test("the hand-written policy beats the random one", function()
   local res = match("heuristic", "random", GAMES)
   report("heuristic", "random", res)
   T.ok((res.score - res.opp) / res.n >= 10, "heuristic scores at least 10 points more on average")
+end)
+
+T.test("Expert (the bundled network) beats the hand-written policy", function()
+  T.ok(net.available(), "ai.net_weights is bundled")
+  local res = match("expert", "heuristic", GAMES)
+  report("expert", "heuristic", res)
+  T.ok((res.score - res.opp) / res.n >= 5, "Expert scores at least 5 points more on average")
 end)
 
 T.finish("integration AI match")

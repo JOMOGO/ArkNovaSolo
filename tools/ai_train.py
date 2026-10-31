@@ -123,24 +123,33 @@ def report(lines: list[str], seats) -> None:
               f"win {100 * np.mean(m > 0):5.1f}%")
 
 
-def load(paths: list[Path]) -> tuple[np.ndarray, np.ndarray]:
-    finals: dict[tuple[int, str], int] = {}
-    decisions = []
+def load(paths: list[Path], horizon: int = 0, target: str = "margin") -> tuple[np.ndarray, np.ndarray]:
+    """Inputs and targets. Target: the player's margin (target "margin") or own score
+    (target "score") `horizon` of its own decisions later (or at the end of the game) minus
+    the same at the decision; horizon 0 = at the end. A short horizon ties a choice to what
+    it caused, with far less noise; the own score leaves out what the others do meanwhile."""
+    finals: dict[tuple[int, str], tuple[int, int]] = {}
+    by_seat: dict[tuple[int, str], list[tuple[int, int, str]]] = {}
     for path in paths:
         for l in path.read_text(encoding="utf-8").splitlines():
             if l.startswith("E|"):
-                _, seed, color, margin, *_ = l.split("|")
-                finals[(int(seed), color)] = int(margin)
+                parts = l.split("|")
+                score = int(parts[5]) if len(parts) > 5 else 0
+                finals[(int(parts[1]), parts[2])] = (int(parts[3]), score)
             elif l.startswith("D|"):
-                _, seed, color, margin, inputs = l.split("|")
-                decisions.append((int(seed), color, int(margin), inputs))
+                parts = l.split("|")
+                score = int(parts[5]) if len(parts) > 5 else 0
+                by_seat.setdefault((int(parts[1]), parts[2]), []).append((int(parts[3]), score, parts[4]))
+    k = 0 if target == "margin" else 1
     xs, ys = [], []
-    for seed, color, margin, inputs in decisions:
-        final = finals.get((seed, color))
+    for key, seq in by_seat.items():
+        final = finals.get(key)
         if final is None:
             continue
-        xs.append(np.array([float(v) for v in inputs.split(",")], dtype=np.float32))
-        ys.append(final - margin)
+        for i, entry in enumerate(seq):
+            later = final[k] if horizon <= 0 or i + horizon >= len(seq) else seq[i + horizon][k]
+            xs.append(np.array([float(v) for v in entry[2].split(",")], dtype=np.float32))
+            ys.append(later - entry[k])
     return np.stack(xs), np.array(ys, dtype=np.float32)
 
 
@@ -234,6 +243,9 @@ def main(argv=None) -> int:
     t.add_argument("--out", type=Path, default=ROOT / "arno" / "ai" / "net_weights.lua")
     t.add_argument("--hidden", default="64,64")
     t.add_argument("--epochs", type=int, default=12)
+    t.add_argument("--horizon", type=int, default=0,
+                   help="target = margin this many own decisions later (0: final margin)")
+    t.add_argument("--target", choices=("margin", "score"), default="margin")
     m = sub.add_parser("match")
     m.add_argument("--games", type=int, default=100)
     m.add_argument("--first", type=int, default=100001)
@@ -247,7 +259,7 @@ def main(argv=None) -> int:
         lines = play(args.games, seats, getattr(args, "out", None), args.weights, args.first, args.workers)
         report(lines, seats)
     elif args.cmd == "train":
-        x, y = load(args.data)
+        x, y = load(args.data, args.horizon, args.target)
         print(f"{len(y)} decisions, {x.shape[1]} inputs, target mean {y.mean():+.1f} sd {y.std():.1f}")
         hidden = tuple(int(h) for h in args.hidden.split(","))
         params, mean, std = train(x, y, hidden=hidden, epochs=args.epochs)

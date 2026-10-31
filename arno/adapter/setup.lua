@@ -138,13 +138,16 @@ function M.add_bots(list)
   local seated = {}
   for _, p in ipairs(list) do seated[p.color] = true end
   -- AI seats (docs/AI_OPPONENT.md §2): full players entries like a human's; setup_game
-  -- gives them their components as for every entry of `players`
+  -- gives them their components as for every entry of `players`. ai_state.seed seeds the
+  -- AI's choices (saved in the checkpoints, so a rewind replays them)
+  ai_state = nil
   for _, color in ipairs(M.COLORS) do
     local ai = (arno_setup.ai or {})[color]
     if ai ~= nil and not seated[color] then
       table.insert(list, { color = color, steam_name = "AI " .. M.AI_LABELS[ai] .. " (" .. color .. ")",
                            is_ai = true, ai_level = ai })
       seated[color] = true
+      ai_state = ai_state or { seed = (os.time() + math.random(0, 2147483646)) % 4294967296 }
     end
   end
   local colors = {}

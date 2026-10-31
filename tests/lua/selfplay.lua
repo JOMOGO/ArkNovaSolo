@@ -1,7 +1,7 @@
 -- Self-play for training (docs/AI_OPPONENT.md §4a), run by tools/ai_train.py (not part of the
 -- test suite). Plays whole games on the built Global.lua and prints one line per decision
 -- with two or more choices:
---   D|<seed>|<color>|<margin now>|<inputs, comma separated>
+--   D|<seed>|<color>|<margin now>|<inputs, comma separated>|<own score now>
 -- and per seat at the end:
 --   E|<seed>|<color>|<final margin>|<outcome>
 -- margin = own score minus the best other score. The trainer's target for a decision is
@@ -36,7 +36,8 @@ policy.on_decision = function(player, list, pick)
   for _, v in ipairs(features.choice(player, pick.choice, pick.heuristic)) do x[#x + 1] = v end
   local parts = {}
   for i, v in ipairs(x) do parts[i] = fmt(v) end
-  print(string.format("D|%d|%s|%d|%s", seed_now, player.color, margin(player), table.concat(parts, ",")))
+  print(string.format("D|%d|%s|%d|%s|%d", seed_now, player.color, margin(player), table.concat(parts, ","),
+    get_counter_value(player.score_counter)))
 end
 
 driver.LOG_LINES = 50

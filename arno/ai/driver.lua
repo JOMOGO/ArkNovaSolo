@@ -47,7 +47,7 @@ function M.policy_for(player)
   local color = player.color
   if M.policies[color] then return M.policies[color] end
   if M.policy then return M.policy end
-  M.policies[color] = levels.policy(player.ai_level or "medium", os.time() + #color)
+  M.policies[color] = levels.policy(player.ai_level or "medium")
   return M.policies[color]
 end
 
@@ -126,21 +126,40 @@ function M.step(color)
     return
   end
 
-  local pick = M.policy_for(player)(player, list)
-  tried[pick.label] = (tried[pick.label] or 0) + 1
-  note(string.format("%s %s: %s", color, pick.kind, pick.label))
   M.busy[color] = true
-  local ok, err = pcall(pick.apply, function()
-    await_change(player, view, function(changed)
-      if not changed then M.rejected[view .. "\0" .. pick.label] = true end
-      M.busy[color] = nil
-      M.wake(color)
+  local step_no = M.steps[color]
+  local function act(pick)
+    tried[pick.label] = (tried[pick.label] or 0) + 1
+    note(string.format("%s %s: %s", color, pick.kind, pick.label))
+    local ok, err = pcall(pick.apply, function()
+      await_change(player, view, function(changed)
+        if not changed then M.rejected[view .. "\0" .. pick.label] = true end
+        M.busy[color] = nil
+        M.wake(color)
+      end)
     end)
-  end)
-  if not ok then
-    M.busy[color] = nil
-    fail(color, tostring(err))
+    if not ok then
+      M.busy[color] = nil
+      fail(color, tostring(err))
+    end
   end
+
+  -- the policy thinks in a coroutine, a few network evaluations per frame (ai.policy)
+  local co = coroutine.create(function() return M.policy_for(player)(player, list, step_no) end)
+  local function think()
+    policy.yielding = true
+    local ok, pick = coroutine.resume(co)
+    policy.yielding = false
+    if not ok then
+      M.busy[color] = nil
+      fail(color, "policy: " .. tostring(pick))
+    elseif coroutine.status(co) == "dead" then
+      act(pick)
+    else
+      Wait.frames(think, 1)
+    end
+  end
+  think()
 end
 
 -- setup (AI3): every half second, a step for each AI seat, until the game has started
