@@ -16,8 +16,12 @@ function ARNO.is_bot(player)
   return ARNO.setup.is_bot(player)
 end
 
+ARNO.ai = require("ai.driver")
+
 function ARNO.install()
-  require("adapter.hooks").install(ARNO)
+  local hooks = require("adapter.hooks")
+  hooks.install(ARNO)
+  require("ai.hooks").install(hooks.wrap)
 end
 
 -- ---------------------------------------------------------------- UI handlers

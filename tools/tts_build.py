@@ -107,7 +107,7 @@ def arno_global(src: Path, card_images: str = "", strict: bool = False) -> str:
         text = f.read()
     if text.count(BUNDLE_ANCHOR) != 1:
         raise SystemExit("bundle anchor (local handler_names = {}) not found exactly once")
-    bundle = lua_bundle.bundle(packages=("core", "adapter", "ui", "main"),
+    bundle = lua_bundle.bundle(packages=("core", "adapter", "ui", "ai", "main"),
                                epilogue=card_images + 'ARNO = arno_require("main")\nARNO.install()\n',
                                strict_globals=mod_global_names(text) if strict else None)
     return text.replace(BUNDLE_ANCHOR, "\n" + bundle + BUNDLE_ANCHOR, 1)
