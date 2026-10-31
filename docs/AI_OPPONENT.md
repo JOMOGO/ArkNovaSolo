@@ -43,6 +43,8 @@ arno/ai/                  bundled with arno/ (one bundle, same require, strict g
   policy/random.lua       random legal choice (tests, milestone M1)
   intent.lua              the turn plan chosen at action selection, which sub-panels follow
   eval.lua                state evaluation used by the heuristic policy
+  opponent_model.lua      what each opponent collects, needs and how fast they go (Expert, §4)
+  levels.lua              per level: point budget, personality, opponent inputs
 ```
 
 Hooks follow `arno/adapter/hooks.lua` (`wrap(id, name, make)`). Each one is a no-op unless an
@@ -126,7 +128,8 @@ TTS calls, so it runs and is tested headless.
 **Snapshot.** Hand (card numbers → `cnsts.cards`), display 1-6 with costs
 (`animal_play_cost` 10279), money, income, appeal/CP/rep/X, icons, action cards (slot,
 upgraded, tokens), `player.map` (HexBoard queries), partner zoos, universities, workers,
-projects and open slots, break track, the opponents' public state. Legality comes from the
+projects and open slots, break track, the opponents' public state (never their hidden cards,
+see Fair play below). Legality comes from the
 mod's own predicates (`*_action_available`, `is_animal_playable`, `findValidPlacement`).
 The snapshot never reimplements a rule.
 
@@ -152,41 +155,85 @@ their best on purpose, not because they think less. Every level plays by the sam
 with the same resources: **no level gets extra money, cards or CP** (unlike ARNO 7-10). A
 level is only a parameter table for the same code, so there is one code path to test.
 
-How a level plays below its best (all three can be combined, the table sets the amounts):
+How a level plays below its best:
 
-1. **Temperature.** The network scores every legal move. Expert always takes the best.
-   The other levels pick at random among the moves, weighted by score (a softmax with a
-   temperature). A high temperature often picks the 2nd-4th best move. A low one only
-   now and then picks the 2nd best. Moves far below the best are never picked, so a weak
-   level makes plausible mistakes, not silly ones.
-2. **Blind spots.** Some network inputs are set to "unknown" for that level, so it plays as
-   if it did not see them: the opponents' boards, its final scoring card, the break
-   track. That is the kind of thing a beginner overlooks.
-3. **Fewer options.** Only part of the legal moves is scored, for example no X-token
-   combinations, and only the first few placements of a tile.
+1. **A point budget per move (the main control).** The network estimates each legal move
+   in points of final score (§4a). Expert takes the best move. A lower level has a budget
+   of points it may give up per move. It picks at random among the moves within that
+   budget of the best one, and never a move below it.
+   - It controls exactly what the levels are about: how much lower the average score
+     is. The budget is set in points, not through a knob that has to be guessed.
+   - The mistakes land where people make them. When one move is clearly best, every other
+     move is far below it and outside the budget, so even Easy finds it. When several
+     moves are close, the level errs, which is where real players differ too.
+   - No single silly move throws the game.
+2. **A personality for Easy and Medium.** At the start of a game, the level draws one simple
+   plan: "lots of animals", "conservation projects first", "build and income", "sponsors".
+   Moves that fit the plan get a bonus in points on top of the network's estimate, so
+   it plays the plan a bit stubbornly, even when the cards, opponents or display call for
+   something else. That is how a beginner loses: by not adapting, not by misclicking. And
+   each game feels different. The bonus also stays within the budget, so it cannot lead to
+   a silly move.
+3. **Easy ignores the opponents.** The only blind spot kept: the opponents' inputs are set
+   to "unknown", so Easy does not deny cards or race for project slots. It looks natural.
+   Blind spots such as "ignores the break track" are not used: they make the AI throw away
+   its hand at every break, which looks broken, not weak.
 
 | | Easy | Medium | Hard | Expert |
 |---|---|---|---|---|
-| Temperature | high | medium | low | 0 (always the best) |
-| Blind spots | opponents, final scoring card, break track | opponents | none | none |
-| Options scored | a part, no X-tokens | all, X-tokens up to 1 | all | all |
-| Target average score (illustrative; set by measurement) | Expert − 30 | Expert − 20 | Expert − 10 | best |
+| Point budget per move (starting values; set by measurement) | ~6+ | ~3-4 | ~1-2 | 0 (always the best) |
+| Personality | strong bonus for its plan | light bonus | none | none |
+| Opponents | ignored | seen | seen | **read and countered during the game** (below) |
 
-**Calibrated on the average score.** The amounts in the table are not guessed. For each
-level, headless games measure its average final score (and win rate). The temperature is
-then turned until the levels sit at even steps below Expert, each beating the one below in
-about 65% of games. ARNO gives a fixed yardstick ("Medium ≈ ARNO 5"); the real numbers come
-from the measurements.
+**Never weaker at the end.** In the last 2-3 turns (once the game end is in sight) every
+level plays with the budget of the level above, so a game is never thrown in its last
+turns and feels honest to the end.
 
-The random picks come from the seeded RNG, so a rewind replays the same game at every
-level (§4, determinism).
+**Expert adapts to the player during the game.** Expert does not get easier or harder
+to keep the game close (that is not what adapting means here). It plays at full strength
+and reads what each opponent is doing, then plays against it. An `opponent_model.lua`
+module keeps per opponent, from public information only:
+
+- what they collect: icons, continents, categories, the enclosures they have built;
+- which conservation projects and slots they qualify for or nearly qualify for;
+- which display cards fit their zoo, so taking or snapping one denies them something;
+- their pace: how fast their appeal and CP grow, so how many turns until they can end
+  the game. Expert then times its own end game against theirs;
+- their likely final scoring goal, guessed from what they play (Expert never sees the card);
+- the effects they have that can hit it (pilfer, hypnosis, venom, constriction).
+
+This feeds the network as extra inputs. The network learns how much each one is worth by
+training against many opponent styles: the Easy and Medium personalities and ARNO make a
+varied training field, so Expert learns to recognise a style and counter it.
+
+**Fair play.** No level ever sees hidden information: not the humans' hands or final scoring
+cards, not the deck order. The snapshot only contains what a player at the table could
+see, plus the AI's own hand and cards. The mod has all of it in memory; `snapshot.lua` is
+where this is enforced, and a test checks that two games that differ only in hidden
+information give the AI the same snapshot.
+
+**Backup: earlier versions of the network.** Training saves the network several times along
+the way, and an early version is naturally weaker. It learns the obvious things first (play
+animals, earn income) and the subtle ones last (timing the game end, denying the opponent),
+roughly as people improve. If the budgets and personalities alone do not make the levels
+feel different enough, Easy and Medium use an earlier version instead (about 100-150 KB
+extra in the save per version). It cannot be set as precisely, so it is measured the same way.
+
+**Calibrated on the average score.** The budgets and personality bonuses in the table are
+starting values. For each level, headless games measure its average final score and win
+rate. The budgets are then adjusted until the levels sit at even steps below Expert, each
+beating the one below in about 65% of games. ARNO gives a fixed yardstick ("Medium ≈ ARNO
+5"); the real numbers come from the measurements.
+
+The random picks and the personality draw come from the seeded RNG, so a rewind replays the
+same game at every level (§4, determinism).
 
 **One consequence: no level ships before the network.** The hand-written evaluation is
 still built (M2), but only to bootstrap the training games, as the fallback if the network
 cannot load, and as a sanity check ("the network beats the formula"). It is not a level in
 the setup panel.
 
-**Tuning offline.** The headless harness plays whole games in a few seconds. Self-play
+**Tuning offline.** The headless harness plays whole games (speed still to measure, P6). Self-play
 (AI vs AI, AI vs ARNO level N) over hundreds of seeds tunes the weights and gives each level a
 measured strength ("hard beats ARNO 6 in x% of games"). No in-TTS sandboxing or rollouts:
 the mod's state is global and physical, so lookahead runs on the snapshot only.
@@ -337,6 +384,10 @@ On the built Global, with `sim_lib` as today:
    strong move).
 5. **Replay determinism:** the same seed gives the same game, also after a resume from a
    checkpoint.
+5a. **No hidden information:** two games that differ only in the humans' hands, final
+   scoring cards or the deck order give the AI the same snapshot.
+5b. **Expert counters:** set-up positions where the opponent needs a display card or a
+   project slot; Expert takes it when it costs little.
 6. **Strength report:** average final score and win rate per level, against each other and
    against ARNO levels. It gates the release (M4b).
 7. Strict globals and the "0 AIs = base mod" build check, as today.
@@ -353,7 +404,7 @@ the AI over the hand limit, game end and scoring, MW draft.
 | M2 | Snapshot (with the §4b inputs), intent, hand-written evaluation (bootstrap only, not a level); in TTS 1 human + 1 AI | tests 2-5; one full game played in TTS |
 | M3 | Mixed tables: 1-3 AIs, with ARNOs and humans; map choice for the AI (best map for its start, or random) | tests in every mix; TESTING.md checklist |
 | M4 | Neural network (§4a): logging, training, Lua export, frame-spread scoring | Expert clearly beats the hand-written evaluation; the §4b test positions pass; in TTS no visible freeze |
-| M4b | Levels Easy / Medium / Hard / Expert: calibrate temperature, blind spots and options on the average score; strength report; Workshop release | each level beats the one below in ≥ ~65% of games; report in this doc |
+| M4b | Levels Easy / Medium / Hard / Expert: point budgets, personalities, Expert's opponent model; calibrate on the average score; strength report; Workshop release | each level beats the one below in ≥ ~65% of games; report in this doc |
 | M5 (optional, only for players with a local AI) | LLM policy: the same interface, sent to a local bridge over `WebRequest` (host only, `DECISION.md` §2), one request per intent, timeout → heuristic fallback | probe P4; not deterministic, so a rewind keeps the fallback's choice |
 
 ## 7. Open questions, each with how to settle it
