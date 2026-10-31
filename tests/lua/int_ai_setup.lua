@@ -108,4 +108,32 @@ T.test("custom map setup: the AI plays map A and sits out Ready, then rejoins (A
   T.eq(players[2].color, "Blue", "in its seat")
 end)
 
+-- fair play (docs/AI_OPPONENT.md §5, test 5a): what the AI sees does not change when only
+-- hidden information does (another player's hand and final scoring cards, the deck order)
+T.test("fair play: the AI's inputs ignore other hands and the deck order", function()
+  local features = require("ai.features")
+  local choices = require("ai.choices")
+  local game_deck = {}
+  for n = 401, 470 do game_deck[#game_deck + 1] = n end
+  for n = 201, 230 do game_deck[#game_deck + 1] = n end
+  sim.ai_table({ "Red", "Blue" }, game_deck, {})
+  local red = players[1]
+  create_action_selection_panel(red)
+  local function view()
+    local out = {}
+    for _, v in ipairs(features.state(red)) do out[#out + 1] = v end
+    for _, c in ipairs(choices.list(red)) do
+      for _, v in ipairs(features.choice(red, c, policy.score(red, c))) do out[#out + 1] = v end
+    end
+    return out
+  end
+  local before = view()
+  sim.fake("(426) African Bush Elephant").deal(1, "Blue", 1)       -- Blue's hand changes
+  sim.fake("#009 scoring").deal(1, "Blue", 2)                     -- and its scoring cards
+  local top = zoo_deck.getObjects()
+  zoo_deck._s.contents = {}
+  for i = #top, 1, -1 do zoo_deck._s.contents[#zoo_deck._s.contents + 1] = top[i] end   -- deck reversed
+  T.eq(view(), before)
+end)
+
 T.finish("integration AI setup")

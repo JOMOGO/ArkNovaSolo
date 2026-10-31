@@ -24,7 +24,9 @@ Steam Workshop: https://steamcommunity.com/sharedfiles/filedetails/?id=382296995
    `dist/ArkNova_Scripted_ARNO.json` there).
 2. In TTS: **Games → Save & Load**, then pick **"Ark Nova - Complete Scripted + ARNO 3.0"**.
 3. Sit in a colour, click **Setup Game**. For each free colour choose
-   *ARNO opponent: Level 1–10* (or Off), then *Proceed*.
+   *ARNO Level 1–10*, *AI Easy / Medium / Hard / Expert* (or Off), then *Proceed*.
+   (The AI opponent is in development on branch `ai-opponent`: it plays a full seat by the
+   human rules, see `docs/AI_OPPONENT.md`.)
 4. Play your turns as usual. ARNO's turns run on their own; the ARNO panel (top right)
    shows his cards, debt, tokens and a log. *Auto: off* makes him wait for
    *Run ARNO turn*.
@@ -100,6 +102,7 @@ python tools/run_tests.py --skip-node --quick -k int_cards   # one suite, one ca
 | integration | the **built** mod + ARNO executed headless: claims engine, 60-turn soak, replay determinism, setup cards, breaks, scoring, ties |
 | every card | `tests/lua/int_cards.lua`: each of the 281 cards (base + Marine Worlds: animals, sponsors, projects) played by a human through the mod's real code, every panel answered, to the end of the turn; twice: map A, then every action card upgraded with each card on the next of the 27 maps (`--quick`: the first pass only) |
 | rewards | `tests/lua/int_rewards.lua`: every reward text in the mod's data (cards, maps, universities, tracks, bonus tiles) reaches a handler |
+| AI | `tests/lua/int_ai*.lua`: the AI opponent: 300 single turns and 40 chains of 20 turns from random positions, whole games of 2–4 AI seats to the final scoring, setup prompts, matches (hand-written policy vs random, Expert vs hand-written) |
 | rules | `tests/lua/int_rules.lua`: base-mod code shared by several places (REF1-REF3 in CHANGES.md): hex board regions and placement, the final scoring discard, reconstruction moves |
 
 The test builds also refuse any new global set by ARNO code (a missing `local`), except the

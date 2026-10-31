@@ -504,17 +504,42 @@ the AI over the hand limit, game end and scoring, MW draft.
 | 2026-10-31 | M1 start: `arno/ai/` seat, inputs, choices, random policy, driver; hooks AI1 (`set_active_panel`), AI2 (`start_player_turn`) | `tests/lua/int_ai.lua`: 300 single AI turns from random positions (money, hand, display, upgrades, card order, base and Marine Worlds) and 40 chains of 20 turns in a row with the real end of turn, all ending cleanly; every other suite unchanged |
 
 Found on the way:
-- **Acting too fast races the mod.** Taking a second card while the first is still being dealt
-  ends a reputation draw twice (Lua error). The driver now waits until the mod has reacted to
-  each input (§3). A human who double-clicks very fast could probably hit the same race in
-  the base mod (not checked in TTS).
+- **"Acting too fast races the mod" was a test fake.** The reputation-draw crash came from fake
+  cubes without a colour tag (the display-mark payout found no owner). The driver still waits
+  until the mod has reacted to each input and stays still for a few frames (§3).
 - **Not every button does something.** An animal that cannot be played still gets a
   Confirm button, which does nothing. The driver remembers inputs that changed nothing and
-  does not retry them for the same view.
+  does not retry them for the same view; buttons with the same text (+/- of every row) get
+  their argument added so they are told apart.
+- **Base-mod dead ends a human can reach too** (the AI avoids them; suggested fixes, not
+  changed): BUILD is offered with only 2 money checked (`build_action_available`), then
+  "nowhere to build, use rewind", without Back when the card carries a venom token; the
+  end-of-turn venom fee cannot be paid with less than 2 money and has no other button; the
+  animal panel offers every animal in hand and Confirm on one that cannot be played does
+  nothing (and ends H20's Back offer).
 - **Possible base-mod issue (unverified):** `scavenging` and `deal_tagged_card` take cards from
   the discard pile without checking it has enough. With an empty discard pile the headless
   run failed; whether TTS fails the same way needs a check in game.
+- **The mod never reshuffles the zoo deck.** Random play over 250+ turns can empty it; a real
+  game ends long before.
 
-Not done yet in M1: the AI seat in the setup panel and the setup flow (map, setup discard,
-draft), the hand of an unseated colour (P1), breaks, income and the final scoring with an AI,
-and a whole game from setup to scoring (the harness so far plays turns, not games).
+| Date | Step | Result |
+|---|---|---|
+| 2026-10-31 | Whole games headless (`sim.ai_table`, `tests/lua/int_ai_games.lua`) | 2-4 AI seats play to the final scoring, ~3 s per game (P6: ~1000 games per hour per core) |
+| 2026-10-31 | Setup (`tests/lua/int_ai_setup.lua`) | setup row Off / ARNO 1-10 / AI Easy-Expert; AI seats as full players; setup discard, draft, classic/custom map steps (AI3-AI5) |
+| 2026-10-31 | Hand-written policy (`ai/value.lua`, `policy.heuristic`) | beats random 94.8 vs 67.4 average (20 games) |
+| 2026-10-31 | Network round 0: 1500 self-play games of the hand-written policy (budgets 1 and 3), 765k decisions; target = margin change over the next 10 own decisions (the final margin gave no signal) | Q network 85 inputs, 64-64 hidden, 9.7k weights: **beats the hand-written policy +31.7 average margin, 89% of 99 games** |
+| 2026-10-31 | Round 1 (network self-play) | stopped by the system (low memory while idle); not restarted |
+
+## 9. Training the network
+
+```
+python tools/ai_train.py play  --games 1500 --seats heuristic:3,heuristic:1 --out build/ai/round0.txt
+python tools/ai_train.py train --data build/ai/round0.txt --horizon 10 --out arno/ai/net_weights.lua
+python tools/ai_train.py match --games 100 --seats network:0,heuristic:0 --weights arno/ai/net_weights.lua
+python tools/ai_train.py match --games 60 --seats expert:0,hard:0 --workers 4
+```
+
+A next round plays the current network against itself with budgets (`network:1,network:3`),
+trains on all rounds and keeps the new weights only if they beat the old ones in `match`.
+Use `--workers 4` when the machine is short of memory (each worker is one MoonSharp process).

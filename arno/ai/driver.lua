@@ -81,9 +81,15 @@ local function await_change(player, before, done)
   Wait.frames(poll, 1)
 end
 
+-- a stuck AI is never a silent hang: in a game the table is told, and a human can sit in
+-- that colour to finish the move (its panels show for that colour) or rewind
 local function fail(color, message)
   note("ERROR " .. color .. ": " .. message)
-  if M.on_error then M.on_error(color, message) end
+  if M.on_error then M.on_error(color, message) return end
+  if broadcastToAll then
+    broadcastToAll(string.format("The AI (%s) is stuck: %s. Sit in %s to finish its move, or rewind.",
+      color, message, color), { 1, 0.4, 0.4 })
+  end
 end
 
 function M.step(color)
@@ -178,13 +184,17 @@ function M.setup_heartbeat()
   Wait.time(beat, M.HEARTBEAT_SECONDS)
 end
 
+-- seconds between two AI inputs, so the humans can follow what it does (0 in tests)
+M.STEP_SECONDS = 0.35
+
 function M.wake(color)
   if M.scheduled[color] then return end
   M.scheduled[color] = true
-  Wait.frames(function()
+  local function go()
     M.scheduled[color] = nil
     M.step(color)
-  end, 1)
+  end
+  if M.STEP_SECONDS > 0 then Wait.time(go, M.STEP_SECONDS) else Wait.frames(go, 1) end
 end
 
 return M

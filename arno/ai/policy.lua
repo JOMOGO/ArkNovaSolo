@@ -170,8 +170,15 @@ local function q_scored(player, choices)
     local x = {}
     for i, v in ipairs(state) do x[i] = v end
     for _, v in ipairs(features.choice(player, e.choice, e.heuristic)) do x[#x + 1] = v end
-    -- Back stays last whatever the network says (it never ends a turn by itself)
-    e.score = (e.choice.tag == "back") and -1000 or net.forward(x)
+    -- rules over the network: Back stays last (it never ends a turn by itself); a venom fee
+    -- is paid as soon as offered (later it may not be payable: a dead end in the mod)
+    if e.choice.tag == "back" then
+      e.score = -1000
+    elseif (e.choice.label or ""):find("Venom Fee", 1, true) then
+      e.score = 1000
+    else
+      e.score = net.forward(x)
+    end
   end
   return list
 end
@@ -187,11 +194,20 @@ function M.budgeted(r, budget, opts)
     for _, e in ipairs(list) do
       if best == nil or e.score > best then best = e.score end
     end
-    local near = {}
+    local near, total = {}, 0
     for _, e in ipairs(list) do
-      if e.score >= best - (budget or 0) - 1e-9 then near[#near + 1] = e end
+      if e.score >= best - (budget or 0) - 1e-9 then
+        -- opts.weight: a personality's preference among the choices within the budget
+        e.weight = (opts and opts.weight) and opts.weight(player, e.choice) or 1
+        near[#near + 1] = e
+        total = total + e.weight
+      end
     end
-    local pick = near[math.floor(rng.next(r) * #near) + 1]
+    local x, pick = rng.next(r) * total, near[#near]
+    for _, e in ipairs(near) do
+      x = x - e.weight
+      if x < 0 then pick = e break end
+    end
     if M.on_decision then M.on_decision(player, list, pick) end    -- training logs
     return pick.choice
   end

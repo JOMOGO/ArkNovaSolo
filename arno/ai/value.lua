@@ -103,8 +103,10 @@ function M.action(kind, strength, player)
   local mv = M.money(progress)
   kind = kind:upper()
   if kind == "ANIMALS" then
-    if not animals_action_available(player, strength, "0") then return -1 end
+    -- (not animals_action_available: it may look at the top card of the zoo deck, which a
+    -- player does not see; the panel's button already says whether the action is possible)
     local animals = M.playable_animals(player)
+    if #animals == 0 then return -1 end
     local count = (strength >= (animals_upgraded(player) and 4 or 5)) and 2 or 1
     local v, money = 0, get_counter_value(player.money_counter)
     for i = 1, math.min(count, #animals) do

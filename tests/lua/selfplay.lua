@@ -13,6 +13,7 @@ local policy = require("ai.policy")
 local features = require("ai.features")
 local driver = require("ai.driver")
 local rng = require("core.rng")
+local levels = require("ai.levels")
 
 local COLORS = { "Red", "Blue", "Yellow", "White" }
 
@@ -31,7 +32,7 @@ local function fmt(x) return string.format("%.3f", x):gsub("%.?0+$", "") end
 
 local seed_now = 0
 policy.on_decision = function(player, list, pick)
-  if #list < 2 then return end
+  if #list < 2 or OPTS.log == false then return end
   local x = features.state(player)
   for _, v in ipairs(features.choice(player, pick.choice, pick.heuristic)) do x[#x + 1] = v end
   local parts = {}
@@ -51,6 +52,7 @@ for seed = OPTS.from, OPTS.to do
     local color = COLORS[i]
     colors[i] = color
     makers[color] = function(s)
+      if spec.level then return levels.policy(spec.level, s * 31 + i) end     -- a shipped level
       return policy.budgeted(rng.new(s * 31 + i), spec.budget or 0, { network = spec.policy == "network" })
     end
   end

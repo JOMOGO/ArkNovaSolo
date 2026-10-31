@@ -117,6 +117,29 @@ Install: see README ("Play").
   upgrades it; supporting a project with only one project and one open slot goes straight
   to the project cube, but with a Wildcard token the slot is still asked (AUTOONE).
 
+## H. AI opponent (branch `ai-opponent`, docs/AI_OPPONENT.md)
+
+The AI plays a full seat by the human rules through the same panels. Headless tests cover
+its decisions and whole games; these are the physical things only TTS can show.
+
+- [ ] **H1 — hand of an empty seat (check P1, the most important one).** Sit in Red, set Blue
+  to *AI Medium* (click the row past ARNO Level 10), Proceed. After setup Blue has 8 cards in
+  its hand zone, then 4 after the setup discard. You see card backs only, not their faces.
+- [ ] **H2 — setup prompts.** The AI discards its 4 cards on its own and the game starts when
+  you confirm yours. With Marine Worlds it drafts by itself. Classic map match: it readies
+  on its own. Custom map setup: it plays map A and you only place your own tile.
+- [ ] **H3 — an AI turn.** It picks an action and plays it through: cards leave its hand, tiles
+  land on its map, money and appeal move. About a third of a second between its inputs.
+  No visible freeze while it thinks.
+- [ ] **H4 — building.** Its building tiles sit on valid spots of its map (not floating, not
+  overlapping) and its enclosures fill with its animals.
+- [ ] **H5 — breaks and game end.** At a break it discards down to its hand limit and takes
+  its income; at the end it discards its final scoring card if asked and is scored.
+- [ ] **H6 — rewind.** Rewind during an AI turn: it replays the same moves.
+- [ ] **H7 — levels.** Play Easy and Expert once each: Easy makes visibly weaker choices.
+- [ ] **H8 — stuck AI.** If the chat says "The AI (colour) is stuck", sit in that colour to
+  finish the move, and report the message.
+
 ## G. Things to report if they happen
 
 - Chat: `[ARNO] ERROR in step …` (the turn continues; press *Run ARNO turn* or rewind).

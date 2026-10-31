@@ -32,10 +32,15 @@ import tts_build  # noqa: E402
 BUILD = ROOT / "build" / "ai"
 
 
-def lua_options(first: int, last: int, seats: list[tuple[str, float]], mw_every: int) -> str:
-    seat_list = ", ".join(f'{{ policy = "{p}", budget = {b} }}' for p, b in seats)
+def lua_options(first: int, last: int, seats, mw_every: int, log: bool = True) -> str:
+    def seat(p, b):
+        if p in ("easy", "medium", "hard", "expert"):      # a shipped level (ai.levels)
+            return f'{{ level = "{p}" }}'
+        return f'{{ policy = "{p}", budget = {b} }}'
+    seat_list = ", ".join(seat(p, b) for p, b in seats)
     return (f'ARNO_MODULES["tests.selfplay_options"] = function(require)\n'
-            f"return {{ from = {first}, to = {last}, seats = {{ {seat_list} }}, mw_every = {mw_every} }}\nend\n")
+            f"return {{ from = {first}, to = {last}, seats = {{ {seat_list} }}, mw_every = {mw_every}, "
+            f"log = {'true' if log else 'false'} }}\nend\n")
 
 
 def build_suite(weights: Path | None) -> str:
@@ -58,10 +63,10 @@ def build_suite(weights: Path | None) -> str:
             + extra + "@@OPTIONS@@" + "do\nlocal require = arno_require\n" + body + "\nend\n")
 
 
-def run_chunk(template: str, idx: int, first: int, last: int, seats, mw_every: int) -> str:
+def run_chunk(template: str, idx: int, first: int, last: int, seats, mw_every: int, log: bool = True) -> str:
     BUILD.mkdir(parents=True, exist_ok=True)
     path = BUILD / f"selfplay_{idx}.lua"
-    path.write_text(template.replace("@@OPTIONS@@", lua_options(first, last, seats, mw_every)),
+    path.write_text(template.replace("@@OPTIONS@@", lua_options(first, last, seats, mw_every, log)),
                     encoding="utf-8", newline="\n")
     out = subprocess.run(["dotnet", str(run_tests.MOONRUN), str(path)], capture_output=True,
                          text=True, encoding="utf-8", errors="replace")
@@ -80,15 +85,16 @@ def parse_seats(text: str) -> list[tuple[str, float]]:
 
 
 def play(games: int, seats, out: Path | None, weights: Path | None, first: int = 1,
-         workers: int | None = None, mw_every: int = 3) -> list[str]:
+         workers: int | None = None, mw_every: int = 3, log: bool = True) -> list[str]:
     template = build_suite(weights)
     workers = workers or max(1, (os.cpu_count() or 2) - 2)
-    per = max(1, (games + workers - 1) // workers)
+    # many small chunks: each runner's output stays small (memory), and the pool keeps busy
+    per = max(1, min(25, (games + workers - 1) // workers))
     chunks = [(i, first + i * per, min(first + games - 1, first + (i + 1) * per - 1))
               for i in range((games + per - 1) // per)]
     lines: list[str] = []
     with cf.ThreadPoolExecutor(max_workers=workers) as pool:
-        futures = [pool.submit(run_chunk, template, i, a, b, seats, mw_every) for i, a, b in chunks]
+        futures = [pool.submit(run_chunk, template, i, a, b, seats, mw_every, log) for i, a, b in chunks]
         for f in cf.as_completed(futures):
             lines.extend(f.result().splitlines())
     if out is not None:
@@ -97,6 +103,12 @@ def play(games: int, seats, out: Path | None, weights: Path | None, first: int =
     errors = [l for l in lines if l.startswith("X|")]
     for e in errors[:5]:
         print("  game failed:", e[:300])
+    if errors:
+        BUILD.mkdir(parents=True, exist_ok=True)
+        with open(BUILD / "failures.txt", "a", encoding="utf-8") as f:
+            for e in errors:
+                f.write(e.replace(" / ", "\n    ") + "\n")
+        print(f"  (full logs in {BUILD / 'failures.txt'})")
     print(f"played {games} games: {sum(1 for l in lines if l.startswith('D|'))} decisions, "
           f"{len(errors)} failed")
     return lines
@@ -256,7 +268,8 @@ def main(argv=None) -> int:
 
     if args.cmd in ("play", "match"):
         seats = parse_seats(args.seats)
-        lines = play(args.games, seats, getattr(args, "out", None), args.weights, args.first, args.workers)
+        lines = play(args.games, seats, getattr(args, "out", None), args.weights, args.first, args.workers,
+                     log=args.cmd == "play")
         report(lines, seats)
     elif args.cmd == "train":
         x, y = load(args.data, args.horizon, args.target)

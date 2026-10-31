@@ -345,8 +345,8 @@ function M.list(player)
     local dead = {}
     for i, b in ipairs(buttons) do
       dead[i] = M.dead_end(player, b)
-      if (b.handler == "on_action_card_button_clicked" or b.handler == "on_take_x_token_clicked")
-         and not dead[i] then
+      -- a way on: any live button but the X-token spins and Back (a multiplier's Pass counts)
+      if not dead[i] and not (b.handler or ""):find("spin", 1, true) and tag_of(b.label) ~= "back" then
         any_way_on = true
       end
     end
