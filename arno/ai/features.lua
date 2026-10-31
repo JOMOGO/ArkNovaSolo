@@ -9,7 +9,7 @@ local choices = require("ai.choices")
 
 local M = {}
 
-M.VERSION = 1
+M.VERSION = 2     -- 1: 39 + 46 inputs; 2: + 7 leader + 32 icons + 18 display + 1 turn, + 3 choice
 
 local ACTIONS = { "ANIMALS", "CARDS", "BUILD", "SPONSORS", "ASSOCIATION" }
 local KINDS = { "click", "pick_up", "drop_tile", "pick_up_tile" }
@@ -33,8 +33,81 @@ local function slot_of(player, kind)
   return 0
 end
 
--- what the player knows (the same for every choice of one decision: computed once)
-function M.state(player)
+-- the other player with the best score (public information only)
+local function leader_of(player)
+  local best, leader = nil, nil
+  for _, p in ipairs(players or {}) do
+    if p ~= player then
+      local s = counter(p.score_counter)
+      if best == nil or s > best then best, leader = s, p end
+    end
+  end
+  return leader
+end
+
+local function icon_count(p, icon)
+  local c = p and p.icon_counters and p.icon_counters[icon]
+  return c and (get_icon_counter_value(c) or 0) or 0
+end
+
+-- how well a card's icons fit a zoo (0..1): its icons the zoo already collects
+local function icon_fit(p, data)
+  local icons = data and data.icons or {}
+  if p == nil or #icons == 0 then return 0 end
+  local fit = 0
+  for _, icon in ipairs(icons) do fit = fit + math.min(icon_count(p, icon), 5) / 5 end
+  return fit / #icons
+end
+
+local function card_data(name)
+  if name == nil then return nil end
+  local ok, data = pcall(card_data_for, name)
+  return ok and data or nil
+end
+
+-- version 2 (docs/AI_OPPONENT.md §4c, the Expert checklist): the leading opponent, both
+-- zoos' icons, the display (worth, reach, what it gives the leader) and the turn
+local function state_v2(player, put)
+  local leader = leader_of(player)
+  put(leader and counter(leader.appeal_counter) / 50 or 0)
+  put(leader and counter(leader.cp_counter) / 15 or 0)
+  put(leader and counter(leader.money_counter) / 40 or 0)
+  put(leader and counter(leader.income_counter) / 20 or 0)
+  put(leader and counter(leader.rep_counter) / 12 or 0)
+  put(leader and #(leader.x_tokens or {}) / 5 or 0)
+  put(leader and #Player[leader.color].getHandObjects(1) / 8 or 0)        -- how many, not which
+  for _, icon in ipairs(cnsts.icons.all) do put(icon_count(player, icon) / 5) end
+  for _, icon in ipairs(cnsts.icons.all) do put(icon_count(leader, icon) / 5) end
+  local rep = counter(player.rep_counter)
+  for i = 1, 6 do
+    local card = display_cards and display_cards[i]
+    local data = card and card_data(card.getName())
+    put(card and value.card(card.getName(), player) / 10 or 0)
+    put(card and rep >= (cnsts.rep_range_thresholds[i] or 99) and 1 or 0)
+    put(icon_fit(leader, data))
+  end
+  put((player.turns_taken or 0) / 40)
+end
+
+local function choice_v2(player, c, put)
+  local name = c.obj and c.obj.getName() or (c.label:match(": (.+)$"))
+  local data = card_data(name)
+  put(icon_fit(player, data))
+  put(icon_fit(leader_of(player), data))
+  put((tonumber((c.label or ""):match("^%a+ (%d)") or "") or 0) / 6)    -- display slot of a snap/take
+end
+
+-- what the player knows (the same for every choice of one decision: computed once).
+-- version: the input layout of the network that reads it (default the current one)
+function M.state(player, version)
+  local f = M.state_v1(player)
+  if (version or M.VERSION) >= 2 then
+    state_v2(player, function(x) f[#f + 1] = clip(x) end)
+  end
+  return f
+end
+
+function M.state_v1(player)
   local f = {}
   local function put(x) f[#f + 1] = clip(x) end
   local progress = value.progress()
@@ -109,7 +182,15 @@ local function reward_sum(list, pattern)
 end
 
 -- what the choice is; `heuristic` is ai.policy.score for it
-function M.choice(player, c, heuristic)
+function M.choice(player, c, heuristic, version)
+  local f = M.choice_v1(player, c, heuristic)
+  if (version or M.VERSION) >= 2 then
+    choice_v2(player, c, function(x) f[#f + 1] = clip(x) end)
+  end
+  return f
+end
+
+function M.choice_v1(player, c, heuristic)
   local f = {}
   local function put(x) f[#f + 1] = clip(x) end
   for _, k in ipairs(KINDS) do put(c.kind == k and 1 or 0) end
@@ -165,7 +246,16 @@ function M.choice(player, c, heuristic)
   return f
 end
 
-M.STATE_SIZE = 39
-M.CHOICE_SIZE = 46
+-- inputs per version (state + choice); a network's weights say which one it reads
+M.SIZES = { [1] = { 39, 46 }, [2] = { 97, 49 } }
+
+function M.version_of(weights)
+  if weights == nil then return M.VERSION end
+  if weights.features then return weights.features end
+  for v, s in pairs(M.SIZES) do
+    if s[1] + s[2] == weights.inputs then return v end
+  end
+  return 1
+end
 
 return M

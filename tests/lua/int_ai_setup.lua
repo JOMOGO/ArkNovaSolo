@@ -127,13 +127,35 @@ T.test("fair play: the AI's inputs ignore other hands and the deck order", funct
     end
     return out
   end
+  -- (how many cards a player holds is public; which cards is not)
+  local blue_card = sim.fake("(201) Blue's sponsor")
+  blue_card.deal(1, "Blue", 1)
+  local blue_scoring = sim.fake("#008 scoring")
+  blue_scoring.deal(1, "Blue", 2)
   local before = view()
-  sim.fake("(426) African Bush Elephant").deal(1, "Blue", 1)       -- Blue's hand changes
-  sim.fake("#009 scoring").deal(1, "Blue", 2)                     -- and its scoring cards
+  blue_card.setPosition({ 0, 0, 0 })                               -- Blue's hand: another card,
+  sim.fake("(426) African Bush Elephant").deal(1, "Blue", 1)       -- the same number
+  blue_scoring.setPosition({ 0, 0, 0 })                            -- and another scoring card
+  sim.fake("#009 scoring").deal(1, "Blue", 2)
   local top = zoo_deck.getObjects()
   zoo_deck._s.contents = {}
   for i = #top, 1, -1 do zoo_deck._s.contents[#zoo_deck._s.contents + 1] = top[i] end   -- deck reversed
   T.eq(view(), before)
+end)
+
+T.test("network inputs: each version has the size its weights expect", function()
+  local features = require("ai.features")
+  local choices = require("ai.choices")
+  local game_deck = {}
+  for n = 401, 470 do game_deck[#game_deck + 1] = n end
+  sim.ai_table({ "Red", "Blue" }, game_deck, {})
+  create_action_selection_panel(players[1])
+  local c = choices.list(players[1])[1]
+  for version, sizes in pairs(features.SIZES) do
+    T.eq(#features.state(players[1], version), sizes[1], "state, version " .. version)
+    T.eq(#features.choice(players[1], c, 0, version), sizes[2], "choice, version " .. version)
+  end
+  T.eq(features.version_of(require("ai.net_weights")), 1, "the bundled network reads version 1")
 end)
 
 T.finish("integration AI setup")

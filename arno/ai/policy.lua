@@ -181,12 +181,13 @@ M.YIELD_EVERY = 8
 local function q_scored(player, choices, weights)
   local list = scored(player, choices)
   if (weights == nil and not net.available()) or #list < 2 then return list end
-  local state = features.state(player)
+  local version = features.version_of(weights or net.weights())     -- the inputs it was trained on
+  local state = features.state(player, version)
   for i, e in ipairs(list) do
     if M.yielding and i % M.YIELD_EVERY == 0 then coroutine.yield() end
     local x = {}
     for i, v in ipairs(state) do x[i] = v end
-    for _, v in ipairs(features.choice(player, e.choice, e.heuristic)) do x[#x + 1] = v end
+    for _, v in ipairs(features.choice(player, e.choice, e.heuristic, version)) do x[#x + 1] = v end
     -- rules over the network (M.rule)
     e.score = M.rule(player, e.choice) or net.forward(x, weights)
   end
