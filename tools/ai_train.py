@@ -31,7 +31,7 @@ import tts_build  # noqa: E402
 
 BUILD = ROOT / "build" / "ai"
 # input count -> features.lua version (M.SIZES there)
-FEATURE_VERSIONS = {85: 1, 146: 2}
+FEATURE_VERSIONS = {85: 1, 146: 2, 242: 3}
 
 
 def lua_options(first: int, last: int, seats, mw_every: int, log: bool = True) -> str:

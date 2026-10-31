@@ -9,7 +9,8 @@ local choices = require("ai.choices")
 
 local M = {}
 
-M.VERSION = 2     -- 1: 39 + 46 inputs; 2: + 7 leader + 32 icons + 18 display + 1 turn, + 3 choice
+M.VERSION = 3     -- 1: 39 + 46 inputs; 2: + 7 leader + 32 icons + 18 display + 1 turn, + 3 choice;
+                  -- 3: + 54 opponents + 3 scoring + 7 projects + 7 map + 15 tokens + 4 hand + 6 table
 
 local ACTIONS = { "ANIMALS", "CARDS", "BUILD", "SPONSORS", "ASSOCIATION" }
 local KINDS = { "click", "pick_up", "drop_tile", "pick_up_tile" }
@@ -89,6 +90,147 @@ local function state_v2(player, put)
   put((player.turns_taken or 0) / 40)
 end
 
+-- version 3 (owner: "the AI should have access to all public info"): everything a player at
+-- the table can see, summarised (counts and totals; card-by-card would need a far bigger
+-- network than fits in MoonSharp), plus the AI's own final scoring cards. Never another
+-- player's hand cards or final scoring cards, nor the deck order (only how many).
+local function safe(fn, default)
+  local ok, v = pcall(fn)
+  if ok and v ~= nil then return v end
+  return default
+end
+
+local function supportable_count(p)
+  return safe(function() return #supportable_projects(p) end, 0)
+end
+
+local function opponent_inputs(p, put)
+  put(p and 1 or 0)
+  if p == nil then
+    for _ = 1, 17 do put(0) end
+    return
+  end
+  put((counter(p.score_counter) + 14) / 114)
+  put(counter(p.appeal_counter) / 50)
+  put(counter(p.cp_counter) / 15)
+  put(counter(p.money_counter) / 40)
+  put(counter(p.income_counter) / 20)
+  put(counter(p.rep_counter) / 12)
+  put(#(p.x_tokens or {}) / 5)
+  put(#Player[p.color].getHandObjects(1) / 8)                      -- how many cards, not which
+  local upgrades = 0
+  for _, flag in ipairs({ "animals_flipped", "cards_flipped", "build_flipped", "sponsors_flipped",
+                          "association_flipped" }) do
+    if p[flag] then upgrades = upgrades + 1 end
+  end
+  put(upgrades / 5)
+  put(((p.worker_count or 1) - #(p.deployed_workers or {})) / 4)
+  put(#(p.acquired_partner_zoos or {}) / 4)
+  put(#(p.acquired_universities or {}) / 3)
+  local free = 0
+  if p.map then
+    for id, tile in pairs(p.map.tiles) do
+      local capacity = safe(function() return p.map:enclosureCapacity(id, enclosure_capacity_opts(p)) end, nil)
+      if capacity and tile.tags.occupied == false then free = free + 1 end
+    end
+  end
+  put(free / 3)
+  put(p.map and p.map:countUnoccupied() / 50 or 0)
+  put(#(p.played_animals or {}) / 15)
+  put(#(p.played_sponsors or {}) / 10)
+  put(supportable_count(p) / 3)
+end
+
+local function state_v3(player, put)
+  -- the other players, best score first (up to three)
+  local others = {}
+  for _, p in ipairs(players or {}) do
+    if p ~= player then others[#others + 1] = p end
+  end
+  table.sort(others, function(a, b) return counter(a.score_counter) > counter(b.score_counter) end)
+  for i = 1, 3 do opponent_inputs(others[i], put) end
+
+  -- own final scoring cards (the AI sees its own): how many, their points now
+  local awards = {}
+  for _, card in ipairs(safe(function() return final_scoring_cards(player) end, {})) do
+    awards[#awards + 1] = safe(function()
+      return final_score_award(player, final_scoring_data_for(card_number_of(card.getName())))
+    end, 0)
+  end
+  table.sort(awards, function(a, b) return a > b end)
+  put(#awards / 2); put((awards[1] or 0) / 4); put(((awards[1] or 0) + (awards[2] or 0)) / 8)
+
+  -- conservation projects on the table
+  local projects, free_slots, best_award, shortfall = 0, 0, 0, 10
+  safe(function()
+    each_table_project(function(guid, cubes)
+      projects = projects + 1
+      for slot = 1, 3 do if cubes[slot] == nil then free_slots = free_slots + 1 end end
+      local obj = getObjectFromGUID(guid)
+      local card = obj and card_data_for(obj.getName())
+      if card and card.project == "icons" then
+        local have = project_match_count(player, card.match)
+        for slot = 1, 3 do
+          if cubes[slot] == nil then
+            local need = card.thresholds[slot] - have
+            if need <= 0 then best_award = math.max(best_award, card.awards[slot] or 0)
+            else shortfall = math.min(shortfall, need) end
+          end
+        end
+      end
+    end)
+    return true
+  end, false)
+  put(projects / 8); put(free_slots / 24); put(supportable_count(player) / 3); put(best_award / 5)
+  put(shortfall / 10)
+  local leader = others[1]
+  put(leader and supportable_count(leader) / 3 or 0)
+  put(safe(function() return #playable_project_candidates(player, player.association_flipped) end, 0) / 3)
+
+  -- own map
+  local map = player.map
+  put(map and safe(function() return map:countUnclaimedRewards() end, 0) / 10 or 0)
+  put(map and (safe(function() return map:unoccupiedRegionSizes()[1] end, 0) or 0) / 20 or 0)
+  put(map and safe(function() return map:kioskIncome() end, 0) / 10 or 0)
+  for _, tag in ipairs({ "reptile_house", "large_bird_aviary", "petting_zoo", "large_aquarium" }) do
+    put(map and safe(function() return #map:tilesWithTag(tag) end, 0) > 0 and 1 or 0)
+  end
+
+  -- tokens on its own action cards
+  for slot = 1, 5 do
+    for _, kind in ipairs({ "venom", "constriction", "multiplier" }) do
+      put(safe(function() return action_card_has_token(player, slot, kind) end, false) and 1 or 0)
+    end
+  end
+
+  -- what the hand can do now
+  local animals = value.playable_animals(player)
+  local cheapest = nil
+  for _, a in ipairs(animals) do
+    if cheapest == nil or (a.cost or 0) < cheapest then cheapest = a.cost or 0 end
+  end
+  put(#animals / 5)
+  put((cheapest or 0) / 30)
+  put(safe(function() return #playable_sponsor_candidates(player, 5) end, 0) / 5)
+  local limit = 3 + (player.hand_size_plus_1 and 1 or 0)
+  for _, uni in ipairs(player.acquired_universities or {}) do
+    if uni == "hand_size" then limit = limit + 2 break end
+  end
+  put((limit - #player_hand_cards(player)) / 5)
+
+  -- the table: association board, piles (how many), the next CP bonus
+  put(safe(function() return #available_partner_zoos() end, 0) / 5)
+  put(safe(function() return #available_universities() end, 0) / 3)
+  put(safe(function() return pile_quantity(live_zoo_deck()) end, 0) / 200)
+  put(safe(function() return pile_quantity(live_discard_pile()) end, 0) / 100)
+  local cp, next_bonus = counter(player.cp_counter), 0
+  for _, mark in ipairs({ 2, 5, 8, 10 }) do
+    if cp < mark then next_bonus = mark - cp break end
+  end
+  put(next_bonus / 5)
+  put(#(player.bonus_tiles or {}) / 3)
+end
+
 local function choice_v2(player, c, put)
   local name = c.obj and c.obj.getName() or (c.label:match(": (.+)$"))
   local data = card_data(name)
@@ -101,9 +243,9 @@ end
 -- version: the input layout of the network that reads it (default the current one)
 function M.state(player, version)
   local f = M.state_v1(player)
-  if (version or M.VERSION) >= 2 then
-    state_v2(player, function(x) f[#f + 1] = clip(x) end)
-  end
+  local put = function(x) f[#f + 1] = clip(x) end
+  if (version or M.VERSION) >= 2 then state_v2(player, put) end
+  if (version or M.VERSION) >= 3 then state_v3(player, put) end
   return f
 end
 
@@ -247,7 +389,7 @@ function M.choice_v1(player, c, heuristic)
 end
 
 -- inputs per version (state + choice); a network's weights say which one it reads
-M.SIZES = { [1] = { 39, 46 }, [2] = { 97, 49 } }
+M.SIZES = { [1] = { 39, 46 }, [2] = { 97, 49 }, [3] = { 193, 49 } }
 
 function M.version_of(weights)
   if weights == nil then return M.VERSION end
