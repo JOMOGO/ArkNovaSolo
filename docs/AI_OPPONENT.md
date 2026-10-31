@@ -44,7 +44,8 @@ arno/ai/                  bundled with arno/ (one bundle, same require, strict g
   intent.lua              the turn plan chosen at action selection, which sub-panels follow
   eval.lua                state evaluation used by the heuristic policy
   opponent_model.lua      what each opponent collects, needs and how fast they go (Expert, §4)
-  levels.lua              per level: point budget, personality, opponent inputs
+  levels.lua              per level: point budget, personality, opponent inputs, lookahead depth
+  forward.lua             simplified model of one own turn on the snapshot, for lookahead (§4b)
 ```
 
 Hooks follow `arno/adapter/hooks.lua` (`wrap(id, name, make)`). Each one is a no-op unless an
@@ -182,6 +183,7 @@ How a level plays below its best:
 | | Easy | Medium | Hard | Expert |
 |---|---|---|---|---|
 | Point budget per move (starting values; set by measurement) | ~6+ | ~3-4 | ~1-2 | 0 (always the best) |
+| Looks ahead (own turns, §4b) | 1 (this turn) | 2 | 3 | 4 |
 | Personality | strong bonus for its plan | light bonus | none | none |
 | Opponents | ignored | seen | seen | **read and countered during the game** (below) |
 
@@ -272,8 +274,9 @@ That is about 2.3 M multiply-adds per second. Conclusions:
 - **Sparse inputs.** Cards in hand, the display and the played cards are one-hot. The first
   layer only adds the columns of the inputs that are set, which makes it several times cheaper
   than the dense benchmark.
-- **No big networks, no tree search** (AlphaZero style): too slow in MoonSharp, and the mod's
-  state cannot be cloned to search on.
+- **No big networks, no full tree search** (AlphaZero style): too slow in MoonSharp, and the
+  mod's state cannot be cloned to search on. A narrow lookahead on a simplified model of
+  its own next turns does fit (§4b).
 - Speed in TTS itself still has to be measured (probe P5). If it is slower, use fewer
   candidates (pre-filtered by the heuristic) or a smaller network.
 
@@ -291,7 +294,7 @@ weights.
 3. Self-play with the network, then retrain on the new games. Repeat while the strength report
    improves.
 4. Release only once Expert clearly beats the hand-written evaluation. Until then,
-   train more (more games, better inputs from the checklist in §4b).
+   train more (more games, better inputs from the checklist in §4c).
 
 Open point: self-play speed. Games run in the slow interpreter too, so training needs many
 games in parallel processes (overnight runs). Measure games per hour first (P6).
@@ -299,7 +302,60 @@ games in parallel processes (overnight runs). Measure games per hour first (P6).
 The network drives every level (§4, Levels). Easy to Hard cost the same to run as Expert
 (they score as many or fewer moves).
 
-## 4b. Expert checklist: what a strong player looks out for
+## 4b. Looking ahead: higher levels see more turns
+
+Each level higher looks one more of **its own turns** ahead: Easy 1 (only this turn), Medium
+2, Hard 3, Expert 4.
+
+**What it looks ahead on.** The mod's real state cannot be copied to try moves on (it is
+global and has physical objects), so lookahead uses `forward.lua`: a simplified model of a
+turn on the snapshot. It covers what matters most for planning:
+
+- action-card rotation: the card used goes to slot 1 and the others move up. This part is
+  exact, and it is the main reason to look ahead ("use the weak card now, so Animals is at
+  strength 5 next turn");
+- money, income, appeal, CP, reputation and X-tokens from the move;
+- enclosures filled and space left, cards leaving the hand or display;
+- the break track and the income at the break.
+
+Card effects are only approximated (their main reward). The network then scores the
+position at the end of each line, so the model only has to get it roughly right.
+
+**Opponents in the lookahead.** It cannot simulate them: that needs their hidden cards. The
+lookahead assumes they make no move, except that Expert uses its opponent model: "they will
+probably take display card 3", "they reach the project slot in 2 turns".
+
+**Cost: beam search, not a full tree.** At each depth it keeps only the best 3 lines (the
+beam) and expands those:
+
+| Depth | Positions scored (50 moves per turn, beam 3) | Time at 7 ms (headless) |
+|---|---|---|
+| 1 | 50 | 0.35 s |
+| 2 | 200 | 1.4 s |
+| 3 | 350 | 2.5 s |
+| 4 | 500 | 3.5 s |
+
+That grows linearly, not exponentially. Three things keep it usable:
+
+- **It thinks during the other players' turns.** A human turn takes far longer than this.
+  After their move, only the lines they changed (display, project slots) are rescored.
+- **Sparse first layer** (§4a): several times faster than these dense timings.
+- **A fixed count, not a time limit.** Each level scores a fixed number of positions, so a
+  slow PC waits longer but plays the same moves. A time limit would make the strength (and a
+  rewind) depend on the PC. If TTS turns out much slower (P5), the beam shrinks for every
+  PC alike.
+
+**Only if it helps.** Lookahead on an approximate model can also mislead. For each level,
+the tournament (§5, test 6) plays depth d against depth d-1 with everything else the same.
+A depth that does not win is not used, and that level gets more strength from its point
+budget instead.
+
+**Test against the real engine.** The headless harness has the real mod. For many positions,
+the forward model's prediction of one move is compared with what the mod really does
+(money, appeal, CP, slots, hand). The fields it claims to predict must match exactly; the
+approximated ones are reported as an error rate.
+
+## 4c. Expert checklist: what a strong player looks out for
 
 This list has two uses:
 - **Network inputs.** The network can only learn from what it is shown, so every point
@@ -380,7 +436,7 @@ On the built Global, with `sim_lib` as today:
 3. **Every card through the AI:** `int_cards.lua` run with the AI driver instead of the test
    driver.
 4. **Policy unit tests** on snapshots: the obvious move wins (affordable animal + free
-   enclosure + appeal), no illegal intent, and the §4b test positions (Expert finds the
+   enclosure + appeal), no illegal intent, and the §4c test positions (Expert finds the
    strong move).
 5. **Replay determinism:** the same seed gives the same game, also after a resume from a
    checkpoint.
@@ -388,8 +444,17 @@ On the built Global, with `sim_lib` as today:
    scoring cards or the deck order give the AI the same snapshot.
 5b. **Expert counters:** set-up positions where the opponent needs a display card or a
    project slot; Expert takes it when it costs little.
-6. **Strength report:** average final score and win rate per level, against each other and
-   against ARNO levels. It gates the release (M4b).
+6. **Tournament and strength report.** Every level plays every other level and the ARNO
+   levels, in 2- and 3-player games, with the seats rotated (start player matters) and over
+   many seeds. Out of it come:
+   - a rating per level (Elo), plus average final score and win rate against each opponent;
+   - the ladder check: each level beats the one below in about 65% of games, and the steps
+     in average score are about even;
+   - the lookahead check (§4b): each level against itself with one step less;
+   - a regression check: a new network or new settings must not lose rating against the
+     previous release.
+   It gates the release (M4b) and is rerun after every training round.
+6a. **Forward model vs the real mod** (§4b): one move predicted against one move played.
 7. Strict globals and the "0 AIs = base mod" build check, as today.
 
 `TESTING.md` gets an in-TTS checklist: a seat in each colour, a rewind mid-turn, a break with
@@ -401,10 +466,10 @@ the AI over the hand limit, game end and scoring, MW draft.
 |---|---|---|
 | M0 | Probes P1-P3 in TTS | answers written into this doc |
 | M1 | Seat + hand + driver + random policy | test 1 green for 200 seeds, base + MW |
-| M2 | Snapshot (with the §4b inputs), intent, hand-written evaluation (bootstrap only, not a level); in TTS 1 human + 1 AI | tests 2-5; one full game played in TTS |
+| M2 | Snapshot (with the §4c inputs), intent, hand-written evaluation (bootstrap only, not a level); in TTS 1 human + 1 AI | tests 2-5; one full game played in TTS |
 | M3 | Mixed tables: 1-3 AIs, with ARNOs and humans; map choice for the AI (best map for its start, or random) | tests in every mix; TESTING.md checklist |
-| M4 | Neural network (§4a): logging, training, Lua export, frame-spread scoring | Expert clearly beats the hand-written evaluation; the §4b test positions pass; in TTS no visible freeze |
-| M4b | Levels Easy / Medium / Hard / Expert: point budgets, personalities, Expert's opponent model; calibrate on the average score; strength report; Workshop release | each level beats the one below in ≥ ~65% of games; report in this doc |
+| M4 | Neural network (§4a): logging, training, Lua export, frame-spread scoring | Expert clearly beats the hand-written evaluation; the §4c test positions pass; in TTS no visible freeze |
+| M4b | Levels Easy / Medium / Hard / Expert: point budgets, personalities, lookahead depth 1-4 (`forward.lua`, beam search, thinking during other turns), Expert's opponent model; calibrate in the tournament; Workshop release | each level beats the one below in ≥ ~65% of games; report in this doc |
 | M5 (optional, only for players with a local AI) | LLM policy: the same interface, sent to a local bridge over `WebRequest` (host only, `DECISION.md` §2), one request per intent, timeout → heuristic fallback | probe P4; not deterministic, so a rewind keeps the fallback's choice |
 
 ## 7. Open questions, each with how to settle it
