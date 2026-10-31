@@ -59,7 +59,7 @@ Reused from ARNO:
 
 | Piece | ARNO code |
 |---|---|
-| setup-panel row per unseated colour (Off / ARNO 1-10 / **AI easy-normal-hard**) | H1 `setup.extend_setup_panel` |
+| setup-panel row per unseated colour (Off / ARNO 1-10 / **AI Easy, Medium, Hard, Expert**; the level is saved with the seat) | H1 `setup.extend_setup_panel` |
 | adding the entry to `players` | H2 `setup.add_bots` |
 | keeping an unseated colour's board, cloning the start kiosk one seat at a time | H5 `setup_player_maps` wrapper, `prepare_bot` |
 | a human is the starting player (or random, owner's choice) | H3 |
@@ -146,8 +146,31 @@ track (the score), plus weighted income, money, reputation, icons toward project
 partner-zoo/university value, free enclosure space against animals in hand, action-card
 strength (an upgrade), X-tokens and the tempo to the break. Weights live in one table.
 
-**Levels.** Easy = noise on the scores + a 1-turn horizon. Hard = no noise, a lookahead on
-the break and the end game, and card valuation that accounts for the final scoring cards.
+**Levels.** Four, set per AI seat in the setup panel. Every level plays by the same rules
+with the same resources: **no level gets extra money, cards or CP** (unlike ARNO 7-10). A
+level is only a parameter table for the same code, so there is one code path to test.
+
+| | Easy | Medium | Hard | Expert |
+|---|---|---|---|---|
+| Evaluation | heuristic | heuristic | heuristic, tuned | neural network (§4a) |
+| Mistakes: picks among the top moves by score with a temperature | high: often the 2nd-4th best, sometimes a clearly weaker one | low: now and then the 2nd best | none | none |
+| Candidates per turn | first 10 found, no X-tokens or multiplier | all, X-tokens up to 1 | all, every X-token count | all |
+| Horizon | this turn only | this turn + the next break (income, hand limit) | + end game: final scoring cards, race to the end | as Hard, learned |
+| Upgrades (action card flips) | when offered, the first card | the card it uses most | planned toward its strategy | learned |
+| Opponents | ignored | ignored | takes display cards and project slots they need, watches their score | learned |
+| Thinking time | instant | < 0.5 s | < 1 s | < 1 s (frame-spread) |
+
+The mistake noise comes from the seeded RNG, so a rewind replays the same game at every
+level (§4, determinism).
+
+**The levels must really differ.** The strength report (test 6) gates the release: each level
+beats the one below in at least ~65% of headless games, and each is placed against ARNO
+(for example "Easy ≈ ARNO 2, Medium ≈ ARNO 5, Hard > ARNO 8"; the real numbers come from
+the measurements). If two levels measure the same, their table is changed until they don't.
+
+**Three first, four later.** Easy, Medium and Hard ship with the heuristic (M2-M4). Expert
+appears in the setup panel only once the network beats Hard (M4b). Until then there are
+three levels.
 
 **Tuning offline.** The headless harness plays whole games in a few seconds. Self-play
 (AI vs AI, AI vs ARNO level N) over hundreds of seeds tunes the weights and gives each level a
@@ -212,7 +235,8 @@ weights.
 Open point: self-play speed. Games run in the slow interpreter too, so training needs many
 games in parallel processes (overnight runs). Measure games per hour first (P6).
 
-Levels with a network: easy and normal can add noise to its scores or mix in the heuristic.
+The network is the Expert level (§4, Levels). Easy to Hard keep the heuristic, so they cost
+nothing to run and do not depend on the training.
 
 ## 5. Tests
 
@@ -241,10 +265,10 @@ the AI over the hand limit, game end and scoring, MW draft.
 |---|---|---|
 | M0 | Probes P1-P3 in TTS | answers written into this doc |
 | M1 | Seat + hand + driver + random policy | test 1 green for 200 seeds, base + MW |
-| M2 | Snapshot, intent, heuristic policy, 3 levels; in TTS 1 human + 1 AI | tests 2-5; one full game played in TTS |
+| M2 | Snapshot, intent, heuristic policy, levels Easy / Medium / Hard; in TTS 1 human + 1 AI | tests 2-5; one full game played in TTS |
 | M3 | Mixed tables: 1-3 AIs, with ARNOs and humans; map choice for the AI (best map for its start, or random) | tests in every mix; TESTING.md checklist |
-| M4 | Tuning and strength report; Workshop release | report in this doc |
-| M4b | Neural-network evaluation (§4a): logging, training, Lua export, frame-spread scoring | beats the heuristic in the strength report; in TTS no visible freeze |
+| M4 | Tuning and strength report; Workshop release with 3 levels | each level beats the one below in ≥ ~65% of games; report in this doc |
+| M4b | Expert level: neural-network evaluation (§4a), logging, training, Lua export, frame-spread scoring | Expert beats Hard in ≥ ~65% of games; in TTS no visible freeze |
 | M5 (optional, only for players with a local AI) | LLM policy: the same interface, sent to a local bridge over `WebRequest` (host only, `DECISION.md` §2), one request per intent, timeout → heuristic fallback | probe P4; not deterministic, so a rewind keeps the fallback's choice |
 
 ## 7. Open questions, each with how to settle it
