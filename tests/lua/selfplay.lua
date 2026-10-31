@@ -53,7 +53,9 @@ for seed = OPTS.from, OPTS.to do
     colors[i] = color
     makers[color] = function(s)
       if spec.level then return levels.policy(spec.level, s * 31 + i) end     -- a shipped level
-      return policy.budgeted(rng.new(s * 31 + i), spec.budget or 0, { network = spec.policy == "network" })
+      local opts = { network = spec.policy == "network" or spec.policy == "network_b" }
+      if spec.policy == "network_b" then opts.weights = require("ai.net_weights_b") end
+      return policy.budgeted(rng.new(s * 31 + i), spec.budget or 0, opts)
     end
   end
   local ok, outcome, _, scores = pcall(game.play, seed, { colors = colors, policies = makers,

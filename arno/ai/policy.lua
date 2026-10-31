@@ -161,9 +161,9 @@ local net = require("ai.net")
 M.yielding = false
 M.YIELD_EVERY = 8
 
-local function q_scored(player, choices)
+local function q_scored(player, choices, weights)
   local list = scored(player, choices)
-  if not net.available() or #list < 2 then return list end
+  if (weights == nil and not net.available()) or #list < 2 then return list end
   local state = features.state(player)
   for i, e in ipairs(list) do
     if M.yielding and i % M.YIELD_EVERY == 0 then coroutine.yield() end
@@ -177,7 +177,7 @@ local function q_scored(player, choices)
     elseif (e.choice.label or ""):find("Venom Fee", 1, true) then
       e.score = 1000
     else
-      e.score = net.forward(x)
+      e.score = net.forward(x, weights)
     end
   end
   return list
@@ -189,7 +189,8 @@ M.q_scored = q_scored
 -- opts.network: score with the network (when trained), else the hand-written scores
 function M.budgeted(r, budget, opts)
   return function(player, choices)
-    local list = (opts and opts.network) and q_scored(player, choices) or scored(player, choices)
+    -- opts.weights: another network than the bundled one (training: new against current)
+    local list = (opts and opts.network) and q_scored(player, choices, opts.weights) or scored(player, choices)
     local best
     for _, e in ipairs(list) do
       if best == nil or e.score > best then best = e.score end

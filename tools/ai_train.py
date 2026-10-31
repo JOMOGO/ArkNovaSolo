@@ -43,7 +43,7 @@ def lua_options(first: int, last: int, seats, mw_every: int, log: bool = True) -
             f"log = {'true' if log else 'false'} }}\nend\n")
 
 
-def build_suite(weights: Path | None) -> str:
+def build_suite(weights: Path | None, weights_b: Path | None = None) -> str:
     built = tts_build.arno_global(ROOT / "src", strict=False)
     lua = ROOT / "tests" / "lua"
     stubs = (lua / "tts_stubs.lua").read_text(encoding="utf-8")
@@ -60,12 +60,12 @@ def build_suite(weights: Path | None) -> str:
             + 'ARNO_MODULES["tests.lib"] = function(require)\n' + lib + "\nend\n"
             + run_tests.card_names_module()
             + 'ARNO_MODULES["tests.ai_game"] = function(require)\n' + ai_game + "\nend\n"
-            + extra + "@@OPTIONS@@" + "do\nlocal require = arno_require\n" + body + "\nend\n")
+            + extra + ('ARNO_MODULES["ai.net_weights_b"] = function(require)\n' + weights_b.read_text(encoding="utf-8") + "\nend\n" if weights_b else "") + "@@OPTIONS@@" + "do\nlocal require = arno_require\n" + body + "\nend\n")
 
 
 def run_chunk(template: str, idx: int, first: int, last: int, seats, mw_every: int, log: bool = True) -> str:
     BUILD.mkdir(parents=True, exist_ok=True)
-    path = BUILD / f"selfplay_{idx}.lua"
+    path = BUILD / f"selfplay_{os.getpid()}_{idx}.lua"    # own files per run: runs may overlap
     path.write_text(template.replace("@@OPTIONS@@", lua_options(first, last, seats, mw_every, log)),
                     encoding="utf-8", newline="\n")
     out = subprocess.run(["dotnet", str(run_tests.MOONRUN), str(path)], capture_output=True,
@@ -85,8 +85,9 @@ def parse_seats(text: str) -> list[tuple[str, float]]:
 
 
 def play(games: int, seats, out: Path | None, weights: Path | None, first: int = 1,
-         workers: int | None = None, mw_every: int = 3, log: bool = True) -> list[str]:
-    template = build_suite(weights)
+         workers: int | None = None, mw_every: int = 3, log: bool = True,
+         weights_b: Path | None = None) -> list[str]:
+    template = build_suite(weights, weights_b)
     workers = workers or max(1, (os.cpu_count() or 2) - 2)
     # many small chunks: each runner's output stays small (memory), and the pool keeps busy
     per = max(1, min(25, (games + workers - 1) // workers))
@@ -263,13 +264,14 @@ def main(argv=None) -> int:
     m.add_argument("--first", type=int, default=100001)
     m.add_argument("--seats", default="network:0,heuristic:0")
     m.add_argument("--weights", type=Path)
+    m.add_argument("--weights-b", type=Path, help="the network of network_b seats (new against current)")
     m.add_argument("--workers", type=int)
     args = ap.parse_args(argv)
 
     if args.cmd in ("play", "match"):
         seats = parse_seats(args.seats)
         lines = play(args.games, seats, getattr(args, "out", None), args.weights, args.first, args.workers,
-                     log=args.cmd == "play")
+                     log=args.cmd == "play", weights_b=getattr(args, "weights_b", None))
         report(lines, seats)
     elif args.cmd == "train":
         x, y = load(args.data, args.horizon, args.target)
