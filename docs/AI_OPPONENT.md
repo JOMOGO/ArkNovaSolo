@@ -219,6 +219,12 @@ This feeds the network as extra inputs. The network learns how much each one is 
 training against many opponent styles: the Easy and Medium personalities and ARNO make a
 varied training field, so Expert learns to recognise a style and counter it.
 
+**All public information (owner).** The AI has access to everything a player at the table
+can see: every player's counters, upgrades, workers, partner zoos and universities, played
+cards, maps, icons, hand sizes; the display, the projects and their slots, the association
+board, the break track, pile sizes. It also knows its own hand and final scoring cards. The
+network gets it summarised (network inputs version 3, `ai/features.lua`).
+
 **Fair play.** No level ever sees hidden information: not the humans' hands or final scoring
 cards, not the deck order. The snapshot only contains what a player at the table could
 see, plus the AI's own hand and cards. The mod has all of it in memory; `snapshot.lua` is
@@ -534,6 +540,9 @@ Found on the way:
 | 2026-10-31 | The base-mod dead ends found by the AI fixed in the mod (FIXBUILD, FIXVENOM, FIXANIMAL, FIXSCAV, FIXPILE; on master) and merged in | the AI's own dead-end filter removed; all tests pass |
 | 2026-10-31 | Network round 1: 1500 games of the round-0 network against itself (budgets 1 and 2), trained on rounds 0+1 (1.5M decisions) | **beats round 0: +17.0 margin, 68% of 100 games**; bundled |
 | 2026-10-31 | Ladder with the round-1 network (same budgets), 100 games each | Expert vs Hard +15.5 (66%), Hard vs Medium +13.4 (67%), Medium vs Easy +15.3 (65%): even steps, 0 stalls in 300 games |
+| 2026-10-31 | Round 2: 1500 games of the round-1 network, trained on rounds 0-2 (2.2M decisions) | **no gain**: −4.3 vs round 1 (49%, noise); round 1 stays. One game looped in a cube allocation: now a fixed rule (+ until placed, then Confirm) |
+| 2026-10-31 | Wider network (128-128, 27.6k weights) on rounds 0-2 | +3.2 vs round 1 (53%, noise): size is not the limit |
+| 2026-10-31 | Network inputs version 2 (the leader, both zoos' icons, the display, icon fit of a card); round 3 self-play logs them | (running) |
 
 Ladder (2-seat games, seats swapped, `tools/ai_train.py match`; a margin is the average
 final score difference; ±4 points is noise at 100 games):
