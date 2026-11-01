@@ -617,7 +617,7 @@ inputs v3); matches 100001+, 200001+, 300001+, 400001+, 500001+, 600001+, 700001
 900001+ (FIXPILE repro), 1000001+ ... 2300001+ (every 100000 up to 2300001; 2026-11-01 checks and ladder),
 2400001+ and 2600001+ (200 games each), 3000001+ ... 3400001+ (100 each), 3500001+ and 3700001+
 (200 each), 3900001+ (200), 4100001+ ... 4300001+ (100 each), 4400001+ (2, smoke test),
-4500001+ and 4700001+ (200 each), 4900001+ and 5100001+ (200 each), 5300001+ ... 5500001+ (ladder). Self-play: 20000-22499 (round 5).
+4500001+ and 4700001+ (200 each), 4900001+ and 5100001+ (200 each), 5300001+ ... 5500001+ (ladder), 5700001+ (200). Self-play 23000-27499 (round 10). Self-play: 20000-22499 (round 5).
 
 | Round | Data | Result |
 |---|---|---|
@@ -629,7 +629,7 @@ inputs v3); matches 100001+, 200001+, 300001+, 400001+, 500001+, 600001+, 700001
 | 7 (2026-11-01) | same data; validation now every 10th game of every round (was the first 10% = round 0 only); epoch snapshots | 100 games each: e8 −7.6 / 43%, e12 +0.6 / 51%, e16 +9.0 / 63%, e20 −2.1 / 48%, e24 −3.2 / 52%. Confirmed on fresh seeds (200 games): e16 +3.6 / 56%, e15 (validation best) −0.1 / 47.5%: not kept (the e16 sweep result was the best of five, i.e. luck) |
 | 8 (2026-11-01) | probes, same data | weight average of the round-7 snapshots (`ai_train average`) +0.8 / 51.5% (200 games); round 5 alone −21.3 / 25%; rounds 3-5 −3.5 / 46.5%; every round with the final margin mixed in (`--final-weight 0.3`) −0.5 / 53% (100 games each): not kept. The older, more varied games (round 0: the hand-written policy) are what the network needs; the latest self-play alone is much worse |
 | 9 (2026-11-01) | ensembles (`net.lua`: `members`, Q averaged; `ai_train ensemble`; `train --seed`) | round-5 + r7 + r6: +6.8 / 61%; round-5 + r7 + seed 2 + seed 3 (**ens4**): +8.1 / 60%, confirmed +11.2 / 62%: **bundled**. 5 members (+ r6): +11.2 / 62.8% (199 games; no better than 4). One move costs 4 forward passes (the ladder ran ~1.5x slower) |
-| 10 (2026-11-01, running) | ensemble self-play was ~4x slower (10 of 60 chunks in an hour): stopped after 250 games (seeds within 23000-24499, `round6a_v3.txt`, kept). Instead the round-5 network (`build/ai/v1_all_h20_e24.lua`): 1500 games against itself (budgets 0.5 and 1.5; seeds 26000-27499; `round6c_v3.txt`), then 1000 against the hand-written policy (budget 2; seeds 25000-25999; `round6b_v3.txt`) | next: train 4 members on every round (`--inputs 1 --horizon 20 --lr 3e-4 --epochs 24 --seed 1..4`), ensemble them, 200 games against the bundled ens4, confirm on fresh seeds |
+| 10 (2026-11-01) | ensemble self-play was ~4x slower (10 of 60 chunks in an hour): stopped after 250 games (seeds within 23000-24499, `round6a_v3.txt`, kept). Instead the round-5 network (`build/ai/v1_all_h20_e24.lua`): 1500 games against itself (budgets 0.5 and 1.5; seeds 26000-27499; `round6c_v3.txt`), then 1000 against the hand-written policy (budget 2; seeds 25000-25999; `round6b_v3.txt`) | 4 members (seeds 1-4) on every round (6.0M decisions), ensembled (ens10): +3.1 / 52.5% against the bundled ens4 (200 games, seeds 5700001+): not kept. The round-5 recipe is at its plateau; more games of the same kind no longer add |
 
 The richer inputs (v2, v3) predict held-out games better but play worse: a lower validation
 error does not mean better choices. (Not because the state explains most of the target: with
