@@ -588,8 +588,9 @@ The loop, one round at a time:
 1. **Play:** the best network plays itself with budgets 1 and 2, logging the current input
    version (`features.VERSION`, now 3):
    `python tools/ai_train.py play --games 1500 --first <new seeds> --seats network:1,network:2 --weights arno/ai/net_weights.lua --workers <n> --out build/ai/roundN_v3.txt`
-2. **Train** on every round with the same input version:
-   `python tools/ai_train.py train --data build/ai/round4_v3.txt [--data ...] --horizon 10 --out build/ai/rN.lua`
+2. **Train** on every round (all of them, cut to the bundled network's inputs, v1; see §9 for
+   the full list of --data files):
+   `python tools/ai_train.py train --data build/ai/round0.txt [--data ...] --inputs 1 --horizon 20 --lr 3e-4 --epochs 24 --out build/ai/rN.lua`
 3. **Check** against the bundled network, 100 games:
    `python tools/ai_train.py match --games 100 --first <new seeds> --seats network_b:0,network:0 --weights-b build/ai/rN.lua --workers <n>`
 4. **Keep it only if it wins** (average margin > +5 and win rate > 55%): copy to
@@ -615,17 +616,16 @@ inputs v3); matches 100001+, 200001+, 300001+, 400001+, 500001+, 600001+, 700001
 
 | Round | Data | Result |
 |---|---|---|
-| 3 | 1500 games, inputs v2 (724k decisions) | v2 network trained (r3_v2.lua); match against round 1 still to run |
+| 3 | 1500 games, inputs v2 (724k decisions) | v2 network trained (r3_v2.lua): −2.7 / 44% against round 1, not kept |
 | 4 | 1500 games, inputs v3 (730k decisions, `build/ai/round4_v3.txt`) | done |
 | 4 check (2026-11-01) | v3 network on round 4, horizon 10. The validation error is lowest after epoch 1-4 and rises after (overfit): `train` now keeps the best epoch (`--lr` added) | all **lose** to round 1 (100 games each): lr 3e-4 (epoch 4) −13.0 / 42%; lr 1e-3 (epoch 1) −7.3 / 45%. v2 `r3_v2.lua` −2.7 / 44%. v1 inputs on rounds 0-1 again with the early stop (epoch 8) +5.0 / 53% (noise). Not kept |
+| 5 (2026-11-01) | no new games: v1 inputs on every round (3.7M decisions), lr 3e-4, early stop | horizon 10, 12 epochs: +2.7 / 52% (noise). Horizon 20, 12 epochs (kept 11): +12.1 / 62%, again +7.5 / 49%. **Horizon 20, 24 epochs (kept 13): +22.9 / 72%, confirmed +24.5 / 72% in 200 games: bundled.** Horizon 30, 24 epochs: +12.9 / 64%. v3 inputs, horizon 20 on round 4: −26.7 / 24% |
 
 The richer inputs (v2, v3) predict held-out games better but play worse: a lower validation
 error does not mean better choices (the state inputs explain most of the target; the
 choice inputs, which decide, get little of the network). `train --inputs 1` trains the v1
 network on rows logged with a later version (an earlier version's inputs are a column
 subset), so every round can feed it.
-
-| 5 (2026-11-01) | no new games: v1 inputs on every round (3.7M decisions), lr 3e-4, early stop | horizon 10, 12 epochs: +2.7 / 52% (noise). Horizon 20, 12 epochs (kept 11): +12.1 / 62%, again +7.5 / 49%. **Horizon 20, 24 epochs (kept 13): +22.9 / 72%, confirmed +24.5 / 72% in 200 games: bundled.** Horizon 30, 24 epochs: +12.9 / 64%. v3 inputs, horizon 20 on round 4: −26.7 / 24% |
 
 What won: more data (every round, through the v1 inputs) together with the longer horizon (20
 own decisions); neither alone did. The ladder kept its steps with the same budgets (§8).
