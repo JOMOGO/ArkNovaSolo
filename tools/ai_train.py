@@ -159,7 +159,7 @@ def report(lines: list[str], seats) -> None:
 
 
 def load(paths: list[Path], horizon: int = 0, target: str = "margin",
-         inputs: int | None = None) -> tuple[np.ndarray, np.ndarray]:
+         inputs: int | None = None, final_weight: float = 0.0):
     """Inputs and targets. Target: the player's margin (target "margin") or own score
     (target "score") `horizon` of its own decisions later (or at the end of the game) minus
     the same at the decision; horizon 0 = at the end. A short horizon ties a choice to what
@@ -189,7 +189,7 @@ def load(paths: list[Path], horizon: int = 0, target: str = "margin",
         for i, entry in enumerate(seq):
             later = final[k] if horizon <= 0 or i + horizon >= len(seq) else seq[i + horizon][k]
             xs.append(entry[2])
-            ys.append(later - entry[k])
+            ys.append((1 - final_weight) * (later - entry[k]) + final_weight * (final[k] - entry[k]))
             games.append(key[0])
     return np.stack(xs), np.array(ys, dtype=np.float32), np.array(games)
 
@@ -265,6 +265,20 @@ def predict(params, xn):
     return a[:, 0]
 
 
+def read_weights(path: Path):
+    """The layers, mean and std of an exported network (export() below)."""
+    import re
+    text = path.read_text(encoding="utf-8")
+    nums = lambda body: np.array([float(v) for v in body.split(",") if v.strip()], dtype=np.float64)
+    mean = nums(re.search(r"mean = \{([^}]*)\}", text).group(1))
+    std = nums(re.search(r"std = \{([^}]*)\}", text).group(1))
+    params = []
+    for n_in, n_out, b, w in re.findall(
+            r"n_in = (\d+), n_out = (\d+), b = \{([^}]*)\},\s*w = \{([^}]*)\}", text):
+        params.append([nums(w).reshape(int(n_out), int(n_in)).T, nums(b)])
+    return params, mean, std
+
+
 def lua_list(values) -> str:
     return "{" + ",".join(f"{float(v):.5g}" for v in values) + "}"
 
@@ -302,6 +316,8 @@ def main(argv=None) -> int:
     t.add_argument("--hidden", default="64,64")
     t.add_argument("--epochs", type=int, default=12)
     t.add_argument("--lr", type=float, default=1e-3)
+    t.add_argument("--final-weight", type=float, default=0.0,
+                   help="mix the change up to the end of the game into the target with this weight")
     t.add_argument("--snapshots", default="",
                    help="also write these epochs (e.g. 10,13,16) next to --out as <out>_e<N>.lua")
     t.add_argument("--baseline", action="store_true",
@@ -311,6 +327,9 @@ def main(argv=None) -> int:
     t.add_argument("--horizon", type=int, default=0,
                    help="target = margin this many own decisions later (0: final margin)")
     t.add_argument("--target", choices=("margin", "score"), default="margin")
+    a = sub.add_parser("average", help="average the weights of networks from one training run")
+    a.add_argument("--weights", type=Path, action="append", required=True)
+    a.add_argument("--out", type=Path, required=True)
     m = sub.add_parser("match")
     m.add_argument("--games", type=int, default=100)
     m.add_argument("--first", type=int, default=100001)
@@ -325,8 +344,18 @@ def main(argv=None) -> int:
         lines = play(args.games, seats, getattr(args, "out", None), args.weights, args.first, args.workers,
                      log=args.cmd == "play", weights_b=getattr(args, "weights_b", None))
         report(lines, seats)
+    elif args.cmd == "average":
+        # snapshots of one run share the input scaling and start, so their weights can be
+        # averaged (a smoother network: the choice swings less between neighbouring epochs)
+        nets = [read_weights(w) for w in args.weights]
+        mean, std = nets[0][1], nets[0][2]
+        for _, m2, s2 in nets[1:]:
+            if not (np.allclose(m2, mean, rtol=1e-3, atol=1e-6) and np.allclose(s2, std, rtol=1e-3, atol=1e-6)):
+                raise SystemExit("not one run: the input scaling differs")
+        params = [[np.mean([n[0][li][k] for n in nets], axis=0) for k in (0, 1)] for li in range(len(nets[0][0]))]
+        export(params, mean, std, args.out, "Average of " + ", ".join(w.name for w in args.weights) + ".")
     elif args.cmd == "train":
-        x, y, games = load(args.data, args.horizon, args.target, args.inputs)
+        x, y, games = load(args.data, args.horizon, args.target, args.inputs, args.final_weight)
         print(f"{len(y)} decisions, {x.shape[1]} inputs, target mean {y.mean():+.1f} sd {y.std():.1f}")
         hidden = tuple(int(h) for h in args.hidden.split(","))
         if args.baseline:
