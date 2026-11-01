@@ -61,4 +61,16 @@ T.test("Expert (the bundled network) beats the hand-written policy", function()
   T.ok((res.score - res.opp) / res.n >= 5, "Expert scores at least 5 points more on average")
 end)
 
+T.test("an ensemble's Q is the average of its members'", function()
+  -- one input, no hidden layer: Q = b + w * (x - mean) / std
+  local function linear(w, b, mean, std)
+    return { version = 1, inputs = 1, mean = { mean }, std = { std },
+             layers = { { n_in = 1, n_out = 1, w = { w }, b = { b } } } }
+  end
+  local a, b = linear(2, 1, 0, 1), linear(-1, 3, 1, 2)
+  T.eq(net.forward({ 3 }, a), 7)
+  T.eq(net.forward({ 3 }, b), 2)
+  T.eq(net.forward({ 3 }, { version = 1, inputs = 1, features = 1, members = { a, b } }), 4.5)
+end)
+
 T.finish("integration AI match")
