@@ -614,7 +614,8 @@ Seeds used so far (do not reuse for new data): 1000-2499 (round 0), 5000-5999 an
 inputs v3); matches 100001+, 200001+, 300001+, 400001+, 500001+, 600001+, 700001+, 800001+,
 900001+ (FIXPILE repro), 1000001+ ... 2300001+ (every 100000 up to 2300001; 2026-11-01 checks and ladder),
 2400001+ and 2600001+ (200 games each), 3000001+ ... 3400001+ (100 each), 3500001+ and 3700001+
-(200 each). Self-play: 20000-22499 (round 5).
+(200 each), 3900001+ (200), 4100001+ ... 4300001+ (100 each), 4400001+ (2, smoke test),
+4500001+ and 4700001+ (200 each). Self-play: 20000-22499 (round 5).
 
 | Round | Data | Result |
 |---|---|---|
@@ -624,6 +625,7 @@ inputs v3); matches 100001+, 200001+, 300001+, 400001+, 500001+, 600001+, 700001
 | 5 (2026-11-01) | no new games: v1 inputs on every round (3.7M decisions), lr 3e-4, early stop | horizon 10, 12 epochs: +2.7 / 52% (noise). Horizon 20, 12 epochs (kept 11): +12.1 / 62%, again +7.5 / 49%. **Horizon 20, 24 epochs (kept 13): +22.9 / 72%, confirmed +24.5 / 72% in 200 games: bundled.** Horizon 30, 24 epochs: +12.9 / 64%. v3 inputs, horizon 20 on round 4: −26.7 / 24% |
 | 6 (2026-11-01) | 2500 games of the round-5 network (budgets 1 and 2; seeds 20000-22499; 1.12M decisions, `round5_v3.txt`; budget 1 beat budget 2 by +30.9 / 80%). Trained on every round (4.8M), same recipe | r6 (kept epoch 19) −0.2 / 52%; 128-128 (epoch 10) −8.3 / 43% (200 games each): not kept |
 | 7 (2026-11-01) | same data; validation now every 10th game of every round (was the first 10% = round 0 only); epoch snapshots | 100 games each: e8 −7.6 / 43%, e12 +0.6 / 51%, e16 +9.0 / 63%, e20 −2.1 / 48%, e24 −3.2 / 52%. Confirmed on fresh seeds (200 games): e16 +3.6 / 56%, e15 (validation best) −0.1 / 47.5%: not kept (the e16 sweep result was the best of five, i.e. luck) |
+| 8 (2026-11-01) | probes, same data | weight average of the round-7 snapshots (`ai_train average`) +0.8 / 51.5% (200 games); round 5 alone −21.3 / 25%; rounds 3-5 −3.5 / 46.5%; every round with the final margin mixed in (`--final-weight 0.3`) −0.5 / 53% (100 games each): not kept. The older, more varied games (round 0: the hand-written policy) are what the network needs; the latest self-play alone is much worse |
 
 The richer inputs (v2, v3) predict held-out games better but play worse: a lower validation
 error does not mean better choices. (Not because the state explains most of the target: with
@@ -638,6 +640,11 @@ What won: more data (every round, through the v1 inputs) together with the longe
 own decisions); neither alone did. The ladder kept its steps with the same budgets (§8).
 `train --baseline` (fit the state alone first, train on what the choice adds) is in but not
 checked yet.
+
+**FIXANIMAL dead end: fixed 2026-11-01** (here and on `fix-pile-break-refill`): ANIMALS at
+strength 5 counts a display animal that the reputation draw could fetch; a player who draws
+from the deck instead had an animal panel without a way out (seed 4200076). With no animal on
+offer that can be played, the first animal can now be passed ("Play no animal").
 
 **FIXPILE stall: fixed 2026-11-01** (here and on branch `fix-pile-break-refill` from master, for
 the owner's /merge): the discarded display cards are shuffled into the zoo deck with the
