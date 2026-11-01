@@ -181,17 +181,20 @@ def load(paths: list[Path], horizon: int = 0, target: str = "margin",
                         row = project(row, inputs)
                     by_seat.setdefault((int(parts[1]), parts[2]), []).append((int(parts[3]), score, row))
     k = 0 if target == "margin" else 1
-    xs, ys, games = [], [], []
+    xs, ys, games, nxt = [], [], [], []
     for key, seq in by_seat.items():
         final = finals.get(key)
         if final is None:
             continue
+        start = len(xs)
         for i, entry in enumerate(seq):
-            later = final[k] if horizon <= 0 or i + horizon >= len(seq) else seq[i + horizon][k]
+            ahead = horizon > 0 and i + horizon < len(seq)
+            later = seq[i + horizon][k] if ahead else final[k]
             xs.append(entry[2])
             ys.append((1 - final_weight) * (later - entry[k]) + final_weight * (final[k] - entry[k]))
             games.append(key[0])
-    return np.stack(xs), np.array(ys, dtype=np.float32), np.array(games)
+            nxt.append(start + i + horizon if ahead else -1)   # the row `horizon` decisions on
+    return np.stack(xs), np.array(ys, dtype=np.float32), np.array(games), np.array(nxt)
 
 
 def train(x: np.ndarray, y: np.ndarray, hidden=(64, 64), epochs=12, lr=1e-3, batch=512, seed=1,
@@ -316,6 +319,9 @@ def main(argv=None) -> int:
     t.add_argument("--hidden", default="64,64")
     t.add_argument("--epochs", type=int, default=12)
     t.add_argument("--lr", type=float, default=1e-3)
+    t.add_argument("--bootstrap", type=Path,
+                   help="a network (same inputs) whose Q at the row --horizon decisions on is added to the target")
+    t.add_argument("--gamma", type=float, default=1.0, help="the weight of that Q")
     t.add_argument("--seed", type=int, default=1, help="the start weights and the order of the rows")
     t.add_argument("--final-weight", type=float, default=0.0,
                    help="mix the change up to the end of the game into the target with this weight")
@@ -380,7 +386,22 @@ def main(argv=None) -> int:
         params = [[np.mean([n[0][li][k] for n in nets], axis=0) for k in (0, 1)] for li in range(len(nets[0][0]))]
         export(params, mean, std, args.out, "Average of " + ", ".join(w.name for w in args.weights) + ".")
     elif args.cmd == "train":
-        x, y, games = load(args.data, args.horizon, args.target, args.inputs, args.final_weight)
+        x, y, games, nxt = load(args.data, args.horizon, args.target, args.inputs, args.final_weight)
+        if args.bootstrap is not None:
+            # temporal difference: the change over the horizon plus what a trained network
+            # expects from the position reached then (its own Q there, the choice then made),
+            # instead of only the horizon (blind beyond it) or the end of the game (noisy)
+            bp, bmean, bstd = read_weights(args.bootstrap)
+            if len(bmean) != x.shape[1]:
+                raise SystemExit("--bootstrap: that network reads other inputs")
+            q = np.zeros(len(y), dtype=np.float32)
+            for a in range(0, len(y), 200000):
+                q[a:a + 200000] = predict(bp, (x[a:a + 200000] - bmean) / bstd)
+            ahead = nxt >= 0
+            print(f"bootstrap from {args.bootstrap.name}: {ahead.mean():.0%} of the rows, "
+                  f"Q there mean {q[nxt[ahead]].mean():+.1f} sd {q[nxt[ahead]].std():.1f}")
+            y = y.copy()
+            y[ahead] = y[ahead] + args.gamma * q[nxt[ahead]]
         print(f"{len(y)} decisions, {x.shape[1]} inputs, target mean {y.mean():+.1f} sd {y.std():.1f}")
         hidden = tuple(int(h) for h in args.hidden.split(","))
         if args.baseline:
