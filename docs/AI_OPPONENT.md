@@ -599,8 +599,10 @@ Memory rule (owner, 2026-11-01): the machine is free for training (no games, no 
 it fully: 10 workers (12 cores; each worker is one MoonSharp process of ~0.6 GB, ~6 GB of
 32 GB). Only if less than ~4 GB is free when starting, use fewer. If the system stops a job
 for low memory, restart it at once with one step fewer workers (10 -> 8 -> 6 -> 4 -> 2) until
-it runs through (owner's go, 2026-11-01); a stopped play job keeps the chunks it finished in
-its --out file, so restart it with --first after the last seed it played and merge both files.
+it runs through (owner's go, 2026-11-01). A stopped play job keeps the chunks it finished in
+its --out file: keep that file, and play the remaining games on fresh seeds into a new --out
+file (chunks finish out of order; `train` takes several --data files). A stopped match is
+simply run again.
 
 Seeds used so far (do not reuse for new data): 1000-2499 (round 0), 5000-5999 and 7000-7499
 (round 1), 9000-10499 (round 2), 12000-13499 (round 3, inputs v2), 15000-16499 (round 4,
