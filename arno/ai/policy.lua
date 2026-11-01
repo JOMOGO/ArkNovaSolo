@@ -183,8 +183,11 @@ local function q_scored(player, choices, weights)
   if (weights == nil and not net.available()) or #list < 2 then return list end
   local version = features.version_of(weights or net.weights())     -- the inputs it was trained on
   local state = features.state(player, version)
+  -- an ensemble does the work of all its members per choice: yield as often per pass
+  local w = weights or net.weights()
+  local every = math.max(1, math.floor(M.YIELD_EVERY / ((w and w.members) and #w.members or 1)))
   for i, e in ipairs(list) do
-    if M.yielding and i % M.YIELD_EVERY == 0 then coroutine.yield() end
+    if M.yielding and i % every == 0 then coroutine.yield() end
     local x = {}
     for i, v in ipairs(state) do x[i] = v end
     for _, v in ipairs(features.choice(player, e.choice, e.heuristic, version)) do x[#x + 1] = v end
