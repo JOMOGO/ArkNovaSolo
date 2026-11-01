@@ -165,32 +165,40 @@ def load(paths: list[Path], horizon: int = 0, target: str = "margin",
     the same at the decision; horizon 0 = at the end. A short horizon ties a choice to what
     it caused, with far less noise; the own score leaves out what the others do meanwhile."""
     finals: dict[tuple[int, str], tuple[int, int]] = {}
-    by_seat: dict[tuple[int, str], list[tuple[int, int, str]]] = {}
+    by_seat: dict[tuple[int, str], list[tuple[int, int, np.ndarray]]] = {}
     for path in paths:
-        for l in path.read_text(encoding="utf-8").splitlines():
-            if l.startswith("E|"):
-                parts = l.split("|")
-                score = int(parts[5]) if len(parts) > 5 else 0
-                finals[(int(parts[1]), parts[2])] = (int(parts[3]), score)
-            elif l.startswith("D|"):
-                parts = l.split("|")
-                score = int(parts[5]) if len(parts) > 5 else 0
-                by_seat.setdefault((int(parts[1]), parts[2]), []).append((int(parts[3]), score, parts[4]))
+        with path.open(encoding="utf-8") as f:        # streamed: the text is never all held
+            for l in f:
+                if l.startswith("E|"):
+                    parts = l.rstrip(chr(10)).split("|")
+                    score = int(parts[5]) if len(parts) > 5 else 0
+                    finals[(int(parts[1]), parts[2])] = (int(parts[3]), score)
+                elif l.startswith("D|"):
+                    parts = l.rstrip(chr(10)).split("|")
+                    score = int(parts[5]) if len(parts) > 5 else 0
+                    row = np.array(parts[4].split(","), dtype=np.float32)
+                    if inputs:
+                        row = project(row, inputs)
+                    by_seat.setdefault((int(parts[1]), parts[2]), []).append((int(parts[3]), score, row))
     k = 0 if target == "margin" else 1
-    xs, ys = [], []
+    xs, ys, games = [], [], []
     for key, seq in by_seat.items():
         final = finals.get(key)
         if final is None:
             continue
         for i, entry in enumerate(seq):
             later = final[k] if horizon <= 0 or i + horizon >= len(seq) else seq[i + horizon][k]
-            row = np.array([float(v) for v in entry[2].split(",")], dtype=np.float32)
-            xs.append(project(row, inputs) if inputs else row)
+            xs.append(entry[2])
             ys.append(later - entry[k])
-    return np.stack(xs), np.array(ys, dtype=np.float32)
+            games.append(key[0])
+    return np.stack(xs), np.array(ys, dtype=np.float32), np.array(games)
 
 
-def train(x: np.ndarray, y: np.ndarray, hidden=(64, 64), epochs=12, lr=1e-3, batch=512, seed=1):
+def train(x: np.ndarray, y: np.ndarray, hidden=(64, 64), epochs=12, lr=1e-3, batch=512, seed=1,
+          games: np.ndarray | None = None, snapshot=None):
+    """games: the game (seed) of every row; every 10th game is held out for validation (from
+    every round, not only the first file). snapshot(epoch, params): called after each epoch
+    with the output scale folded in (to export several epochs)."""
     rng = np.random.default_rng(seed)
     mean, std = x.mean(0), x.std(0)
     std[std < 1e-6] = 1.0
@@ -203,8 +211,12 @@ def train(x: np.ndarray, y: np.ndarray, hidden=(64, 64), epochs=12, lr=1e-3, bat
     v = [[np.zeros_like(w), np.zeros_like(b)] for w, b in params]
     t = 0
     idx = np.arange(len(xn))
-    val = idx[: len(idx) // 10]
-    tr = idx[len(idx) // 10:]
+    if games is not None:
+        held = games % 10 == 0
+        val, tr = idx[held], idx[~held]
+    else:
+        val = idx[: len(idx) // 10]
+        tr = idx[len(idx) // 10:]
     yscale = max(1.0, float(np.abs(y).mean()))
     best, best_mse, best_epoch = None, float("inf"), 0
     for epoch in range(epochs):
@@ -231,6 +243,9 @@ def train(x: np.ndarray, y: np.ndarray, hidden=(64, 64), epochs=12, lr=1e-3, bat
         mse = float(np.mean((pred - y[val]) ** 2))
         base = float(np.mean((y[val] - y[tr].mean()) ** 2))
         print(f"  epoch {epoch + 1:2d}: validation error {mse:7.1f} (predicting the mean: {base:7.1f})")
+        if snapshot is not None:
+            snapshot(epoch + 1, [[w.copy(), b.copy()] for w, b in params[:-1]]
+                     + [[params[-1][0] * yscale, params[-1][1] * yscale]])
         if mse < best_mse:       # early stop: keep the epoch that predicts held-out games best
             best, best_mse, best_epoch = [[w.copy(), b.copy()] for w, b in params], mse, epoch + 1
     params = best
@@ -287,6 +302,8 @@ def main(argv=None) -> int:
     t.add_argument("--hidden", default="64,64")
     t.add_argument("--epochs", type=int, default=12)
     t.add_argument("--lr", type=float, default=1e-3)
+    t.add_argument("--snapshots", default="",
+                   help="also write these epochs (e.g. 10,13,16) next to --out as <out>_e<N>.lua")
     t.add_argument("--baseline", action="store_true",
                    help="first fit the state alone (V), then train on what the choice adds (y - V)")
     t.add_argument("--inputs", type=int, choices=(1, 2, 3),
@@ -309,7 +326,7 @@ def main(argv=None) -> int:
                      log=args.cmd == "play", weights_b=getattr(args, "weights_b", None))
         report(lines, seats)
     elif args.cmd == "train":
-        x, y = load(args.data, args.horizon, args.target, args.inputs)
+        x, y, games = load(args.data, args.horizon, args.target, args.inputs)
         print(f"{len(y)} decisions, {x.shape[1]} inputs, target mean {y.mean():+.1f} sd {y.std():.1f}")
         hidden = tuple(int(h) for h in args.hidden.split(","))
         if args.baseline:
@@ -317,11 +334,21 @@ def main(argv=None) -> int:
             # decision; taking it out leaves the network what tells the choices apart
             n_state = FEATURE_SIZES[FEATURE_VERSIONS[x.shape[1]]][0]
             print(f"baseline: the state alone ({n_state} inputs)")
-            vp, vmean, vstd = train(x[:, :n_state], y, hidden=hidden, epochs=args.epochs, lr=args.lr)
+            vp, vmean, vstd = train(x[:, :n_state], y, hidden=hidden, epochs=args.epochs, lr=args.lr, games=games)
             y = y - predict(vp, (x[:, :n_state] - vmean) / vstd)
             print(f"residual target sd {y.std():.1f}")
-        params, mean, std = train(x, y, hidden=hidden, epochs=args.epochs, lr=args.lr)
-        export(params, mean, std, args.out, f"{len(y)} decisions from {', '.join(p.name for p in args.data)}.")
+        note = f"{len(y)} decisions from {', '.join(p.name for p in args.data)}."
+        wanted = {int(e) for e in args.snapshots.split(",") if e.strip()}
+        smean, sstd = x.mean(0), x.std(0)          # as train() normalises
+        sstd[sstd < 1e-6] = 1.0
+
+        def snapshot(epoch, ps):
+            if epoch in wanted:
+                export(ps, smean, sstd, args.out.with_name(f"{args.out.stem}_e{epoch}{args.out.suffix}"),
+                       note + f" Epoch {epoch}.")
+        params, mean, std = train(x, y, hidden=hidden, epochs=args.epochs, lr=args.lr, games=games,
+                                  snapshot=snapshot if wanted else None)
+        export(params, mean, std, args.out, note)
     return 0
 
 
