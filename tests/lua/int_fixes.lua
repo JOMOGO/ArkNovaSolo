@@ -176,4 +176,48 @@ T.test("FIXPILE: a card leaving the display lands even when the discard pile bec
   T.ok(departures_landed({ { guid = card.getGUID() } }), "landed")
 end)
 
+T.test("FIXPILE: the break refill goes on when the cards just discarded are shuffled into the zoo deck", function()
+  -- seed 900002, turn 208: the 2 display cards went to the discard pile, the zoo deck ran
+  -- short, the discard pile (with those 2) became the zoo deck and the break waited forever
+  sim.human_game(false, "map_A")
+  zoo_deck = deck_of("zoo deck", { 401 })
+  discard_pile = deck_of("discard pile", { 402, 403, 404, 405, 406 })
+  display_cards = {}
+  for i = 1, 6 do display_cards[i] = sim.fake(string.format("(%d) shown", 410 + i)) end
+  local leaving = {}
+  for slot = 1, 2 do
+    local card = display_cards[slot]
+    leaving[#leaving + 1] = { guid = card.getGUID() }
+    card.locked = false
+    put_on_discard_pile(card)
+    display_cards[slot] = nil
+  end
+  local done = false
+  refill_display(function() done = true end, leaving)
+  sim.pump()
+  T.ok(done, "refill finished")
+  T.ok(display_cards[6] ~= nil, "display full again")
+end)
+
+T.test("FIXPILE: the break refill goes on when a card just discarded comes straight back to the display", function()
+  sim.human_game(false, "map_A")
+  zoo_deck = deck_of("zoo deck", { 401 })
+  discard_pile = nil
+  display_cards = {}
+  for i = 1, 6 do display_cards[i] = sim.fake(string.format("(%d) shown", 410 + i)) end
+  local leaving = {}
+  for slot = 1, 2 do                      -- the discard pile is only these 2 cards
+    local card = display_cards[slot]
+    leaving[#leaving + 1] = { guid = card.getGUID() }
+    card.locked = false
+    put_on_discard_pile(card)
+    display_cards[slot] = nil
+  end
+  local done = false
+  refill_display(function() done = true end, leaving)  -- draws 2 of the 3: one comes back
+  sim.pump()
+  T.ok(done, "refill finished")
+  T.ok(display_cards[6] ~= nil, "display full again")
+end)
+
 T.finish("integration base-mod fixes")

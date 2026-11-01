@@ -194,6 +194,7 @@ def train(x: np.ndarray, y: np.ndarray, hidden=(64, 64), epochs=12, lr=1e-3, bat
     val = idx[: len(idx) // 10]
     tr = idx[len(idx) // 10:]
     yscale = max(1.0, float(np.abs(y).mean()))
+    best, best_mse, best_epoch = None, float("inf"), 0
     for epoch in range(epochs):
         rng.shuffle(tr)
         for start in range(0, len(tr), batch):
@@ -218,6 +219,10 @@ def train(x: np.ndarray, y: np.ndarray, hidden=(64, 64), epochs=12, lr=1e-3, bat
         mse = float(np.mean((pred - y[val]) ** 2))
         base = float(np.mean((y[val] - y[tr].mean()) ** 2))
         print(f"  epoch {epoch + 1:2d}: validation error {mse:7.1f} (predicting the mean: {base:7.1f})")
+        if mse < best_mse:       # early stop: keep the epoch that predicts held-out games best
+            best, best_mse, best_epoch = [[w.copy(), b.copy()] for w, b in params], mse, epoch + 1
+    params = best
+    print(f"  kept epoch {best_epoch} (validation error {best_mse:.1f})")
     # fold the output scale into the last layer
     params[-1][0] = params[-1][0] * yscale
     params[-1][1] = params[-1][1] * yscale
@@ -269,6 +274,7 @@ def main(argv=None) -> int:
     t.add_argument("--out", type=Path, default=ROOT / "arno" / "ai" / "net_weights.lua")
     t.add_argument("--hidden", default="64,64")
     t.add_argument("--epochs", type=int, default=12)
+    t.add_argument("--lr", type=float, default=1e-3)
     t.add_argument("--horizon", type=int, default=0,
                    help="target = margin this many own decisions later (0: final margin)")
     t.add_argument("--target", choices=("margin", "score"), default="margin")
@@ -290,7 +296,7 @@ def main(argv=None) -> int:
         x, y = load(args.data, args.horizon, args.target)
         print(f"{len(y)} decisions, {x.shape[1]} inputs, target mean {y.mean():+.1f} sd {y.std():.1f}")
         hidden = tuple(int(h) for h in args.hidden.split(","))
-        params, mean, std = train(x, y, hidden=hidden, epochs=args.epochs)
+        params, mean, std = train(x, y, hidden=hidden, epochs=args.epochs, lr=args.lr)
         export(params, mean, std, args.out, f"{len(y)} decisions from {', '.join(p.name for p in args.data)}.")
     return 0
 
