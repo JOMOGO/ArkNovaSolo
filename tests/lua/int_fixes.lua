@@ -167,4 +167,13 @@ T.test("FIXPILE: a search with no matching card ends instead of looping forever"
   T.ok(called, "the search ended")
 end)
 
+T.test("FIXPILE: a card leaving the display lands even when the discard pile became the zoo deck", function()
+  sim.human_game(false, "map_A")
+  discard_pile = nil                                  -- it refilled the zoo deck
+  local card = sim.fake("(405) leaving")
+  T.ok(not departures_landed({ { guid = card.getGUID() } }), "not there yet (no error)")
+  put_on_discard_pile(card)                           -- starts a new pile
+  T.ok(departures_landed({ { guid = card.getGUID() } }), "landed")
+end)
+
 T.finish("integration base-mod fixes")

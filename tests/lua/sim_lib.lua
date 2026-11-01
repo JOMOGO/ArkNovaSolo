@@ -154,6 +154,14 @@ function sim.fake(name, pos, guid)
   end
   o.putObject = function(obj)
     sim.leave_hand(obj)
+    -- a card put on a single card (the zoo deck or discard pile down to one card) forms a new
+    -- deck of both, as in TTS; the single card is gone (the pile is the returned deck)
+    if o.tag == "Card" and obj.tag == "Card" and (o == discard_pile or o == zoo_deck) then
+      local deck = sim.fake("deck")
+      deck.tag = "Deck"
+      deck._s.contents = { { guid = guid, name = state.name }, { guid = obj.getGUID(), name = obj.getName() } }
+      return deck
+    end
     if obj.tag == "Deck" then                    -- a deck put on a deck: its cards join, as in TTS
       for _, entry in ipairs(obj._s.contents) do state.contents[#state.contents + 1] = entry end
       obj._s.contents = {}

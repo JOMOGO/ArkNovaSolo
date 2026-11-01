@@ -96,13 +96,23 @@ def play(games: int, seats, out: Path | None, weights: Path | None, first: int =
     chunks = [(i, first + i * per, min(first + games - 1, first + (i + 1) * per - 1))
               for i in range((games + per - 1) // per)]
     lines: list[str] = []
-    with cf.ThreadPoolExecutor(max_workers=workers) as pool:
-        futures = [pool.submit(run_chunk, template, i, a, b, seats, mw_every, log) for i, a, b in chunks]
-        for f in cf.as_completed(futures):
-            lines.extend(f.result().splitlines())
+    # each finished chunk is appended to `out` at once (a run that is stopped keeps what it
+    # played; a new chat can follow the file), and `out`.done is written at the end
     if out is not None:
         out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        out.write_text("", encoding="utf-8")
+        Path(str(out) + ".done").unlink(missing_ok=True)
+    with cf.ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = [pool.submit(run_chunk, template, i, a, b, seats, mw_every, log) for i, a, b in chunks]
+        for n, f in enumerate(cf.as_completed(futures), 1):
+            chunk = f.result().splitlines()
+            lines.extend(chunk)
+            if out is not None:
+                with open(out, "a", encoding="utf-8") as fh:
+                    fh.write("\n".join(chunk) + ("\n" if chunk else ""))
+            print(f"  chunk {n}/{len(chunks)} done", flush=True)
+    if out is not None:
+        Path(str(out) + ".done").write_text(f"{games} games\n", encoding="utf-8")
     errors = [l for l in lines if l.startswith("X|")]
     for e in errors[:5]:
         print("  game failed:", e[:300])

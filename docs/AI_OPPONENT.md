@@ -607,4 +607,13 @@ inputs v3); matches 100001+, 200001+, 300001+, 400001+, 500001+, 600001+, 700001
 | Round | Data | Result |
 |---|---|---|
 | 3 | 1500 games, inputs v2 (724k decisions) | v2 network trained (r3_v2.lua); match against round 1 still to run |
-| 4 | 1500 games, inputs v3 | running (4 workers) |
+| 4 | 1500 games, inputs v3 (730k decisions, `build/ai/round4_v3.txt`) | done; v3 network still to train and check |
+
+**Open item (FIXPILE, also on master):** a heuristic game reproduces a stall at turn 208:
+`python tools/ai_train.py match --games 2 --first 900001 --seats heuristic:0,heuristic:0 --workers 2`
+(seed 900002; the log goes to `build/ai/failures.txt`). Both players discard down to the hand
+limit at a break after the zoo deck ran out, then nothing happens. Already fixed on the way:
+`departures_landed` read a discard pile that had become the zoo deck (Lua error); the test fakes
+now form a deck when a card is put on a single-card pile. Look at `break_phase_display` ->
+`refill_display` -> `zoo_deck_needs` / `wait_for_departures` with a short or empty discard pile.
+Fix it on a branch from master (the owner merges with /merge), and in `ai-opponent`.

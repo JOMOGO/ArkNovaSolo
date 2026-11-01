@@ -12193,7 +12193,8 @@ function reef_effect(player, source)
 end
 
 function container_holds_guid(container, guid)
-  for _, entry in ipairs(container.getObjects()) do
+  -- FIXPILE: the pile may be a single card, or gone (after it refilled the zoo deck)
+  for _, entry in ipairs(pile_objects(container)) do
     if entry.guid == guid then return true end
   end
   return false
@@ -12202,7 +12203,7 @@ end
 function departures_landed(leaving)
   for _, entry in ipairs(leaving) do
     if entry.color == nil then
-      if not container_holds_guid(discard_pile, entry.guid) then return false end
+      if not container_holds_guid(live_discard_pile(), entry.guid) then return false end
     elseif not card_settled_in_hand(entry.color, 1, entry.guid) then
       return false
     end
