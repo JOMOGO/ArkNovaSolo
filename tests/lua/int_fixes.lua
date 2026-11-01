@@ -102,6 +102,33 @@ T.test("FIXANIMAL: a playable animal gets Confirm", function()
   end
 end)
 
+T.test("FIXANIMAL: with no animal on offer that can be played, the first animal can be passed", function()
+  -- seed 4200076: ANIMALS II at strength 5 counted a display animal the reputation draw could
+  -- fetch; the player drew from the deck instead and was left without a way out
+  local p = sim.human_game(false, "map_A")
+  local state = animal_pick(p, 401, 3)          -- Cheetah costs 17: cannot be played
+  state.selected = nil
+  render_animal_panel(p)
+  T.ok(active_panels.Red:find("on_animal_pass_clicked", 1, true) ~= nil, "Play no animal offered")
+  sim.record("render_claims_table")
+  on_animal_pass_clicked(nil, "Red", nil)
+  T.eq(state.phase, "done", "the pick ends")
+  T.eq(#sim.calls.render_claims_table, 1, "back to the claims")
+end)
+
+T.test("FIXANIMAL: with an animal that can be played, the first animal cannot be passed", function()
+  local p = sim.human_game(false, "map_A")
+  local state = animal_pick(p, 401, 3)
+  state.selected = nil
+  local playable = false
+  sim.record("animal_selection_problem", function() playable = true return nil end)
+  render_animal_panel(p)
+  T.ok(playable, "the offers were checked")
+  T.ok(not active_panels.Red:find("on_animal_pass_clicked", 1, true), "no Pass")
+  on_animal_pass_clicked(nil, "Red", nil)
+  T.eq(state.phase, "pick", "a click on a stale Pass does nothing")
+end)
+
 -- FIXSCAV / FIXPILE ----------------------------------------------------------------------
 
 T.test("FIXSCAV: scavenging from an empty discard pile ends the effect", function()
