@@ -12193,7 +12193,8 @@ function reef_effect(player, source)
 end
 
 function container_holds_guid(container, guid)
-  for _, entry in ipairs(container.getObjects()) do
+  -- FIXPILE: the pile may be a single card, or gone (after it refilled the zoo deck)
+  for _, entry in ipairs(pile_objects(container)) do
     if entry.guid == guid then return true end
   end
   return false
@@ -12202,7 +12203,9 @@ end
 function departures_landed(leaving)
   for _, entry in ipairs(leaving) do
     if entry.color == nil then
-      if not container_holds_guid(discard_pile, entry.guid) then return false end
+      -- FIXPILE: the discard pile (with this card) may have been shuffled into the zoo deck
+      if not container_holds_guid(live_discard_pile(), entry.guid)
+         and not container_holds_guid(live_zoo_deck(), entry.guid) then return false end
     elseif not card_settled_in_hand(entry.color, 1, entry.guid) then
       return false
     end
@@ -12233,6 +12236,13 @@ function refill_display(done, leaving)
   -- the display stays short
   zoo_deck_needs(6 - #virtual + 2)
   local deck_objects = pile_objects(live_zoo_deck())
+  -- FIXPILE: cards already sent to the discard pile that were just shuffled into the zoo
+  -- deck have landed (they may even be drawn back into the display below)
+  local in_deck = {}
+  for _, info in ipairs(deck_objects) do in_deck[info.guid] = true end
+  for i = #leaving, 1, -1 do
+    if leaving[i].color == nil and in_deck[leaving[i].guid] then table.remove(leaving, i) end
+  end
   local drawn = 0
   local washed = {}
   local washed_by = {}
