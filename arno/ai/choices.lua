@@ -195,6 +195,10 @@ function M.fingerprint(player)
   -- with it (its callbacks wait for the card to land)
   put(get_counter_value(player.money_counter))
   put(#player.claims); put(player.claims[#player.claims] and #player.claims[#player.claims])
+  -- which claim table is on top: a claim that leads to another one just like it (the
+  -- Archaeologist's second pick offers the same reward again; with 5 X-tokens nothing else
+  -- shows) is a step, not an input the mod ignored (seed 5100150)
+  put(tostring(player.claims[#player.claims]))
   return table.concat(parts, "\0")
 end
 

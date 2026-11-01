@@ -145,4 +145,14 @@ for seed = 1, CHAINS do
 end
 print(string.format("AI chained turns ended: %d of %d", chained, CHAINS * CHAIN_TURNS))
 
+T.test("the view tells a new claim table from the same one shown again", function()
+  -- seed 5100150: the Archaeologist's second pick offers the same reward in a new table
+  local p = sim.human_game(false, "map_A")
+  p.claims = { { { button_text = "1 X-token" } } }
+  local first = choices.fingerprint(p)
+  T.eq(choices.fingerprint(p), first, "the same table: the same view")
+  p.claims = { { { button_text = "1 X-token" } } }
+  T.ok(choices.fingerprint(p) ~= first, "a new table just like it: another view")
+end)
+
 T.finish("integration AI")
