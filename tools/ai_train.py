@@ -32,6 +32,16 @@ import tts_build  # noqa: E402
 BUILD = ROOT / "build" / "ai"
 # input count -> features.lua version (M.SIZES there)
 FEATURE_VERSIONS = {85: 1, 146: 2, 242: 3}
+# (state, choice) inputs per version, as features.lua M.SIZES; a later version only appends
+# to both blocks, so an earlier version's inputs are a column subset of a later one's
+FEATURE_SIZES = {1: (39, 46), 2: (97, 49), 3: (193, 49)}
+
+
+def project(row: np.ndarray, version: int) -> np.ndarray:
+    """The inputs of `version` taken out of a row logged with the same or a later version."""
+    s_from, _ = FEATURE_SIZES[FEATURE_VERSIONS[len(row)]]
+    s_to, c_to = FEATURE_SIZES[version]
+    return np.concatenate([row[:s_to], row[s_from:s_from + c_to]])
 
 
 def lua_options(first: int, last: int, seats, mw_every: int, log: bool = True) -> str:
@@ -148,7 +158,8 @@ def report(lines: list[str], seats) -> None:
               f"win {100 * np.mean(m > 0):5.1f}%")
 
 
-def load(paths: list[Path], horizon: int = 0, target: str = "margin") -> tuple[np.ndarray, np.ndarray]:
+def load(paths: list[Path], horizon: int = 0, target: str = "margin",
+         inputs: int | None = None) -> tuple[np.ndarray, np.ndarray]:
     """Inputs and targets. Target: the player's margin (target "margin") or own score
     (target "score") `horizon` of its own decisions later (or at the end of the game) minus
     the same at the decision; horizon 0 = at the end. A short horizon ties a choice to what
@@ -173,7 +184,8 @@ def load(paths: list[Path], horizon: int = 0, target: str = "margin") -> tuple[n
             continue
         for i, entry in enumerate(seq):
             later = final[k] if horizon <= 0 or i + horizon >= len(seq) else seq[i + horizon][k]
-            xs.append(np.array([float(v) for v in entry[2].split(",")], dtype=np.float32))
+            row = np.array([float(v) for v in entry[2].split(",")], dtype=np.float32)
+            xs.append(project(row, inputs) if inputs else row)
             ys.append(later - entry[k])
     return np.stack(xs), np.array(ys, dtype=np.float32)
 
@@ -275,6 +287,8 @@ def main(argv=None) -> int:
     t.add_argument("--hidden", default="64,64")
     t.add_argument("--epochs", type=int, default=12)
     t.add_argument("--lr", type=float, default=1e-3)
+    t.add_argument("--inputs", type=int, choices=(1, 2, 3),
+                   help="train on this input version (older rows cannot be widened, newer ones are cut)")
     t.add_argument("--horizon", type=int, default=0,
                    help="target = margin this many own decisions later (0: final margin)")
     t.add_argument("--target", choices=("margin", "score"), default="margin")
@@ -293,7 +307,7 @@ def main(argv=None) -> int:
                      log=args.cmd == "play", weights_b=getattr(args, "weights_b", None))
         report(lines, seats)
     elif args.cmd == "train":
-        x, y = load(args.data, args.horizon, args.target)
+        x, y = load(args.data, args.horizon, args.target, args.inputs)
         print(f"{len(y)} decisions, {x.shape[1]} inputs, target mean {y.mean():+.1f} sd {y.std():.1f}")
         hidden = tuple(int(h) for h in args.hidden.split(","))
         params, mean, std = train(x, y, hidden=hidden, epochs=args.epochs, lr=args.lr)

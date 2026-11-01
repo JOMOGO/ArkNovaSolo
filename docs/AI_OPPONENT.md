@@ -611,7 +611,14 @@ inputs v3); matches 100001+, 200001+, 300001+, 400001+, 500001+, 600001+, 700001
 | Round | Data | Result |
 |---|---|---|
 | 3 | 1500 games, inputs v2 (724k decisions) | v2 network trained (r3_v2.lua); match against round 1 still to run |
-| 4 | 1500 games, inputs v3 (730k decisions, `build/ai/round4_v3.txt`) | done; v3 network still to train and check |
+| 4 | 1500 games, inputs v3 (730k decisions, `build/ai/round4_v3.txt`) | done |
+| 4 check (2026-11-01) | v3 network on round 4, horizon 10. The validation error is lowest after epoch 1-4 and rises after (overfit): `train` now keeps the best epoch (`--lr` added) | all **lose** to round 1 (100 games each): lr 3e-4 (epoch 4) −13.0 / 42%; lr 1e-3 (epoch 1) −7.3 / 45%. v2 `r3_v2.lua` −2.7 / 44%. v1 inputs on rounds 0-1 again with the early stop (epoch 8) +5.0 / 53% (noise). Not kept |
+
+The richer inputs (v2, v3) predict held-out games better but play worse: a lower validation
+error does not mean better choices (the state inputs explain most of the target; the
+choice inputs, which decide, get little of the network). `train --inputs 1` trains the v1
+network on rows logged with a later version (an earlier version's inputs are a column
+subset), so every round can feed it.
 
 **Open item (FIXPILE, also on master):** a heuristic game reproduces a stall at turn 208:
 `python tools/ai_train.py match --games 2 --first 900001 --seats heuristic:0,heuristic:0 --workers 2`
