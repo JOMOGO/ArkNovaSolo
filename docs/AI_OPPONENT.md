@@ -573,3 +573,38 @@ python tools/ai_train.py match --games 60 --seats expert:0,hard:0 --workers 4
 A next round plays the current network against itself with budgets (`network:1,network:3`),
 trains on all rounds and keeps the new weights only if they beat the old ones in `match`.
 Use `--workers 4` when the machine is short of memory (each worker is one MoonSharp process).
+
+## 10. Improvement loop (hand-over)
+
+Started 2026-11-01 ~01:30 on the owner's request: keep improving the AI for 24 hours. Anyone
+(a new chat) can pick this up from here; the state is in git (branch `ai-opponent`) and in
+`build/ai/` (training data, not in git).
+
+The loop, one round at a time:
+1. **Play:** the best network plays itself with budgets 1 and 2, logging the current input
+   version (`features.VERSION`, now 3):
+   `python tools/ai_train.py play --games 1500 --first <new seeds> --seats network:1,network:2 --weights arno/ai/net_weights.lua --workers <n> --out build/ai/roundN_v3.txt`
+2. **Train** on every round with the same input version:
+   `python tools/ai_train.py train --data build/ai/round4_v3.txt [--data ...] --horizon 10 --out build/ai/rN.lua`
+3. **Check** against the bundled network, 100 games:
+   `python tools/ai_train.py match --games 100 --first <new seeds> --seats network_b:0,network:0 --weights-b build/ai/rN.lua --workers <n>`
+4. **Keep it only if it wins** (average margin > +5 and win rate > 55%): copy to
+   `arno/ai/net_weights.lua`, run `python tools/run_tests.py --skip-node --quick -k int_ai`,
+   re-check the ladder (Expert/Hard/Medium/Easy, 100 games each; budgets in `ai/levels.lua`),
+   rebuild the dev save, commit and push, add a row to §8.
+5. Experiments when a round brings nothing: the target horizon (20, or a mix with the final
+   margin: `--horizon 0`), a wider network (`--hidden 128,128`), more epochs.
+
+Memory rule: each worker is one MoonSharp process of ~0.6 GB. Check free memory first; the
+owner plays games (Overwatch ~8 GB) on this machine. 4 workers when less than ~10 GB is free,
+6 otherwise; never more than 8. The system stops background jobs when memory runs low; such a
+job is not restarted without the owner's go.
+
+Seeds used so far (do not reuse for new data): 1000-2499 (round 0), 5000-5999 and 7000-7499
+(round 1), 9000-10499 (round 2), 12000-13499 (round 3, inputs v2), 15000-16499 (round 4,
+inputs v3); matches 100001+, 200001+, 300001+, 400001+, 500001+, 600001+, 700001+, 800001+.
+
+| Round | Data | Result |
+|---|---|---|
+| 3 | 1500 games, inputs v2 (724k decisions) | v2 network trained (r3_v2.lua); match against round 1 still to run |
+| 4 | 1500 games, inputs v3 | running (4 workers) |
