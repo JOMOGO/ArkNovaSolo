@@ -10959,6 +10959,12 @@ Select another animal.</Text>
         <Button id="animalPassButton_%s" onClick="on_animal_pass_clicked(%s)" fontSize="16" width="240" height="34" minHeight="34" color="#C61715" textColor="#FFFFFF">Pass</Button>
       ]], color, color)
       height = height + 40
+    elseif not animal_offer_playable(state) then                      -- FIXANIMAL
+      body = body .. string.format([[
+        <Text fontSize="16" color="#FF8080">No animal on offer can be played.</Text>
+        <Button id="animalPassButton_%s" onClick="on_animal_pass_clicked(%s)" fontSize="16" width="240" height="34" minHeight="34" color="#C61715" textColor="#FFFFFF">Play no animal</Button>
+      ]], color, color)
+      height = height + 30 + 40
     end
   elseif state.phase == "enclosure" then
     body = [[<Text fontSize="18" color="#FFFFFF">Select an enclosure for this animal.</Text>]]
@@ -11227,13 +11233,34 @@ end
 
 function on_animal_pass_clicked(_, color, _)
   local state = animal_actions[color]
-  if state == nil or state.phase ~= "pick" or not state.second then return end
+  if state == nil or state.phase ~= "pick" then return end
+  if not state.second and animal_offer_playable(state) then return end   -- FIXANIMAL
 
   state.phase = "done"
   state.offers = {}
   lock_display_cards()
   clear_player_panel(color)
   render_claims_table(state.player)
+end
+
+-- FIXANIMAL: whether any animal on offer can be played. The action can be taken for a plan
+-- the player then does not follow (ANIMALS at strength 5 counts a display animal that the
+-- reputation draw could fetch; the player draws from the deck instead): with nothing
+-- playable the first animal can be passed too (an action may be taken without carrying it
+-- out), instead of a panel without a way out.
+function animal_offer_playable(state)
+  local keep = state.selected
+  local found = false
+  for guid in pairs(state.offers or {}) do
+    local obj = getObjectFromGUID(guid)
+    if obj ~= nil then
+      state.selected = obj
+      local ok, problem = pcall(animal_selection_problem, state)
+      if ok and problem == nil then found = true break end
+    end
+  end
+  state.selected = keep
+  return found
 end
 
 -- FIXANIMAL: why the selected animal cannot be played with the discounts switched on now
