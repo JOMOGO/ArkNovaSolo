@@ -545,6 +545,8 @@ Found on the way:
 | 2026-10-31 | Network inputs version 2 (the leader, both zoos' icons, the display, icon fit of a card); round 3 self-play logs them | v2 and v3 networks lose to round 1 (§10) |
 | 2026-11-01 | Round 5 network: v1 inputs trained on every round (0-4, 3.7M decisions; later rounds cut to the v1 inputs), horizon 20, lr 3e-4, best of 24 epochs (13) | **beats round 1: +22.9 / 72% (100 games), confirmed +24.5 / 72% (200 games)**; bundled |
 | 2026-11-01 | Ladder with the round-5 network (same budgets), 100 games each | Expert vs Hard +16.8 (66%), Hard vs Medium +12.5 (66%), Medium vs Easy +15.2 (67%): even steps, 0 stalls in 300 games |
+| 2026-11-01 | Round 9: an ensemble of 4 networks (Q averaged: the round-5 network, r7, and two more trained alike with seeds 2 and 3) | **beats the round-5 network: +8.1 / 60%, confirmed +11.2 / 62% (200 + 200 games)**; bundled |
+| 2026-11-01 | Ladder with the ensemble (same budgets), 100 games each | Expert vs Hard +18.5 (72%), Hard vs Medium +8.2 (62%), Medium vs Easy +18.5 (70%): order holds, 0 stalls in 300 games |
 
 Ladder (2-seat games, seats swapped, `tools/ai_train.py match`; a margin is the average
 final score difference; ±4 points is noise at 100 games):
@@ -615,7 +617,7 @@ inputs v3); matches 100001+, 200001+, 300001+, 400001+, 500001+, 600001+, 700001
 900001+ (FIXPILE repro), 1000001+ ... 2300001+ (every 100000 up to 2300001; 2026-11-01 checks and ladder),
 2400001+ and 2600001+ (200 games each), 3000001+ ... 3400001+ (100 each), 3500001+ and 3700001+
 (200 each), 3900001+ (200), 4100001+ ... 4300001+ (100 each), 4400001+ (2, smoke test),
-4500001+ and 4700001+ (200 each). Self-play: 20000-22499 (round 5).
+4500001+ and 4700001+ (200 each), 4900001+ and 5100001+ (200 each), 5300001+ ... 5500001+ (ladder). Self-play: 20000-22499 (round 5).
 
 | Round | Data | Result |
 |---|---|---|
@@ -626,6 +628,7 @@ inputs v3); matches 100001+, 200001+, 300001+, 400001+, 500001+, 600001+, 700001
 | 6 (2026-11-01) | 2500 games of the round-5 network (budgets 1 and 2; seeds 20000-22499; 1.12M decisions, `round5_v3.txt`; budget 1 beat budget 2 by +30.9 / 80%). Trained on every round (4.8M), same recipe | r6 (kept epoch 19) −0.2 / 52%; 128-128 (epoch 10) −8.3 / 43% (200 games each): not kept |
 | 7 (2026-11-01) | same data; validation now every 10th game of every round (was the first 10% = round 0 only); epoch snapshots | 100 games each: e8 −7.6 / 43%, e12 +0.6 / 51%, e16 +9.0 / 63%, e20 −2.1 / 48%, e24 −3.2 / 52%. Confirmed on fresh seeds (200 games): e16 +3.6 / 56%, e15 (validation best) −0.1 / 47.5%: not kept (the e16 sweep result was the best of five, i.e. luck) |
 | 8 (2026-11-01) | probes, same data | weight average of the round-7 snapshots (`ai_train average`) +0.8 / 51.5% (200 games); round 5 alone −21.3 / 25%; rounds 3-5 −3.5 / 46.5%; every round with the final margin mixed in (`--final-weight 0.3`) −0.5 / 53% (100 games each): not kept. The older, more varied games (round 0: the hand-written policy) are what the network needs; the latest self-play alone is much worse |
+| 9 (2026-11-01) | ensembles (`net.lua`: `members`, Q averaged; `ai_train ensemble`; `train --seed`) | round-5 + r7 + r6: +6.8 / 61%; round-5 + r7 + seed 2 + seed 3 (**ens4**): +8.1 / 60%, confirmed +11.2 / 62%: **bundled**. 5 members (+ r6): +11.2 / 62.8% (199 games; no better than 4). One move costs 4 forward passes (the ladder ran ~1.5x slower) |
 
 The richer inputs (v2, v3) predict held-out games better but play worse: a lower validation
 error does not mean better choices. (Not because the state explains most of the target: with
