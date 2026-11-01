@@ -612,7 +612,9 @@ simply run again.
 Seeds used so far (do not reuse for new data): 1000-2499 (round 0), 5000-5999 and 7000-7499
 (round 1), 9000-10499 (round 2), 12000-13499 (round 3, inputs v2), 15000-16499 (round 4,
 inputs v3); matches 100001+, 200001+, 300001+, 400001+, 500001+, 600001+, 700001+, 800001+,
-900001+ (FIXPILE repro), 1000001+ ... 2300001+ (every 100000 up to 2300001; 2026-11-01 checks and ladder).
+900001+ (FIXPILE repro), 1000001+ ... 2300001+ (every 100000 up to 2300001; 2026-11-01 checks and ladder),
+2400001+ and 2600001+ (200 games each), 3000001+ ... 3400001+ (100 each), 3500001+ and 3700001+
+(200 each). Self-play: 20000-22499 (round 5).
 
 | Round | Data | Result |
 |---|---|---|
@@ -620,10 +622,15 @@ inputs v3); matches 100001+, 200001+, 300001+, 400001+, 500001+, 600001+, 700001
 | 4 | 1500 games, inputs v3 (730k decisions, `build/ai/round4_v3.txt`) | done |
 | 4 check (2026-11-01) | v3 network on round 4, horizon 10. The validation error is lowest after epoch 1-4 and rises after (overfit): `train` now keeps the best epoch (`--lr` added) | all **lose** to round 1 (100 games each): lr 3e-4 (epoch 4) −13.0 / 42%; lr 1e-3 (epoch 1) −7.3 / 45%. v2 `r3_v2.lua` −2.7 / 44%. v1 inputs on rounds 0-1 again with the early stop (epoch 8) +5.0 / 53% (noise). Not kept |
 | 5 (2026-11-01) | no new games: v1 inputs on every round (3.7M decisions), lr 3e-4, early stop | horizon 10, 12 epochs: +2.7 / 52% (noise). Horizon 20, 12 epochs (kept 11): +12.1 / 62%, again +7.5 / 49%. **Horizon 20, 24 epochs (kept 13): +22.9 / 72%, confirmed +24.5 / 72% in 200 games: bundled.** Horizon 30, 24 epochs: +12.9 / 64%. v3 inputs, horizon 20 on round 4: −26.7 / 24% |
+| 6 (2026-11-01) | 2500 games of the round-5 network (budgets 1 and 2; seeds 20000-22499; 1.12M decisions, `round5_v3.txt`; budget 1 beat budget 2 by +30.9 / 80%). Trained on every round (4.8M), same recipe | r6 (kept epoch 19) −0.2 / 52%; 128-128 (epoch 10) −8.3 / 43% (200 games each): not kept |
+| 7 (2026-11-01) | same data; validation now every 10th game of every round (was the first 10% = round 0 only); epoch snapshots | 100 games each: e8 −7.6 / 43%, e12 +0.6 / 51%, e16 +9.0 / 63%, e20 −2.1 / 48%, e24 −3.2 / 52%. Confirmed on fresh seeds (200 games): e16 +3.6 / 56%, e15 (validation best) −0.1 / 47.5%: not kept (the e16 sweep result was the best of five, i.e. luck) |
 
 The richer inputs (v2, v3) predict held-out games better but play worse: a lower validation
-error does not mean better choices (the state inputs explain most of the target; the
-choice inputs, which decide, get little of the network). `train --inputs 1` trains the v1
+error does not mean better choices. (Not because the state explains most of the target: with
+v1 inputs the state alone predicts little, 38.1 against 40.0 for the mean and 36.3 for the
+full network, round0a.) Play strength also swings by ±10 points between neighbouring epochs of
+one run while the validation error barely moves: the choice (an argmax) is sensitive to small
+weight changes, so a sweep's best must be confirmed on fresh seeds. `train --inputs 1` trains the v1
 network on rows logged with a later version (an earlier version's inputs are a column
 subset), so every round can feed it.
 
