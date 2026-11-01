@@ -542,7 +542,9 @@ Found on the way:
 | 2026-10-31 | Ladder with the round-1 network (same budgets), 100 games each | Expert vs Hard +15.5 (66%), Hard vs Medium +13.4 (67%), Medium vs Easy +15.3 (65%): even steps, 0 stalls in 300 games |
 | 2026-10-31 | Round 2: 1500 games of the round-1 network, trained on rounds 0-2 (2.2M decisions) | **no gain**: −4.3 vs round 1 (49%, noise); round 1 stays. One game looped in a cube allocation: now a fixed rule (+ until placed, then Confirm) |
 | 2026-10-31 | Wider network (128-128, 27.6k weights) on rounds 0-2 | +3.2 vs round 1 (53%, noise): size is not the limit |
-| 2026-10-31 | Network inputs version 2 (the leader, both zoos' icons, the display, icon fit of a card); round 3 self-play logs them | (running) |
+| 2026-10-31 | Network inputs version 2 (the leader, both zoos' icons, the display, icon fit of a card); round 3 self-play logs them | v2 and v3 networks lose to round 1 (§10) |
+| 2026-11-01 | Round 5 network: v1 inputs trained on every round (0-4, 3.7M decisions; later rounds cut to the v1 inputs), horizon 20, lr 3e-4, best of 24 epochs (13) | **beats round 1: +22.9 / 72% (100 games), confirmed +24.5 / 72% (200 games)**; bundled |
+| 2026-11-01 | Ladder with the round-5 network (same budgets), 100 games each | Expert vs Hard +16.8 (66%), Hard vs Medium +12.5 (66%), Medium vs Easy +15.2 (67%): even steps, 0 stalls in 300 games |
 
 Ladder (2-seat games, seats swapped, `tools/ai_train.py match`; a margin is the average
 final score difference; ±4 points is noise at 100 games):
@@ -566,6 +568,8 @@ strength steps, not done yet: more training rounds (network self-play, §9), the
 ```
 python tools/ai_train.py play  --games 1500 --seats heuristic:3,heuristic:1 --out build/ai/round0.txt
 python tools/ai_train.py train --data build/ai/round0.txt --horizon 10 --out arno/ai/net_weights.lua
+# the bundled network (round 5): every round, v1 inputs, horizon 20
+python tools/ai_train.py train --data build/ai/round0.txt --data build/ai/round1.txt --data build/ai/round1b.txt --data build/ai/round2.txt --data build/ai/round3_v2.txt --data build/ai/round4_v3.txt --inputs 1 --horizon 20 --lr 3e-4 --epochs 24 --out build/ai/r5.lua
 python tools/ai_train.py match --games 100 --seats network:0,heuristic:0 --weights arno/ai/net_weights.lua
 python tools/ai_train.py match --games 60 --seats expert:0,hard:0 --workers 4
 ```
@@ -606,7 +610,8 @@ simply run again.
 
 Seeds used so far (do not reuse for new data): 1000-2499 (round 0), 5000-5999 and 7000-7499
 (round 1), 9000-10499 (round 2), 12000-13499 (round 3, inputs v2), 15000-16499 (round 4,
-inputs v3); matches 100001+, 200001+, 300001+, 400001+, 500001+, 600001+, 700001+, 800001+.
+inputs v3); matches 100001+, 200001+, 300001+, 400001+, 500001+, 600001+, 700001+, 800001+,
+900001+ (FIXPILE repro), 1000001+ ... 2300001+ (every 100000 up to 2300001; 2026-11-01 checks and ladder).
 
 | Round | Data | Result |
 |---|---|---|
@@ -620,7 +625,18 @@ choice inputs, which decide, get little of the network). `train --inputs 1` trai
 network on rows logged with a later version (an earlier version's inputs are a column
 subset), so every round can feed it.
 
-**Open item (FIXPILE, also on master):** a heuristic game reproduces a stall at turn 208:
+| 5 (2026-11-01) | no new games: v1 inputs on every round (3.7M decisions), lr 3e-4, early stop | horizon 10, 12 epochs: +2.7 / 52% (noise). Horizon 20, 12 epochs (kept 11): +12.1 / 62%, again +7.5 / 49%. **Horizon 20, 24 epochs (kept 13): +22.9 / 72%, confirmed +24.5 / 72% in 200 games: bundled.** Horizon 30, 24 epochs: +12.9 / 64%. v3 inputs, horizon 20 on round 4: −26.7 / 24% |
+
+What won: more data (every round, through the v1 inputs) together with the longer horizon (20
+own decisions); neither alone did. The ladder kept its steps with the same budgets (§8).
+`train --baseline` (fit the state alone first, train on what the choice adds) is in but not
+checked yet.
+
+**FIXPILE stall: fixed 2026-11-01** (here and on branch `fix-pile-break-refill` from master, for
+the owner's /merge): the discarded display cards are shuffled into the zoo deck with the
+discard pile and count as landed there (they may even come back into the display); seed
+900002 plays through. Tests in `tests/lua/int_fixes.lua`. The original note:
+a heuristic game reproduced a stall at turn 208:
 `python tools/ai_train.py match --games 2 --first 900001 --seats heuristic:0,heuristic:0 --workers 2`
 (seed 900002; the log goes to `build/ai/failures.txt`). Both players discard down to the hand
 limit at a break after the zoo deck ran out, then nothing happens. Already fixed on the way:

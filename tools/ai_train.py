@@ -287,6 +287,8 @@ def main(argv=None) -> int:
     t.add_argument("--hidden", default="64,64")
     t.add_argument("--epochs", type=int, default=12)
     t.add_argument("--lr", type=float, default=1e-3)
+    t.add_argument("--baseline", action="store_true",
+                   help="first fit the state alone (V), then train on what the choice adds (y - V)")
     t.add_argument("--inputs", type=int, choices=(1, 2, 3),
                    help="train on this input version (older rows cannot be widened, newer ones are cut)")
     t.add_argument("--horizon", type=int, default=0,
@@ -310,6 +312,14 @@ def main(argv=None) -> int:
         x, y = load(args.data, args.horizon, args.target, args.inputs)
         print(f"{len(y)} decisions, {x.shape[1]} inputs, target mean {y.mean():+.1f} sd {y.std():.1f}")
         hidden = tuple(int(h) for h in args.hidden.split(","))
+        if args.baseline:
+            # the state explains most of the target and is the same for every choice of a
+            # decision; taking it out leaves the network what tells the choices apart
+            n_state = FEATURE_SIZES[FEATURE_VERSIONS[x.shape[1]]][0]
+            print(f"baseline: the state alone ({n_state} inputs)")
+            vp, vmean, vstd = train(x[:, :n_state], y, hidden=hidden, epochs=args.epochs, lr=args.lr)
+            y = y - predict(vp, (x[:, :n_state] - vmean) / vstd)
+            print(f"residual target sd {y.std():.1f}")
         params, mean, std = train(x, y, hidden=hidden, epochs=args.epochs, lr=args.lr)
         export(params, mean, std, args.out, f"{len(y)} decisions from {', '.join(p.name for p in args.data)}.")
     return 0
