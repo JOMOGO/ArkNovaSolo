@@ -548,6 +548,7 @@ Found on the way:
 | 2026-11-01 | Round 9: an ensemble of 4 networks (Q averaged: the round-5 network, r7, and two more trained alike with seeds 2 and 3) | **beats the round-5 network: +8.1 / 60%, confirmed +11.2 / 62% (200 + 200 games)**; bundled |
 | 2026-11-01 | Ladder with the ensemble (same budgets), 100 games each | Expert vs Hard +18.5 (72%), Hard vs Medium +8.2 (62%), Medium vs Easy +18.5 (70%): order holds, 0 stalls in 300 games |
 | 2026-11-02 | Round 11: temporal-difference targets (`train --bootstrap`, two iterations), an ensemble of 4 such networks (ens_td2) | **beats the round-9 ensemble: +9.0 / 62.5%, confirmed +12.3 / 67% (200 + 200 games)**; bundled |
+| 2026-11-02 | Ladder with ens_td2 (same budgets), 100 games each | Expert vs Hard +9.0 (63%), Hard vs Medium +11.3 (57%), Medium vs Easy +10.5 (64%): order holds, 0 stalls in 300 games; Hard-Medium is the narrow step (next: recalibrate the budgets, the TD network's Q has a larger spread) |
 
 Ladder (2-seat games, seats swapped, `tools/ai_train.py match`; a margin is the average
 final score difference; ±4 points is noise at 100 games):
@@ -646,6 +647,11 @@ What won: more data (every round, through the v1 inputs) together with the longe
 own decisions); neither alone did. The ladder kept its steps with the same budgets (§8).
 `train --baseline` (fit the state alone first, train on what the choice adds) is in but not
 checked yet.
+
+**Next steps (2026-11-02):** recalibrate the level budgets for the TD ensemble (Hard vs Medium
+57%); a third TD iteration (`--bootstrap build/ai/td2.lua`) and members from it; the 3- and
+4-player sweep (all sweeps so far are 2-player); check in TTS how long the ensemble (4 passes
+per choice) thinks on big decisions.
 
 **FIXANIMAL dead end: fixed 2026-11-01** (here and on `fix-pile-break-refill`): ANIMALS at
 strength 5 counts a display animal that the reputation draw could fetch; a player who draws
