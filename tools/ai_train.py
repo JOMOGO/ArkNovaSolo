@@ -319,8 +319,9 @@ def main(argv=None) -> int:
     t.add_argument("--hidden", default="64,64")
     t.add_argument("--epochs", type=int, default=12)
     t.add_argument("--lr", type=float, default=1e-3)
-    t.add_argument("--bootstrap", type=Path,
-                   help="a network (same inputs) whose Q at the row --horizon decisions on is added to the target")
+    t.add_argument("--bootstrap", type=Path, action="append",
+                   help="a network (same inputs) whose Q at the row --horizon decisions on is added to the "
+                        "target; given several times, their Q is averaged (an ensemble's members)")
     t.add_argument("--gamma", type=float, default=1.0, help="the weight of that Q")
     t.add_argument("--seed", type=int, default=1, help="the start weights and the order of the rows")
     t.add_argument("--final-weight", type=float, default=0.0,
@@ -391,14 +392,16 @@ def main(argv=None) -> int:
             # temporal difference: the change over the horizon plus what a trained network
             # expects from the position reached then (its own Q there, the choice then made),
             # instead of only the horizon (blind beyond it) or the end of the game (noisy)
-            bp, bmean, bstd = read_weights(args.bootstrap)
-            if len(bmean) != x.shape[1]:
-                raise SystemExit("--bootstrap: that network reads other inputs")
+            # several networks (the members of an ensemble): their Q averaged
             q = np.zeros(len(y), dtype=np.float32)
-            for a in range(0, len(y), 200000):
-                q[a:a + 200000] = predict(bp, (x[a:a + 200000] - bmean) / bstd)
+            for path in args.bootstrap:
+                bp, bmean, bstd = read_weights(path)
+                if len(bmean) != x.shape[1]:
+                    raise SystemExit(f"--bootstrap: {path} reads other inputs")
+                for a in range(0, len(y), 200000):
+                    q[a:a + 200000] += predict(bp, (x[a:a + 200000] - bmean) / bstd) / len(args.bootstrap)
             ahead = nxt >= 0
-            print(f"bootstrap from {args.bootstrap.name}: {ahead.mean():.0%} of the rows, "
+            print(f"bootstrap from {', '.join(p.name for p in args.bootstrap)}: {ahead.mean():.0%} of the rows, "
                   f"Q there mean {q[nxt[ahead]].mean():+.1f} sd {q[nxt[ahead]].std():.1f}")
             y = y.copy()
             y[ahead] = y[ahead] + args.gamma * q[nxt[ahead]]
