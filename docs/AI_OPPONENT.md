@@ -547,6 +547,7 @@ Found on the way:
 | 2026-11-01 | Ladder with the round-5 network (same budgets), 100 games each | Expert vs Hard +16.8 (66%), Hard vs Medium +12.5 (66%), Medium vs Easy +15.2 (67%): even steps, 0 stalls in 300 games |
 | 2026-11-01 | Round 9: an ensemble of 4 networks (Q averaged: the round-5 network, r7, and two more trained alike with seeds 2 and 3) | **beats the round-5 network: +8.1 / 60%, confirmed +11.2 / 62% (200 + 200 games)**; bundled |
 | 2026-11-01 | Ladder with the ensemble (same budgets), 100 games each | Expert vs Hard +18.5 (72%), Hard vs Medium +8.2 (62%), Medium vs Easy +18.5 (70%): order holds, 0 stalls in 300 games |
+| 2026-11-02 | Round 11: temporal-difference targets (`train --bootstrap`, two iterations), an ensemble of 4 such networks (ens_td2) | **beats the round-9 ensemble: +9.0 / 62.5%, confirmed +12.3 / 67% (200 + 200 games)**; bundled |
 
 Ladder (2-seat games, seats swapped, `tools/ai_train.py match`; a margin is the average
 final score difference; ±4 points is noise at 100 games):
@@ -617,7 +618,7 @@ inputs v3); matches 100001+, 200001+, 300001+, 400001+, 500001+, 600001+, 700001
 900001+ (FIXPILE repro), 1000001+ ... 2300001+ (every 100000 up to 2300001; 2026-11-01 checks and ladder),
 2400001+ and 2600001+ (200 games each), 3000001+ ... 3400001+ (100 each), 3500001+ and 3700001+
 (200 each), 3900001+ (200), 4100001+ ... 4300001+ (100 each), 4400001+ (2, smoke test),
-4500001+ and 4700001+ (200 each), 4900001+ and 5100001+ (200 each), 5300001+ ... 5500001+ (ladder), 5700001+ (200). Self-play 23000-27499 (round 10). Self-play: 20000-22499 (round 5).
+4500001+ and 4700001+ (200 each), 4900001+ and 5100001+ (200 each), 5300001+ ... 5500001+ (ladder), 5700001+ (200), 6000001+ and 7000001+ (sweeps, 1000 each, 0 failures), 8000001+ (smoke test), 10000001+ ... 10800001+ (round 11), 11000001+ ... 11200001+ (ladder). Self-play 23000-27499 (round 10). Self-play: 20000-22499 (round 5).
 
 | Round | Data | Result |
 |---|---|---|
@@ -630,7 +631,7 @@ inputs v3); matches 100001+, 200001+, 300001+, 400001+, 500001+, 600001+, 700001
 | 8 (2026-11-01) | probes, same data | weight average of the round-7 snapshots (`ai_train average`) +0.8 / 51.5% (200 games); round 5 alone −21.3 / 25%; rounds 3-5 −3.5 / 46.5%; every round with the final margin mixed in (`--final-weight 0.3`) −0.5 / 53% (100 games each): not kept. The older, more varied games (round 0: the hand-written policy) are what the network needs; the latest self-play alone is much worse |
 | 9 (2026-11-01) | ensembles (`net.lua`: `members`, Q averaged; `ai_train ensemble`; `train --seed`) | round-5 + r7 + r6: +6.8 / 61%; round-5 + r7 + seed 2 + seed 3 (**ens4**): +8.1 / 60%, confirmed +11.2 / 62%: **bundled**. 5 members (+ r6): +11.2 / 62.8% (199 games; no better than 4). One move costs 4 forward passes (the ladder ran ~1.5x slower) |
 | 10 (2026-11-01) | ensemble self-play was ~4x slower (10 of 60 chunks in an hour): stopped after 250 games (seeds within 23000-24499, `round6a_v3.txt`, kept). Instead the round-5 network (`build/ai/v1_all_h20_e24.lua`): 1500 games against itself (budgets 0.5 and 1.5; seeds 26000-27499; `round6c_v3.txt`), then 1000 against the hand-written policy (budget 2; seeds 25000-25999; `round6b_v3.txt`) | 4 members (seeds 1-4) on every round (6.0M decisions), ensembled (ens10): +3.1 / 52.5% against the bundled ens4 (200 games, seeds 5700001+): not kept. The round-5 recipe is at its plateau; more games of the same kind no longer add |
-| 11 (2026-11-02) | new recipe, temporal difference (`train --bootstrap NET`): the target is the margin change over 20 own decisions **plus the given network's Q at the position reached then** (the horizon no longer blinds it, without the noise of the final margin). Every round (6.0M decisions), v1 inputs, lr 3e-4, 24 epochs | single networks against the round-5 network (200 games each, seeds 10000001+, 10200001+, 10400001+): td1 (Q from round 5) +3.4 / 55.5%; td1 with gamma 0.5 +7.5 / 61.5%; **td2 (Q from td1) +11.6 / 66.5%**. Next: an ensemble of 4 td2 members against the bundled ens4 |
+| 11 (2026-11-02) | new recipe, temporal difference (`train --bootstrap NET`): the target is the margin change over 20 own decisions **plus the given network's Q at the position reached then** (the horizon no longer blinds it, without the noise of the final margin). Every round (6.0M decisions), v1 inputs, lr 3e-4, 24 epochs | single networks against the round-5 network (200 games each, seeds 10000001+, 10200001+, 10400001+): td1 (Q from round 5) +3.4 / 55.5%; td1 with gamma 0.5 +7.5 / 61.5%; **td2 (Q from td1) +11.6 / 66.5%**. Ensemble of td2 and 3 more members alike (seeds 2-4, Q from td1): **+9.0 / 62.5% against ens4, confirmed +12.3 / 67%** (seeds 10600001+, 10800001+): **bundled** |
 
 The richer inputs (v2, v3) predict held-out games better but play worse: a lower validation
 error does not mean better choices. (Not because the state explains most of the target: with
