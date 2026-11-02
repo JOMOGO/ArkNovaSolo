@@ -649,9 +649,12 @@ own decisions); neither alone did. The ladder kept its steps with the same budge
 checked yet.
 
 **Next steps (2026-11-02):** recalibrate the level budgets for the TD ensemble (Hard vs Medium
-57%); a third TD iteration (`--bootstrap build/ai/td2.lua`) and members from it; the 3- and
-4-player sweep (all sweeps so far are 2-player); check in TTS how long the ensemble (4 passes
-per choice) thinks on big decisions.
+57%); a third TD iteration (`--bootstrap build/ai/td2.lua`) and members from it; check in
+TTS how long the ensemble (4 passes per choice) thinks on big decisions.
+
+**Robustness sweeps (2026-11-01/02, round-5 network and the hand-written policy, mixed
+budgets):** 2000 two-player games (seeds 6000001+, 7000001+), 200 three-player (8000101+) and
+100 four-player games (9000001+): 0 failures.
 
 **FIXANIMAL dead end: fixed 2026-11-01** (here and on `fix-pile-break-refill`): ANIMALS at
 strength 5 counts a display animal that the reputation draw could fetch; a player who draws
