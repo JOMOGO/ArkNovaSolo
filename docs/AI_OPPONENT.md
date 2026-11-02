@@ -619,7 +619,7 @@ inputs v3); matches 100001+, 200001+, 300001+, 400001+, 500001+, 600001+, 700001
 900001+ (FIXPILE repro), 1000001+ ... 2300001+ (every 100000 up to 2300001; 2026-11-01 checks and ladder),
 2400001+ and 2600001+ (200 games each), 3000001+ ... 3400001+ (100 each), 3500001+ and 3700001+
 (200 each), 3900001+ (200), 4100001+ ... 4300001+ (100 each), 4400001+ (2, smoke test),
-4500001+ and 4700001+ (200 each), 4900001+ and 5100001+ (200 each), 5300001+ ... 5500001+ (ladder), 5700001+ (200), 6000001+ and 7000001+ (sweeps, 1000 each, 0 failures), 8000001+ (smoke test), 10000001+ ... 10800001+ (round 11), 11000001+ ... 11200001+ (ladder). Self-play 23000-27499 (round 10). Self-play: 20000-22499 (round 5).
+4500001+ and 4700001+ (200 each), 4900001+ and 5100001+ (200 each), 5300001+ ... 5500001+ (ladder), 5700001+ (200), 6000001+ and 7000001+ (sweeps, 1000 each, 0 failures), 8000001+ (smoke test), 10000001+ ... 10800001+ (round 11), 11000001+ ... 11200001+ (ladder), 12000001+ and 12200001+ (round 12). Self-play 23000-27499 (round 10). Self-play: 20000-22499 (round 5).
 
 | Round | Data | Result |
 |---|---|---|
@@ -633,6 +633,7 @@ inputs v3); matches 100001+, 200001+, 300001+, 400001+, 500001+, 600001+, 700001
 | 9 (2026-11-01) | ensembles (`net.lua`: `members`, Q averaged; `ai_train ensemble`; `train --seed`) | round-5 + r7 + r6: +6.8 / 61%; round-5 + r7 + seed 2 + seed 3 (**ens4**): +8.1 / 60%, confirmed +11.2 / 62%: **bundled**. 5 members (+ r6): +11.2 / 62.8% (199 games; no better than 4). One move costs 4 forward passes (the ladder ran ~1.5x slower) |
 | 10 (2026-11-01) | ensemble self-play was ~4x slower (10 of 60 chunks in an hour): stopped after 250 games (seeds within 23000-24499, `round6a_v3.txt`, kept). Instead the round-5 network (`build/ai/v1_all_h20_e24.lua`): 1500 games against itself (budgets 0.5 and 1.5; seeds 26000-27499; `round6c_v3.txt`), then 1000 against the hand-written policy (budget 2; seeds 25000-25999; `round6b_v3.txt`) | 4 members (seeds 1-4) on every round (6.0M decisions), ensembled (ens10): +3.1 / 52.5% against the bundled ens4 (200 games, seeds 5700001+): not kept. The round-5 recipe is at its plateau; more games of the same kind no longer add |
 | 11 (2026-11-02) | new recipe, temporal difference (`train --bootstrap NET`): the target is the margin change over 20 own decisions **plus the given network's Q at the position reached then** (the horizon no longer blinds it, without the noise of the final margin). Every round (6.0M decisions), v1 inputs, lr 3e-4, 24 epochs | single networks against the round-5 network (200 games each, seeds 10000001+, 10200001+, 10400001+): td1 (Q from round 5) +3.4 / 55.5%; td1 with gamma 0.5 +7.5 / 61.5%; **td2 (Q from td1) +11.6 / 66.5%**. Ensemble of td2 and 3 more members alike (seeds 2-4, Q from td1): **+9.0 / 62.5% against ens4, confirmed +12.3 / 67%** (seeds 10600001+, 10800001+): **bundled** |
+| 12 (2026-11-02) | third TD iteration: Q from the 4 td2 members averaged (`--bootstrap` given 4 times), 4 members (seeds 1-4) | td3 seed 1 against td2 (single networks): +0.6 / 51%; ensemble of the 4 (ens_td3) against the bundled ens_td2: −0.3 / 50% (200 games each, seeds 12000001+, 12200001+): not kept. Two TD iterations take what this data holds; a third adds nothing |
 
 The richer inputs (v2, v3) predict held-out games better but play worse: a lower validation
 error does not mean better choices. (Not because the state explains most of the target: with
@@ -649,7 +650,7 @@ own decisions); neither alone did. The ladder kept its steps with the same budge
 checked yet.
 
 **Next steps (2026-11-02):** recalibrate the level budgets for the TD ensemble (Hard vs Medium
-57%); a third TD iteration (`--bootstrap build/ai/td2.lua`) and members from it; check in
+57%); check in
 TTS how long the ensemble (4 passes per choice) thinks on big decisions.
 
 **Robustness sweeps (2026-11-01/02, round-5 network and the hand-written policy, mixed
