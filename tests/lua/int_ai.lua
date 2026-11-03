@@ -417,4 +417,69 @@ T.test("assist unlock: a partner zoo or university that meets an animal's condit
   available_universities = saved_uni
 end)
 
+-- X-tokens (xtoken): spend them where one more strength point does something
+local XW = { build = 0, cp = 0, xtoken = 2 }
+local function spin(dir) return click(dir == "up" and "+" or "-", "on_x_token_spin_clicked", "Red_" .. dir) end
+
+local function project_game()
+  local p = sim.human_game(false, "map_A")
+  base_projects = { { sim.fake("(102) Habitat Diversity").getGUID(), {} } }
+  for i, icon in ipairs(sim.cnsts.icons.habitat) do
+    set_icon_counter(p.icon_counters[icon], i <= 3 and 1 or 0, sim.cnsts.counter_style.icon)
+  end
+  return p
+end
+
+T.test("assist xtoken: a token that lifts ASSOCIATION to a conservation project", function()
+  local p = project_game()
+  p.action_cards[4], p.action_cards[5] = p.action_cards[5], p.action_cards[4]   -- ASSOCIATION at 4
+  local assoc = card_button(p, "association")
+  T.eq(choices.strength(p, assoc), 4)
+  T.eq(policy.assist_bonus(p, spin("up"), XW), 0, "no X-token")
+  p.x_tokens = { sim.fake("X-token") }
+  T.eq(policy.assist_bonus(p, spin("up"), XW), 2, "4 -> 5: the project")
+  T.eq(policy.assist_bonus(p, spin("down"), XW), 0, "none chosen yet")
+  T.eq(policy.assist_bonus(p, assoc, XW), 0, "no token on it yet")
+  T.eq(policy.assist_bonus(p, spin("up"), W), 0, "xtoken off")
+  action_selection_state.Red.x_tokens_used = 1
+  T.eq(choices.strength(p, assoc), 5)
+  T.eq(policy.assist_bonus(p, spin("up"), XW), 0, "no token left")
+  T.eq(policy.assist_bonus(p, spin("down"), XW), -2, "taking it back loses the project")
+  T.eq(policy.assist_bonus(p, assoc, XW), 2, "the card the token lifts")
+  T.eq(policy.assist_bonus(p, card_button(p, "cards"), XW), 0, "not another card")
+  action_selection_state.Red.only_slot = 4
+  T.eq(policy.assist_bonus(p, spin("down"), XW), 0, "a single-slot action: off")
+  action_selection_state.Red.only_slot = nil
+  action_selection_state.Red.x_tokens_used = 0
+  p.deployed_workers = { { guid = "w", task = 2 } }
+  T.eq(policy.assist_bonus(p, spin("up"), XW), 0, "no worker free")
+end)
+
+T.test("assist xtoken: two tokens short, per token; nothing when the card is strong already", function()
+  local p = project_game()
+  -- ASSOCIATION at 3: two tokens to the project
+  p.action_cards[3], p.action_cards[5] = p.action_cards[5], p.action_cards[3]
+  p.x_tokens = { sim.fake("X-token") }
+  T.eq(policy.assist_bonus(p, spin("up"), XW), 0, "one token is not enough")
+  p.x_tokens = { sim.fake("X-token"), sim.fake("X-token") }
+  T.eq(policy.assist_bonus(p, spin("up"), XW), 1, "half per token")
+  action_selection_state.Red.x_tokens_used = 1
+  T.eq(policy.assist_bonus(p, spin("up"), XW), 2, "the second token")
+  T.eq(policy.assist_bonus(p, spin("down"), XW), 0)
+  action_selection_state.Red.x_tokens_used = 0
+  local q = project_game()                           -- ASSOCIATION at 5 already
+  q.x_tokens = { sim.fake("X-token") }
+  T.eq(policy.assist_bonus(q, spin("up"), XW), 0)
+end)
+
+T.test("assist xtoken: card gains by kind", function()
+  local p = hand_game({ 519 })                       -- a petting-zoo animal, BUILD at 3
+  local build_slot = action_card_slot_named(p, "build")
+  T.eq(policy.card_gain_at(p, "BUILD", build_slot, 3), 1)
+  set_counter(p.money_counter, 5, sim.cnsts.counter_style.cp)
+  T.eq(policy.card_gain_at(p, "BUILD", build_slot, 3), 0, "the petting zoo costs 6")
+  T.eq(policy.card_gain_at(p, "CARDS", 1, 5), 0)
+  T.eq(policy.card_gain_at(p, "ANIMALS", 1, 5), 0, "no animal playable")
+end)
+
 T.finish("integration AI")

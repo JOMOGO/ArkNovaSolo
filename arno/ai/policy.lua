@@ -196,8 +196,13 @@ end
 --          best one on offer
 --   upgrade on the upgrade of the ANIMALS action card (the network scores the four upgrades
 --          it would take the same: it drew one at random; round 19)
+--   xtoken on an X-token "+" when one more token (or a few, per token) lifts an action card to
+--          what it cannot do now (M.card_gain_at: a second animal, a conservation project, a
+--          build that houses a hand animal, a playable sponsor); minus that on "-"; and on the
+--          action card the chosen tokens lift (round 20: the network spends ~2 of its tokens a
+--          game, never on ANIMALS, and ends with 2.5-3.7 unused)
 -- (round 17, docs/AI_OPPONENT.md §10: final 1 / 2 and ending 6 brought nothing against ARNO 1: off)
-M.ASSIST = { build = 3, cp = 4, final = 0, ending = 0, unlock = 3, upgrade = 0.5 }   -- round 19: unlock + upgrade on
+M.ASSIST = { build = 3, cp = 4, final = 0, ending = 0, unlock = 3, upgrade = 0.5, xtoken = 0 }   -- round 19: unlock + upgrade on
 M.END_LAST_TURN = 6       -- what the other player's last turn brings, roughly (traces: ~6)
 M.END_OTHER_CP = 1.5      -- the final scoring CP of a player whose cards the AI cannot see
 M.END_RANGE = 25
@@ -254,10 +259,7 @@ local function action_card_num(player, slot)
   return ok and name and string.sub(name, -1) or "0"
 end
 
-local function build_card_gain(player, c)
-  local slot = tonumber((c.arg or ""):match("_(%d+)$") or "")
-  local strength = choices_mod.strength(player, c)
-  if slot == nil or strength == nil then return 0 end
+local function build_gain_at(player, slot, strength)
   local num = action_card_num(player, slot)
   local best = 0
   for _, cand in ipairs(build_candidates(player, { upgd = player.build_flipped, num = num, built = {},
@@ -267,15 +269,26 @@ local function build_card_gain(player, c)
   return best
 end
 
-local function association_card_supports(player, c)
+local function build_card_gain(player, c)
   local slot = tonumber((c.arg or ""):match("_(%d+)$") or "")
   local strength = choices_mod.strength(player, c)
-  if slot == nil or strength == nil then return false end
+  if slot == nil or strength == nil then return 0 end
+  return build_gain_at(player, slot, strength)
+end
+
+local function association_supports_at(player, slot, strength)
   local num = action_card_num(player, slot)
   local upgd = player.association_flipped
   return association_task_open(player, 5, strength, num, upgd, false)
     or (association_extra_worker_allowed(num, upgd)
         and association_task_open(player, 5, strength, num, upgd, true))
+end
+
+local function association_card_supports(player, c)
+  local slot = tonumber((c.arg or ""):match("_(%d+)$") or "")
+  local strength = choices_mod.strength(player, c)
+  if slot == nil or strength == nil then return false end
+  return association_supports_at(player, slot, strength)
 end
 
 -- ---- final scoring cards (final): the award read smoothly between the thresholds
@@ -574,14 +587,92 @@ local function other_bonus(player, c, w)
   return 0
 end
 
+-- ---- X-tokens (xtoken): what an action card does at a strength that it does not one lower
+-- (1: a second animal (two playable, affordable together), a conservation project; BUILD: the
+-- build assist's animals housed; SPONSORS: 1/2 for a sponsor that becomes playable)
+function M.card_gain_at(player, kind, slot, strength)
+  if kind == "ANIMALS" then
+    if animals_count(player, strength) < 2 then return 0 end
+    local costs = {}
+    for _, a in ipairs(affordable_animals(player)) do costs[#costs + 1] = a.cost end
+    table.sort(costs)
+    return (#costs >= 2 and costs[1] + costs[2] <= get_counter_value(player.money_counter)) and 1 or 0
+  elseif kind == "ASSOCIATION" then
+    return association_supports_at(player, slot, strength) and 1 or 0
+  elseif kind == "BUILD" then
+    return build_gain_at(player, slot, strength)
+  elseif kind == "SPONSORS" then
+    return #playable_sponsor_candidates(player, strength) > 0 and 0.5 or 0
+  end
+  return 0
+end
+
+-- the action selection's state when X-tokens can go on any card (nil otherwise)
+local function x_state(player)
+  local state = action_selection_state and action_selection_state[player.color]
+  if state == nil or state.only_slot ~= nil or state.multiplier ~= nil or state.hypnosis
+     or state.x_token_active then return nil end
+  return state
+end
+
+local function card_kind(player, slot)
+  local ok, name = pcall(function() return action_card_object(player, slot).getName() end)
+  return ok and name and string.upper(tostring(name):match("^(%a+)") or "") or nil
+end
+
+-- the gain of spending `extra` more X-tokens (negative: fewer) on the best card for it, per
+-- token: max over the cards of (gain at used + extra) - (gain at used), / |extra| when positive
+function M.x_step_gain(player, up)
+  local state = x_state(player)
+  if state == nil then return 0 end
+  local used, have = state.x_tokens_used or 0, #(player.x_tokens or {})
+  local best = 0
+  for slot = 1, 5 do
+    local kind = card_kind(player, slot)
+    if kind then
+      local s = action_strength(player, slot, used, player)
+      local now = M.card_gain_at(player, kind, slot, s)
+      if up then
+        for j = 1, have - used do
+          best = math.max(best, (M.card_gain_at(player, kind, slot, s + j) - now) / j)
+        end
+      elseif used > 0 then
+        best = math.max(best, now - M.card_gain_at(player, kind, slot, s - 1))
+      end
+    end
+  end
+  return best
+end
+
+local function x_bonus(player, c, w)
+  if c.handler == "on_x_token_spin_clicked" then
+    local dir = (c.arg or ""):match("_(%a+)$")
+    if dir == "up" then return w * M.x_step_gain(player, true) end
+    if dir == "down" then return -w * M.x_step_gain(player, false) end
+    return 0
+  end
+  if c.handler == "on_action_card_button_clicked" then
+    -- the card the X-tokens chosen were for: what they add to it
+    local state = x_state(player)
+    local used = state and state.x_tokens_used or 0
+    local slot = tonumber((c.arg or ""):match("_(%d+)$") or "")
+    local kind = slot and card_kind(player, slot)
+    if used <= 0 or kind == nil then return 0 end
+    local s = action_strength(player, slot, used, player)
+    return w * math.max(0, M.card_gain_at(player, kind, slot, s) - M.card_gain_at(player, kind, slot, s - used))
+  end
+  return 0
+end
+
 local function assist_bonus(player, c, w)
   local v = other_bonus(player, c, w)
+  if c.kind == "click" and (w.xtoken or 0) ~= 0 then v = v + x_bonus(player, c, w.xtoken) end
   if c.kind == "click" and (w.unlock or 0) ~= 0 then v = v + w.unlock * unlock_bonus(player, c, c.label or "") end
   if (w.upgrade or 0) ~= 0 and c.handler == "on_card_flip_clicked" and c.label == "ANIMALS" then v = v + w.upgrade end
   return v
 end
 
--- the assists' points for one choice under weights w ({ build, cp, final, ending, unlock }); 0 on any error
+-- the assists' points for one choice under weights w ({ build, cp, final, ending, unlock, upgrade, xtoken }); 0 on any error
 function M.assist_bonus(player, c, w)
   local ok, v = pcall(assist_bonus, player, c, w or M.ASSIST)
   if not ok and M.on_assist_error then M.on_assist_error(v, c) end     -- tests, analysis
