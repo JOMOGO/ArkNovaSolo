@@ -186,13 +186,16 @@ local function q_scored(player, choices, weights)
   -- an ensemble does the work of all its members per choice: yield as often per pass
   local w = weights or net.weights()
   local every = math.max(1, math.floor(M.YIELD_EVERY / ((w and w.members) and #w.members or 1)))
+  -- card-identity inputs (weights with `cards`): the card the choice is about, as in training
+  local with_cards = net.cards_of(w) > 0
   for i, e in ipairs(list) do
     if M.yielding and i % every == 0 then coroutine.yield() end
     local x = {}
     for i, v in ipairs(state) do x[i] = v end
     for _, v in ipairs(features.choice(player, e.choice, e.heuristic, version)) do x[#x + 1] = v end
     -- rules over the network (M.rule)
-    e.score = M.rule(player, e.choice) or net.forward(x, weights)
+    e.score = M.rule(player, e.choice)
+      or net.forward(x, weights, with_cards and features.card_number(e.choice) or nil)
   end
   return list
 end

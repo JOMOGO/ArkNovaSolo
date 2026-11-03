@@ -73,4 +73,64 @@ T.test("an ensemble's Q is the average of its members'", function()
   T.eq(net.forward({ 3 }, { version = 1, inputs = 1, features = 1, members = { a, b } }), 4.5)
 end)
 
+-- card-identity inputs (train --cards): `cards = N` one-hot inputs after the base inputs
+local features = require("ai.features")
+
+T.test("features.card_number: the card a choice is about", function()
+  T.eq(features.card_number({ kind = "pick_up", label = "play animal: (402) Lion", obj = sim.fake("(402) Lion") }), 402)
+  T.eq(features.card_number({ kind = "pick_up", label = "select: (045) Something" }), 45, "named in the label")
+  T.eq(features.card_number({ kind = "click", label = "Confirm" }), 0)
+  T.eq(features.card_number({ kind = "click", label = "2 money" }), 0)
+end)
+
+T.test("a network with card inputs adds the card's weight", function()
+  -- one base input, 3 cards, no hidden layer: Q = b + w * x + w_card
+  local w = { version = 1, inputs = 4, features = 1, cards = 3, mean = { 1, 0, 0, 0 }, std = { 2, 1, 1, 1 },
+              layers = { { n_in = 4, n_out = 1, w = { 2, 10, 20, 30 }, b = { 1 } } } }
+  T.eq(net.cards_of(w), 3)
+  T.eq(net.forward({ 3 }, w, 0), 3, "no card: the base inputs only")
+  T.eq(net.forward({ 3 }, w, 2), 23)
+  T.eq(net.forward({ 3 }, w, 3), 33)
+  T.eq(net.forward({ 3, 0, 1, 0 }, w), 23, "a dense one-hot in x gives the same")
+  T.eq(net.forward({ 3 }, w, 7), 3, "a card beyond the inputs: none")
+  -- an ensemble may mix it with a network without card inputs
+  local plain = { version = 1, inputs = 1, mean = { 0 }, std = { 1 }, layers = { { n_in = 1, n_out = 1, w = { 1 }, b = { 0 } } } }
+  local ens = { version = 1, inputs = 1, features = 1, members = { w, plain } }
+  T.eq(net.cards_of(ens), 3)
+  T.eq(net.cards_of(plain), 0)
+  T.eq(net.forward({ 3 }, ens, 2), (23 + 3) / 2)
+end)
+
+T.test("policy.q_scored gives a choice about card N its card weight", function()
+  local p = sim.human_game(false, "map_A")
+  local n_base = features.SIZES[1][1] + features.SIZES[1][2]
+  local n = n_base + 560
+  local mean, std, wt = {}, {}, {}
+  for i = 1, n do mean[i], std[i], wt[i] = 0, 1, 0 end
+  wt[n_base + 402], wt[n_base + 45] = 5, -2          -- the base inputs weigh nothing
+  local w = { version = 1, inputs = n, features = 1, cards = 560, mean = mean, std = std,
+              layers = { { n_in = n, n_out = 1, w = wt, b = { 1 } } } }
+  local choices = {
+    { kind = "pick_up", label = "select: (402) Lion", obj = sim.fake("(402) Lion") },
+    { kind = "pick_up", label = "select: (045) Something", obj = sim.fake("(045) Something") },
+    { kind = "pick_up", label = "select: (111) Other", obj = sim.fake("(111) Other") },
+  }
+  local scores = {}
+  for _, e in ipairs(policy.q_scored(p, choices, w)) do scores[features.card_number(e.choice)] = e.score end
+  T.eq(scores[402], 6)
+  T.eq(scores[45], -1)
+  T.eq(scores[111], 1, "a card without weight: the bias")
+  -- in an ensemble with a network without card inputs (Q 0 here)
+  local zero = {}
+  for i = 1, n_base do zero[i] = 0 end
+  local plain = { version = 1, inputs = n_base, features = 1, mean = zero, std = std,
+                  layers = { { n_in = n_base, n_out = 1, w = zero, b = { 0 } } } }
+  scores = {}
+  for _, e in ipairs(policy.q_scored(p, choices, { version = 1, inputs = n_base, features = 1, members = { w, plain } })) do
+    scores[features.card_number(e.choice)] = e.score
+  end
+  T.eq(scores[402], 3)
+  T.eq(scores[45], -0.5)
+end)
+
 T.finish("integration AI match")

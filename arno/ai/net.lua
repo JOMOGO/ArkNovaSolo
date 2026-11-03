@@ -7,6 +7,11 @@
 --   or an ensemble: { version, inputs, features, members = { weights, weights, ... } } whose
 --   Q is the average of its members' (each with its own input scaling); it steadies the
 --   choice, which swings between networks trained alike
+-- Card-identity inputs (train --cards): weights with `cards = N` read inputs - N base inputs
+-- and then a one-hot of the card the choice is about (1..N; features.card_number), not
+-- standardised. forward's third argument is that card number (0: none); only its one input
+-- is added to the first layer, so a choice costs the base inputs + 1. Without it the one-hot
+-- is looked for in x after the base inputs. Ensemble members may differ in `cards`.
 
 local M = {}
 
@@ -29,18 +34,45 @@ function M.available()
   return M.weights() ~= nil
 end
 
--- x: the input list (features.state .. features.choice); returns Q
-function M.forward(x, w)
+-- the card inputs a network (or any member of an ensemble) reads; 0: none
+function M.cards_of(w)
+  w = w or M.weights()
+  if w == nil then return 0 end
+  if w.members then
+    local n = w.cards or 0
+    for _, member in ipairs(w.members) do n = math.max(n, member.cards or 0) end
+    return n
+  end
+  return w.cards or 0
+end
+
+-- x: the input list (features.state .. features.choice); card: the card number (networks
+-- with card inputs); returns Q
+function M.forward(x, w, card)
   w = w or M.weights()
   if w.members then
     local sum = 0
-    for _, member in ipairs(w.members) do sum = sum + M.forward(x, member) end
+    for _, member in ipairs(w.members) do sum = sum + M.forward(x, member, card) end
     return sum / #w.members
   end
+  local n_cards = w.cards or 0
+  local n_base = w.inputs - n_cards
   local cur = {}
-  for i = 1, w.inputs do
+  for i = 1, n_base do
     local s = w.std[i]
     cur[i] = ((x[i] or 0) - w.mean[i]) / ((s ~= nil and s > 0) and s or 1)
+  end
+  -- the card's one input (value 1; a dense one-hot in x: its value)
+  local card_v = 0
+  if n_cards > 0 then
+    if card == nil then
+      for i = 1, n_cards do
+        local v = x[n_base + i]
+        if v ~= nil and v ~= 0 then card, card_v = i, v break end
+      end
+    elseif card >= 1 and card <= n_cards then
+      card_v = 1
+    end
   end
   local layers = w.layers
   for l = 1, #layers do
@@ -48,12 +80,15 @@ function M.forward(x, w)
     local wt, b, n_in, n_out = layer.w, layer.b, layer.n_in, layer.n_out
     local out = {}
     local last = (l == #layers)
+    local first = (l == 1)
+    local upto = first and n_base or n_in
     for j = 1, n_out do
       local s, base = b[j], (j - 1) * n_in
-      for i = 1, n_in do
+      for i = 1, upto do
         local v = cur[i]
         if v ~= 0 then s = s + wt[base + i] * v end
       end
+      if first and card_v ~= 0 then s = s + wt[base + n_base + card] * card_v end
       if not last and s < 0 then s = 0 end
       out[j] = s
     end

@@ -395,9 +395,22 @@ function M.version_of(weights)
   if weights == nil then return M.VERSION end
   if weights.features then return weights.features end
   for v, s in pairs(M.SIZES) do
-    if s[1] + s[2] == weights.inputs then return v end
+    if s[1] + s[2] == weights.inputs - (weights.cards or 0) then return v end
   end
   return 1
+end
+
+-- card-identity inputs (weights with `cards`, tools/ai_train.py train --cards): the number of
+-- the card a choice is about (a card picked up, or named in the label as "...: (123) Name"),
+-- 0 if none. The same as the D lines' field 7 (tests/lua/selfplay.lua M_card_number).
+function M.card_number(c)
+  local name
+  if c.obj then
+    local ok, n = pcall(function() return c.obj.getName() end)
+    if ok then name = n end
+  end
+  name = name or (c.label or ""):match(": (.+)$") or c.label or ""
+  return tonumber(tostring(name):match("%((%d+)%)")) or 0
 end
 
 return M

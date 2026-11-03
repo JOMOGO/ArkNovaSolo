@@ -9,6 +9,7 @@ play   runs headless games of the built mod on every core (tests/lua/selfplay.lu
        the decision lines (D|seed|color|margin|inputs) and the end lines (E|...).
 train  fits Q(inputs) = final margin - margin at the decision with a small MLP (numpy, Adam,
        ReLU, mean squared error) and writes the weights as a Lua module (ai.net_weights).
+       train --cards adds card-identity inputs (a one-hot of the card the move is about).
 match  plays games and reports the average margin and win rate of each seat's policy.
 search values the top candidates of sampled decisions by replaying the game from its seed
        (tests/lua/search.lua; S lines, docs/AI_OPPONENT.md §10); train --search uses them.
@@ -37,6 +38,9 @@ FEATURE_VERSIONS = {85: 1, 146: 2, 242: 3}
 # (state, choice) inputs per version, as features.lua M.SIZES; a later version only appends
 # to both blocks, so an earlier version's inputs are a column subset of a later one's
 FEATURE_SIZES = {1: (39, 46), 2: (97, 49), 3: (193, 49)}
+# card-identity inputs (train --cards): a one-hot of the number of the card a choice is about
+# (1..N_CARDS; 0 = none, all zeros), after the base inputs; never standardised (mean 0, std 1)
+N_CARDS = 560
 
 
 def project(row: np.ndarray, version: int) -> np.ndarray:
@@ -266,12 +270,13 @@ def report(lines: list[str], seats) -> None:
 
 def load(paths: list[Path], horizon: int = 0, target: str = "margin",
          inputs: int | None = None, final_weight: float = 0.0):
-    """Inputs and targets. Target: the player's margin (target "margin") or own score
+    """Inputs, targets, games, the row `horizon` on (-1: none) and the card number of every
+    row (0: none). Target: the player's margin (target "margin") or own score
     (target "score") `horizon` of its own decisions later (or at the end of the game) minus
     the same at the decision; horizon 0 = at the end. A short horizon ties a choice to what
     it caused, with far less noise; the own score leaves out what the others do meanwhile."""
     finals: dict[tuple[int, str], tuple[int, int]] = {}
-    by_seat: dict[tuple[int, str], list[tuple[int, int, np.ndarray]]] = {}
+    by_seat: dict[tuple[int, str], list[tuple[int, int, np.ndarray, int]]] = {}
     for path in paths:
         with path.open(encoding="utf-8") as f:        # streamed: the text is never all held
             for l in f:
@@ -283,11 +288,16 @@ def load(paths: list[Path], horizon: int = 0, target: str = "margin",
                     parts = l.rstrip(chr(10)).split("|")
                     score = int(parts[5]) if len(parts) > 5 else 0
                     row = np.array(parts[4].split(","), dtype=np.float32)
+                    if len(row) not in FEATURE_VERSIONS:
+                        continue        # a line cut short (a file still being written)
                     if inputs:
                         row = project(row, inputs)
-                    by_seat.setdefault((int(parts[1]), parts[2]), []).append((int(parts[3]), score, row))
+                    # field 7: the card the chosen move is about (from round 7 on; else 0)
+                    card = int(parts[6]) if len(parts) > 6 and parts[6].strip().isdigit() else 0
+                    by_seat.setdefault((int(parts[1]), parts[2]), []).append(
+                        (int(parts[3]), score, row, card if card <= N_CARDS else 0))
     k = 0 if target == "margin" else 1
-    xs, ys, games, nxt = [], [], [], []
+    xs, ys, games, nxt, cards = [], [], [], [], []
     for key, seq in by_seat.items():
         final = finals.get(key)
         if final is None:
@@ -300,33 +310,45 @@ def load(paths: list[Path], horizon: int = 0, target: str = "margin",
             ys.append((1 - final_weight) * (later - entry[k]) + final_weight * (final[k] - entry[k]))
             games.append(key[0])
             nxt.append(start + i + horizon if ahead else -1)   # the row `horizon` decisions on
-    return np.stack(xs), np.array(ys, dtype=np.float32), np.array(games), np.array(nxt)
+            cards.append(entry[3])
+    return (np.stack(xs), np.array(ys, dtype=np.float32), np.array(games), np.array(nxt),
+            np.array(cards, dtype=np.int16))
 
 
 def load_search(paths: list[Path], inputs: int | None = None):
     """S lines (ai_train search): inputs, the searched value of the candidate, the game (seed).
-    S|seed|color|point|rank|value|sd|base|inputs|card"""
-    xs, ys, games = [], [], []
+    S|seed|color|point|rank|value|sd|base|inputs|card; and the card number of every row."""
+    xs, ys, games, cards = [], [], [], []
     for path in paths:
         with path.open(encoding="utf-8") as f:
             for l in f:
                 if not l.startswith("S|"):
                     continue
                 parts = l.rstrip("\n").split("|")
+                if len(parts) < 9:
+                    continue
                 row = np.array(parts[8].split(","), dtype=np.float32)
+                if len(row) not in FEATURE_VERSIONS:
+                    continue        # a line cut short (a file still being written)
                 xs.append(project(row, inputs) if inputs else row)
                 ys.append(float(parts[5]))
                 games.append(int(parts[1]))
+                card = int(parts[9]) if len(parts) > 9 and parts[9].strip().isdigit() else 0
+                cards.append(card if card <= N_CARDS else 0)
     if not xs:
         raise SystemExit(f"no S lines in {', '.join(map(str, paths))}")
-    return np.stack(xs), np.array(ys, dtype=np.float32), np.array(games)
+    return np.stack(xs), np.array(ys, dtype=np.float32), np.array(games), np.array(cards, dtype=np.int16)
 
 
 def train(x: np.ndarray, y: np.ndarray, hidden=(64, 64), epochs=12, lr=1e-3, batch=512, seed=1,
-          games: np.ndarray | None = None, snapshot=None):
+          games: np.ndarray | None = None, snapshot=None, cards: np.ndarray | None = None,
+          n_cards: int = N_CARDS):
     """games: the game (seed) of every row; every 10th game is held out for validation (from
     every round, not only the first file). snapshot(epoch, params): called after each epoch
-    with the output scale folded in (to export several epochs)."""
+    with the output scale folded in (to export several epochs).
+    cards (train --cards): the card number of every row (0: none). The one-hot of it is kept
+    sparse: the first layer gets a third array wc (n_cards + 1 rows; row 0 stays 0) whose row
+    of the card is added to its pre-activation; export() writes it as dense input columns."""
     rng = np.random.default_rng(seed)
     mean, std = x.mean(0), x.std(0)
     std[std < 1e-6] = 1.0
@@ -335,8 +357,11 @@ def train(x: np.ndarray, y: np.ndarray, hidden=(64, 64), epochs=12, lr=1e-3, bat
     params = []
     for a, b in zip(sizes[:-1], sizes[1:]):
         params.append([rng.normal(0, np.sqrt(2.0 / a), (a, b)).astype(np.float32), np.zeros(b, np.float32)])
-    m = [[np.zeros_like(w), np.zeros_like(b)] for w, b in params]
-    v = [[np.zeros_like(w), np.zeros_like(b)] for w, b in params]
+    if cards is not None:
+        cards = np.asarray(cards, dtype=np.int64)
+        params[0].append(np.zeros((n_cards + 1, sizes[1]), np.float32))
+    m = [[np.zeros_like(p) for p in layer] for layer in params]
+    v = [[np.zeros_like(p) for p in layer] for layer in params]
     t = 0
     idx = np.arange(len(xn))
     if games is not None and (games % 10 == 0).any() and not (games % 10 == 0).all():
@@ -352,30 +377,37 @@ def train(x: np.ndarray, y: np.ndarray, hidden=(64, 64), epochs=12, lr=1e-3, bat
         for start in range(0, len(tr), batch):
             bi = tr[start:start + batch]
             acts = [xn[bi]]
-            for li, (w, b) in enumerate(params):
-                z = acts[-1] @ w + b
+            for li, layer in enumerate(params):
+                z = acts[-1] @ layer[0] + layer[1]
+                if li == 0 and cards is not None:
+                    z = z + layer[2][cards[bi]]
                 acts.append(np.maximum(z, 0) if li < len(params) - 1 else z)
             grad = 2 * (acts[-1][:, 0] - y[bi] / yscale)[:, None] / len(bi)
             t += 1
             for li in range(len(params) - 1, -1, -1):
-                w, b = params[li]
-                gw, gb = acts[li].T @ grad, grad.sum(0)
+                w = params[li][0]
+                grads = [acts[li].T @ grad, grad.sum(0)]
+                if li == 0 and cards is not None:
+                    gc = np.zeros_like(params[0][2])
+                    np.add.at(gc, cards[bi], grad)
+                    gc[0] = 0                     # no card: no input
+                    grads.append(gc)
                 if li > 0:
                     grad = (grad @ w.T) * (acts[li] > 0)
-                for k, g in ((0, gw), (1, gb)):
+                for k, g in enumerate(grads):
                     m[li][k] = 0.9 * m[li][k] + 0.1 * g
                     v[li][k] = 0.999 * v[li][k] + 0.001 * g * g
                     mh, vh = m[li][k] / (1 - 0.9 ** t), v[li][k] / (1 - 0.999 ** t)
                     params[li][k] -= lr * mh / (np.sqrt(vh) + 1e-8)
-        pred = predict(params, xn[val]) * yscale
+        pred = predict(params, xn[val], None if cards is None else cards[val]) * yscale
         mse = float(np.mean((pred - y[val]) ** 2))
         base = float(np.mean((y[val] - y[tr].mean()) ** 2))
         print(f"  epoch {epoch + 1:2d}: validation error {mse:7.1f} (predicting the mean: {base:7.1f})")
         if snapshot is not None:
-            snapshot(epoch + 1, [[w.copy(), b.copy()] for w, b in params[:-1]]
+            snapshot(epoch + 1, [[p.copy() for p in layer] for layer in params[:-1]]
                      + [[params[-1][0] * yscale, params[-1][1] * yscale]])
         if mse < best_mse:       # early stop: keep the epoch that predicts held-out games best
-            best, best_mse, best_epoch = [[w.copy(), b.copy()] for w, b in params], mse, epoch + 1
+            best, best_mse, best_epoch = [[p.copy() for p in layer] for layer in params], mse, epoch + 1
     params = best
     print(f"  kept epoch {best_epoch} (validation error {best_mse:.1f})")
     # fold the output scale into the last layer
@@ -384,27 +416,46 @@ def train(x: np.ndarray, y: np.ndarray, hidden=(64, 64), epochs=12, lr=1e-3, bat
     return params, mean, std
 
 
-def predict(params, xn):
+def predict(params, xn, cards=None):
+    """cards: the card number of every row, for a network with card inputs (params[0][2])."""
     a = xn
-    for li, (w, b) in enumerate(params):
-        a = a @ w + b
+    for li, layer in enumerate(params):
+        a = a @ layer[0] + layer[1]
+        if li == 0 and len(layer) > 2 and cards is not None:
+            a = a + layer[2][np.asarray(cards, dtype=np.int64)]
         if li < len(params) - 1:
             a = np.maximum(a, 0)
     return a[:, 0]
 
 
 def read_weights(path: Path):
-    """The layers, mean and std of an exported network (export() below)."""
+    """The layers, mean and std of an exported network (export() below). A network with card
+    inputs (cards = N) comes back as train() makes it: the base mean and std, the first layer
+    [w, b, wc] with wc's row 0 (no card) zero."""
     import re
     text = path.read_text(encoding="utf-8")
+    if "members = {" in text:
+        raise SystemExit(f"{path}: an ensemble (give its members)")
     nums = lambda body: np.array([float(v) for v in body.split(",") if v.strip()], dtype=np.float64)
     mean = nums(re.search(r"mean = \{([^}]*)\}", text).group(1))
     std = nums(re.search(r"std = \{([^}]*)\}", text).group(1))
+    found = re.search(r"\bcards = (\d+)", text)
+    n_cards = int(found.group(1)) if found else 0
     params = []
     for n_in, n_out, b, w in re.findall(
             r"n_in = (\d+), n_out = (\d+), b = \{([^}]*)\},\s*w = \{([^}]*)\}", text):
         params.append([nums(w).reshape(int(n_out), int(n_in)).T, nums(b)])
+    if n_cards:
+        n_base = len(mean) - n_cards
+        w = params[0][0]
+        params[0] = [w[:n_base], params[0][1], np.vstack([np.zeros((1, w.shape[1])), w[n_base:]])]
+        mean, std = mean[:n_base], std[:n_base]
     return params, mean, std
+
+
+def card_count(params) -> int:
+    """The card inputs of a network (0: none)."""
+    return params[0][2].shape[0] - 1 if len(params[0]) > 2 else 0
 
 
 def lua_list(values) -> str:
@@ -412,20 +463,30 @@ def lua_list(values) -> str:
 
 
 def export(params, mean, std, out: Path, note: str) -> None:
+    """mean, std: of the base inputs. A network with card inputs gets them as dense columns
+    after the base inputs (mean 0, std 1: a zero stays 0 in Lua) and `cards = N`."""
+    n_cards = card_count(params)
     layers = []
-    for w, b in params:
+    for li, layer in enumerate(params):
+        w, b = layer[0], layer[1]
+        if li == 0 and n_cards:
+            w = np.vstack([w, layer[2][1:]])
         n_in, n_out = w.shape
         # row-major by output: w[(j - 1) * n_in + i]
         layers.append(f"    {{ n_in = {n_in}, n_out = {n_out}, b = {lua_list(b)},\n"
                       f"      w = {lua_list(w.T.reshape(-1))} }}")
+    full_mean = np.concatenate([mean, np.zeros(n_cards)])
+    full_std = np.concatenate([std, np.ones(n_cards)])
     text = ("-- AI opponent network weights (docs/AI_OPPONENT.md section 4a).\n"
             "-- GENERATED by tools/ai_train.py; do not edit. " + note + "\n"
-            f"return {{\n  version = 1,\n  inputs = {len(mean)},\n"
+            f"return {{\n  version = 1,\n  inputs = {len(full_mean)},\n"
             f"  features = {FEATURE_VERSIONS.get(len(mean), 1)},\n"
-            f"  mean = {lua_list(mean)},\n  std = {lua_list(std)},\n  layers = {{\n"
+            + (f"  cards = {n_cards},\n" if n_cards else "")
+            + f"  mean = {lua_list(full_mean)},\n  std = {lua_list(full_std)},\n  layers = {{\n"
             + ",\n".join(layers) + "\n  },\n}\n")
     out.write_text(text, encoding="utf-8", newline="\n")
-    print(f"wrote {out} ({sum(w.size + b.size for w, b in params)} weights)")
+    n_weights = sum(p.size for layer in params for p in layer[:2]) + n_cards * params[0][1].size
+    print(f"wrote {out} ({n_weights} weights)")
 
 
 def main(argv=None) -> int:
@@ -464,6 +525,9 @@ def main(argv=None) -> int:
     t.add_argument("--horizon", type=int, default=0,
                    help="target = margin this many own decisions later (0: final margin)")
     t.add_argument("--target", choices=("margin", "score"), default="margin")
+    t.add_argument("--cards", action="store_true",
+                   help=f"card-identity inputs: a one-hot of the card the move is about (1..{N_CARDS}; D field 7, "
+                        "S field 10; rows without it: none) after the base inputs, not standardised")
     e = sub.add_parser("ensemble", help="bundle networks: Q is the average of theirs")
     e.add_argument("--weights", type=Path, action="append", required=True)
     e.add_argument("--out", type=Path, required=True)
@@ -520,21 +584,27 @@ def main(argv=None) -> int:
     elif args.cmd == "ensemble":
         import re
         NL = "\n"
-        members, inputs, features = [], set(), set()
+        # members may differ in card inputs (cards = N): they share the base inputs; the
+        # ensemble's inputs and features are those, its cards the most any member reads
+        members, inputs, features, cards = [], set(), set(), [0]
         for w in args.weights:
             text = w.read_text(encoding="utf-8")
             if "members = {" in text:
                 raise SystemExit(f"{w}: already an ensemble")
-            inputs.add(int(re.search(r"inputs = (\d+)", text).group(1)))
+            found = re.search(r"\bcards = (\d+)", text)
+            n_cards = int(found.group(1)) if found else 0
+            cards.append(n_cards)
+            inputs.add(int(re.search(r"inputs = (\d+)", text).group(1)) - n_cards)
             features.add(int(re.search(r"features = (\d+)", text).group(1)))
             members.append(text[text.index("return {") + len("return "):].strip())
         if len(inputs) != 1 or len(features) != 1:
             raise SystemExit("the members read different inputs")
         n, f = inputs.pop(), features.pop()
+        card_line = f"  cards = {max(cards)},{NL}" if max(cards) else ""
         head = ("-- AI opponent network weights (docs/AI_OPPONENT.md section 4a)." + NL
                 + "-- GENERATED by tools/ai_train.py; do not edit. Ensemble of "
                 + ", ".join(w.name for w in args.weights) + "." + NL)
-        body = (f"return {{{NL}  version = 1,{NL}  inputs = {n},{NL}  features = {f},{NL}  members = {{{NL}"
+        body = (f"return {{{NL}  version = 1,{NL}  inputs = {n},{NL}  features = {f},{NL}{card_line}  members = {{{NL}"
                 + ("," + NL).join(members) + NL + "  }," + NL + "}" + NL)
         args.out.write_text(head + body, encoding="utf-8", newline=NL)
         print(f"wrote {args.out} ({len(members)} members)")
@@ -546,15 +616,19 @@ def main(argv=None) -> int:
         for _, m2, s2 in nets[1:]:
             if not (np.allclose(m2, mean, rtol=1e-3, atol=1e-6) and np.allclose(s2, std, rtol=1e-3, atol=1e-6)):
                 raise SystemExit("not one run: the input scaling differs")
-        params = [[np.mean([n[0][li][k] for n in nets], axis=0) for k in (0, 1)] for li in range(len(nets[0][0]))]
+        if len({card_count(n[0]) for n in nets}) != 1:
+            raise SystemExit("not one run: the card inputs differ")
+        params = [[np.mean([n[0][li][k] for n in nets], axis=0) for k in range(len(nets[0][0][li]))]
+                  for li in range(len(nets[0][0]))]
         export(params, mean, std, args.out, "Average of " + ", ".join(w.name for w in args.weights) + ".")
     elif args.cmd == "train":
         if not args.data and not args.search:
             raise SystemExit("train: give --data and/or --search")
         if args.data:
-            x, y, games, nxt = load(args.data, args.horizon, args.target, args.inputs, args.final_weight)
+            x, y, games, nxt, cards = load(args.data, args.horizon, args.target, args.inputs, args.final_weight)
         else:
             x, y, games, nxt = None, np.zeros(0, np.float32), np.zeros(0, int), np.zeros(0, int)
+            cards = np.zeros(0, np.int16)
         if args.bootstrap is not None and x is not None:
             # temporal difference: the change over the horizon plus what a trained network
             # expects from the position reached then (its own Q there, the choice then made),
@@ -565,8 +639,10 @@ def main(argv=None) -> int:
                 bp, bmean, bstd = read_weights(path)
                 if len(bmean) != x.shape[1]:
                     raise SystemExit(f"--bootstrap: {path} reads other inputs")
+                # a network with card inputs: each row's own card (q[nxt]: the next row's)
                 for a in range(0, len(y), 200000):
-                    q[a:a + 200000] += predict(bp, (x[a:a + 200000] - bmean) / bstd) / len(args.bootstrap)
+                    q[a:a + 200000] += predict(bp, (x[a:a + 200000] - bmean) / bstd,
+                                               cards[a:a + 200000]) / len(args.bootstrap)
             ahead = nxt >= 0
             print(f"bootstrap from {', '.join(p.name for p in args.bootstrap)}: {ahead.mean():.0%} of the rows, "
                   f"Q there mean {q[nxt[ahead]].mean():+.1f} sd {q[nxt[ahead]].std():.1f}")
@@ -575,16 +651,18 @@ def main(argv=None) -> int:
         if args.search:
             # appended after the bootstrap (their value already holds the network's Q at the
             # horizon, and nxt indexes the D rows); game = seed, so the hold-out split holds
-            sx, sy, sg = load_search(args.search, args.inputs)
+            sx, sy, sg, sc = load_search(args.search, args.inputs)
             if x is not None and sx.shape[1] != x.shape[1]:
                 raise SystemExit(f"--search rows have {sx.shape[1]} inputs, --data rows {x.shape[1]} (use --inputs)")
             w = max(1, args.search_weight)
             print(f"search labels: {len(sy)} rows x {w}, value mean {sy.mean():+.1f} sd {sy.std():.1f}")
-            sx, sy, sg = np.repeat(sx, w, axis=0), np.repeat(sy, w), np.repeat(sg, w)
+            sx, sy, sg, sc = np.repeat(sx, w, axis=0), np.repeat(sy, w), np.repeat(sg, w), np.repeat(sc, w)
             x = sx if x is None else np.concatenate([x, sx])
+            cards = np.concatenate([cards, sc])
             y = np.concatenate([y, sy]).astype(np.float32)
             games = np.concatenate([games, sg])
-        print(f"{len(y)} decisions, {x.shape[1]} inputs, target mean {y.mean():+.1f} sd {y.std():.1f}")
+        print(f"{len(y)} decisions, {x.shape[1]} inputs, target mean {y.mean():+.1f} sd {y.std():.1f}"
+              + (f"; card inputs {N_CARDS}, {np.mean(cards > 0):.0%} of the rows about a card" if args.cards else ""))
         hidden = tuple(int(h) for h in args.hidden.split(","))
         if args.baseline:
             # the state explains most of the target and is the same for every choice of a
@@ -604,7 +682,7 @@ def main(argv=None) -> int:
                 export(ps, smean, sstd, args.out.with_name(f"{args.out.stem}_e{epoch}{args.out.suffix}"),
                        note + f" Epoch {epoch}.")
         params, mean, std = train(x, y, hidden=hidden, epochs=args.epochs, lr=args.lr, games=games, seed=args.seed,
-                                  snapshot=snapshot if wanted else None)
+                                  snapshot=snapshot if wanted else None, cards=cards if args.cards else None)
         export(params, mean, std, args.out, note)
     return 0
 

@@ -745,6 +745,37 @@ At these settings the labels refine the values of the candidates (far less noisy
 one sample to the horizon) rather than flip many choices. Whether training on them wins is the
 next check (`train --search`, then `match`).
 
+### Card identity inputs (`train --cards`, 2026-11-03)
+
+The base inputs only summarise a card (cost, size, rewards, icons), so the network cannot
+learn what a particular card is worth. `train --cards` appends a one-hot of the number of the
+card the move is about (1..560; D field 7, S field 10; 0 or a row without the field, i.e.
+files before round 7: all zeros) after the base inputs (after the `--inputs` projection):
+
+```
+python tools/ai_train.py train --data build/ai/round7_arno3.txt [--data ...] --inputs 1 --horizon 20 --lr 3e-4 --epochs 24 --cards --out build/ai/rC.lua
+```
+
+Training keeps it sparse (the card's row of a 561 x hidden block is added to the first
+layer's pre-activation; row 0, no card, stays 0), so the memory is that of the base inputs.
+The exported file has `inputs = base + 560`, `features = <base version>`, `cards = 560`, and
+the card columns have mean 0 and std 1 (never standardised: a zero stays exactly 0). In Lua,
+`net.forward(x, w, card)` adds only that card's weight to the first layer (a choice costs the
+base inputs + 1); `policy.q_scored` passes `features.card_number(choice)` (the same rule as
+the D lines' field 7) when the network or any ensemble member has `cards`. `ensemble` may mix
+members with and without cards (it checks the base inputs and writes the largest `cards`);
+`average`, `read_weights` and `--bootstrap` (each row's own card, so Q at the row
+`--horizon` on uses that row's card) handle card networks.
+
+Sanity run (the first 1250 games' lines of `round7_arno3.txt` + `round6c_v3.txt`, 745k rows,
+2% of them about a card; `--inputs 1 --horizon 20 --lr 3e-4 --epochs 8`): validation error
+71.0 with `--cards` against 71.1 without. On the held-out round-7 rows that name a card
+(1667 rows): 62.1 against 66.1 (predicting the mean: 68.2); the rows without a card stay the
+same (72.4 / 72.4). Not checked in play yet. To do once the round-7 job is done:
+`tests/lua/selfplay.lua` should call `features.card_number` (its `M_card_number` is the same
+rule) and `tests/lua/search.lua` should pass `features.card_number(c)` as `net.forward`'s third
+argument (it scores candidates without it, i.e. as "no card", for a card network).
+
 **Robustness sweeps (2026-11-01/02, round-5 network and the hand-written policy, mixed
 budgets):** 2000 two-player games (seeds 6000001+, 7000001+), 200 three-player (8000101+) and
 100 four-player games (9000001+): 0 failures.
