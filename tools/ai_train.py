@@ -44,27 +44,35 @@ def project(row: np.ndarray, version: int) -> np.ndarray:
     return np.concatenate([row[:s_to], row[s_from:s_from + c_to]])
 
 
-def lua_options(first: int, last: int, seats, mw_every: int, log: bool = True) -> str:
+def lua_options(first: int, last: int, seats, mw_every: int, log: bool = True,
+                extra: dict | None = None, module: str = "tests.selfplay_options") -> str:
     def seat(p, b):
         if p in ("easy", "medium", "hard", "expert"):      # a shipped level (ai.levels)
             return f'{{ level = "{p}" }}'
         if p == "arno":                                    # ARNO 3.0 at this level (1-10)
             return f'{{ arno = {int(b)} }}'
         return f'{{ policy = "{p}", budget = {b} }}'
+    def lua(v):
+        if isinstance(v, bool):
+            return "true" if v else "false"
+        if isinstance(v, str):
+            return f'"{v}"'
+        return f"{v:g}" if isinstance(v, float) else str(v)
     seat_list = ", ".join(seat(p, b) for p, b in seats)
-    return (f'ARNO_MODULES["tests.selfplay_options"] = function(require)\n'
+    more = "".join(f", {k} = {lua(v)}" for k, v in (extra or {}).items() if v is not None)
+    return (f'ARNO_MODULES["{module}"] = function(require)\n'
             f"return {{ from = {first}, to = {last}, seats = {{ {seat_list} }}, mw_every = {mw_every}, "
-            f"log = {'true' if log else 'false'} }}\nend\n")
+            f"log = {'true' if log else 'false'}{more} }}\nend\n")
 
 
-def build_suite(weights: Path | None, weights_b: Path | None = None) -> str:
+def build_suite(weights: Path | None, weights_b: Path | None = None, runner: str = "selfplay.lua") -> str:
     built = tts_build.arno_global(ROOT / "src", strict=False)
     lua = ROOT / "tests" / "lua"
     stubs = (lua / "tts_stubs.lua").read_text(encoding="utf-8")
     sim = (lua / "sim_lib.lua").read_text(encoding="utf-8")
     lib = (lua / "lib.lua").read_text(encoding="utf-8")
     ai_game = (lua / "ai_game.lua").read_text(encoding="utf-8")
-    body = (lua / "selfplay.lua").read_text(encoding="utf-8")
+    body = (lua / runner).read_text(encoding="utf-8")
     extra = ""
     if weights is not None:
         # replaces the bundled ai.net_weights (if any) for this run
@@ -77,14 +85,19 @@ def build_suite(weights: Path | None, weights_b: Path | None = None) -> str:
             + extra + ('ARNO_MODULES["ai.net_weights_b"] = function(require)\n' + weights_b.read_text(encoding="utf-8") + "\nend\n" if weights_b else "") + "@@OPTIONS@@" + "do\nlocal require = arno_require\n" + body + "\nend\n")
 
 
-def run_chunk(template: str, idx: int, first: int, last: int, seats, mw_every: int, log: bool = True) -> str:
+def run_chunk(template: str, idx: int, first: int, last: int, seats, mw_every: int, log: bool = True,
+              search: dict | None = None) -> str:
+    """search: the options of tests/lua/search.lua (the template is then that runner)."""
     BUILD.mkdir(parents=True, exist_ok=True)
-    path = BUILD / f"selfplay_{os.getpid()}_{idx}.lua"    # own files per run: runs may overlap
-    path.write_text(template.replace("@@OPTIONS@@", lua_options(first, last, seats, mw_every, log)),
-                    encoding="utf-8", newline="\n")
+    kind = "search" if search is not None else "selfplay"
+    path = BUILD / f"{kind}_{os.getpid()}_{idx}.lua"    # own files per run: runs may overlap
+    options = (lua_options(first, last, seats, mw_every, log, search, "tests.search_options")
+               if search is not None else lua_options(first, last, seats, mw_every, log))
+    path.write_text(template.replace("@@OPTIONS@@", options), encoding="utf-8", newline="\n")
     out = subprocess.run(["dotnet", str(run_tests.MOONRUN), str(path)], capture_output=True,
                          text=True, encoding="utf-8", errors="replace")
-    lines = [l for l in out.stdout.splitlines() if l[:2] in ("D|", "E|", "X|")]
+    keep = ("S|", "V|", "T|", "C|", "E|", "X|") if search is not None else ("D|", "E|", "X|")
+    lines = [l for l in out.stdout.splitlines() if l[:2] in keep]
     if out.returncode != 0:
         lines.append(f"X|{first}|runner exit {out.returncode}: {out.stderr[-300:]}")
     return "\n".join(lines)
@@ -100,11 +113,12 @@ def parse_seats(text: str) -> list[tuple[str, float]]:
 
 def play(games: int, seats, out: Path | None, weights: Path | None, first: int = 1,
          workers: int | None = None, mw_every: int = 3, log: bool = True,
-         weights_b: Path | None = None) -> list[str]:
-    template = build_suite(weights, weights_b)
+         weights_b: Path | None = None, search: dict | None = None) -> list[str]:
+    template = build_suite(weights, weights_b, "search.lua" if search is not None else "selfplay.lua")
     workers = workers or max(1, (os.cpu_count() or 2) - 2)
     # many small chunks: each runner's output stays small (memory), and the pool keeps busy
-    per = max(1, min(25, (games + workers - 1) // workers))
+    # (a searched game takes minutes: one game per chunk)
+    per = 1 if search is not None else max(1, min(25, (games + workers - 1) // workers))
     chunks = [(i, first + i * per, min(first + games - 1, first + (i + 1) * per - 1))
               for i in range((games + per - 1) // per)]
     lines: list[str] = []
@@ -115,7 +129,7 @@ def play(games: int, seats, out: Path | None, weights: Path | None, first: int =
         out.write_text("", encoding="utf-8")
         Path(str(out) + ".done").unlink(missing_ok=True)
     with cf.ThreadPoolExecutor(max_workers=workers) as pool:
-        futures = [pool.submit(run_chunk, template, i, a, b, seats, mw_every, log) for i, a, b in chunks]
+        futures = [pool.submit(run_chunk, template, i, a, b, seats, mw_every, log, search) for i, a, b in chunks]
         for n, f in enumerate(cf.as_completed(futures), 1):
             chunk = f.result().splitlines()
             lines.extend(chunk)
@@ -134,9 +148,95 @@ def play(games: int, seats, out: Path | None, weights: Path | None, first: int =
             for e in errors:
                 f.write(e.replace(" / ", "\n    ") + "\n")
         print(f"  (full logs in {BUILD / 'failures.txt'})")
-    print(f"played {games} games: {sum(1 for l in lines if l.startswith('D|'))} decisions, "
-          f"{len(errors)} failed")
+    if search is not None:
+        search_report(lines)
+    else:
+        print(f"played {games} games: {sum(1 for l in lines if l.startswith('D|'))} decisions, "
+              f"{len(errors)} failed")
     return lines
+
+
+def search_report(lines: list[str]) -> None:
+    """Points searched, time per point, how often search's best differs from the base choice,
+    the value gap best - base and the noise of a candidate's value (sd / sqrt(samples))."""
+    points: dict[tuple, list[tuple[float, float, int]]] = {}
+    times = []
+    checks = [l for l in lines if l.startswith("C|")]
+    for l in lines:
+        parts = l.split("|")
+        if l.startswith("S|"):
+            points.setdefault((parts[1], parts[2], parts[3]), []).append(
+                (float(parts[5]), float(parts[6]), int(parts[7])))
+        elif l.startswith("T|"):
+            times.append((float(parts[4]), int(parts[5])))
+    errors = sum(1 for l in lines if l.startswith("X|"))
+    bad = [c for c in checks if c.split("|")[2] != "ok"]
+    if checks:
+        print(f"determinism check: {len(checks) - len(bad)} of {len(checks)} games replay exactly")
+        for c in bad[:5]:
+            print("  ", c)
+    if not points or not times:
+        print(f"searched {len(points)} points, {errors} failed")
+        return
+    differs, gaps, noise, spread, pairs = 0, [], [], [], []
+    for cands in points.values():
+        best = max(cands, key=lambda c: c[0])
+        base = [c for c in cands if c[2] == 1]
+        if base:
+            differs += best[2] == 0
+            gaps.append(best[0] - base[0][0])
+        values = [c[0] for c in cands]
+        spread.append(max(values) - min(values))
+        pairs.extend(abs(a - b) for i, a in enumerate(values) for b in values[i + 1:])
+        noise.extend(c[1] for c in cands)
+    secs = np.array([t for t, _ in times])
+    rollouts = float(np.mean([r for _, r in times]))
+    labels = sum(len(c) for c in points.values())
+    samples = max(1, round(rollouts / np.mean([len(c) for c in points.values()])))
+    sd = float(np.sqrt(np.mean(np.square(noise))))        # pooled over the candidates
+    print(f"searched {len(points)} points ({labels} labels), {errors} failed; "
+          f"{secs.mean():.1f} s per point on one worker ({rollouts:.1f} rollouts), "
+          f"{3600 * labels / secs.sum():.0f} labels per hour per worker")
+    print(f"  search's best is not the base choice at {100 * differs / max(1, len(gaps)):.0f}% of the points; "
+          f"gap best - base: mean {np.mean(gaps):+.2f}, median {np.median(gaps):+.2f}")
+    print(f"  between two candidates of a point: median gap {np.median(pairs):.2f}; best - worst mean "
+          f"{np.mean(spread):.2f}; sample sd (pooled) {sd:.2f}, noise of a value (sd / sqrt({samples})) "
+          f"{sd / np.sqrt(samples):.2f}")
+    # V lines (every sample's value): the noise of a difference of two candidates (the samples
+    # share their random streams and deck) and a split-half check: the best on the odd samples,
+    # measured against the base choice on the even ones (an unbiased gap)
+    per: dict[tuple, dict[int, tuple[list[float], int]]] = {}
+    base_rank = {}
+    for l in lines:
+        parts = l.split("|")
+        if l.startswith("V|"):
+            per.setdefault((parts[1], parts[2], parts[3]), {})[int(parts[4])] = [float(v) for v in parts[5].split(",")]
+        elif l.startswith("S|") and parts[7] == "1":
+            base_rank[(parts[1], parts[2], parts[3])] = int(parts[4])
+    one, diff, agree, held, held_n = [], [], 0, [], 0
+    for key, cands in per.items():
+        m = min(len(v) for v in cands.values())
+        if m < 2:
+            continue
+        vals = np.array([v[:m] for _, v in sorted(cands.items())])
+        ranks = sorted(cands)
+        one.extend(np.var(vals, axis=1, ddof=1))
+        for i in range(len(vals)):
+            for j in range(i + 1, len(vals)):
+                diff.append(np.var(vals[i] - vals[j], ddof=1))
+        if m >= 4 and key in base_rank:
+            a, b = vals[:, 0::2].mean(1), vals[:, 1::2].mean(1)
+            agree += int(np.argmax(a) == np.argmax(b))
+            held.append(b[int(np.argmax(a))] - b[ranks.index(base_rank[key])])
+            held_n += 1
+    if one:
+        s1, sd_ = float(np.sqrt(np.mean(one))), float(np.sqrt(np.mean(diff))) if diff else 0.0
+        print(f"  per sample: sd of a value {s1:.2f}, sd of a difference of two candidates {sd_:.2f} "
+              f"(noise of a mean of m samples: {s1:.2f} / sqrt(m))")
+    if held_n:
+        print(f"  split half ({held_n} points): the best candidate on the odd samples is also best on the even "
+              f"ones at {100 * agree / held_n:.0f}%; its gap to the base choice there (unbiased) "
+              f"mean {np.mean(held):+.2f}, median {np.median(held):+.2f}")
 
 
 def seat_specs(seats, seed: int, n: int) -> dict[str, tuple[str, float]]:
@@ -201,6 +301,25 @@ def load(paths: list[Path], horizon: int = 0, target: str = "margin",
     return np.stack(xs), np.array(ys, dtype=np.float32), np.array(games), np.array(nxt)
 
 
+def load_search(paths: list[Path], inputs: int | None = None):
+    """S lines (ai_train search): inputs, the searched value of the candidate, the game (seed).
+    S|seed|color|point|rank|value|sd|base|inputs|card"""
+    xs, ys, games = [], [], []
+    for path in paths:
+        with path.open(encoding="utf-8") as f:
+            for l in f:
+                if not l.startswith("S|"):
+                    continue
+                parts = l.rstrip("\n").split("|")
+                row = np.array(parts[8].split(","), dtype=np.float32)
+                xs.append(project(row, inputs) if inputs else row)
+                ys.append(float(parts[5]))
+                games.append(int(parts[1]))
+    if not xs:
+        raise SystemExit(f"no S lines in {', '.join(map(str, paths))}")
+    return np.stack(xs), np.array(ys, dtype=np.float32), np.array(games)
+
+
 def train(x: np.ndarray, y: np.ndarray, hidden=(64, 64), epochs=12, lr=1e-3, batch=512, seed=1,
           games: np.ndarray | None = None, snapshot=None):
     """games: the game (seed) of every row; every 10th game is held out for validation (from
@@ -218,7 +337,7 @@ def train(x: np.ndarray, y: np.ndarray, hidden=(64, 64), epochs=12, lr=1e-3, bat
     v = [[np.zeros_like(w), np.zeros_like(b)] for w, b in params]
     t = 0
     idx = np.arange(len(xn))
-    if games is not None:
+    if games is not None and (games % 10 == 0).any() and not (games % 10 == 0).all():
         held = games % 10 == 0
         val, tr = idx[held], idx[~held]
     else:
@@ -318,7 +437,11 @@ def main(argv=None) -> int:
     p.add_argument("--out", type=Path)
     p.add_argument("--workers", type=int)
     t = sub.add_parser("train")
-    t.add_argument("--data", type=Path, action="append", required=True)
+    t.add_argument("--data", type=Path, action="append", default=[])
+    t.add_argument("--search", type=Path, action="append", default=[],
+                   help="search labels (ai_train search, S lines): each candidate a row, its searched value "
+                        "the target (counterfactual and low-noise; not bootstrapped)")
+    t.add_argument("--search-weight", type=int, default=3, help="every S row is repeated this many times")
     t.add_argument("--out", type=Path, default=ROOT / "arno" / "ai" / "net_weights.lua")
     t.add_argument("--hidden", default="64,64")
     t.add_argument("--epochs", type=int, default=12)
@@ -345,6 +468,27 @@ def main(argv=None) -> int:
     a = sub.add_parser("average", help="average the weights of networks from one training run")
     a.add_argument("--weights", type=Path, action="append", required=True)
     a.add_argument("--out", type=Path, required=True)
+    s = sub.add_parser("search", help="search labels (tests/lua/search.lua): S lines per candidate")
+    s.add_argument("--games", type=int, default=10)
+    s.add_argument("--first", type=int, default=40000001)
+    s.add_argument("--seats", default="network:1,network:1")
+    s.add_argument("--weights", type=Path)
+    s.add_argument("--weights-b", type=Path, help="the network of network_b seats")
+    s.add_argument("--out", type=Path)
+    s.add_argument("--workers", type=int)
+    s.add_argument("--points", type=int, default=8, help="decision points per searched seat and game")
+    s.add_argument("--k", type=int, default=5, help="candidates per point (top k by Q, plus the base choice)")
+    s.add_argument("--samples", type=int, default=2, help="rollouts per candidate")
+    s.add_argument("--horizon", type=int, default=20, help="own decisions played on after the point")
+    s.add_argument("--searched", default="ai", help="the searched seat's colour, or 'ai' (every policy seat)")
+    s.add_argument("--rollout-budget", type=float, default=1.0,
+                   help="the policies' budget after the point (so samples differ); < 0: the seats' own")
+    s.add_argument("--check", action="store_true",
+                   help="also replay each game with every choice forced and compare the final scores")
+    s.add_argument("--no-reshuffle", action="store_true",
+                   help="keep the seed's zoo deck after the point (rollouts then know the next cards)")
+    s.add_argument("--report", type=Path, action="append",
+                   help="play nothing: report on these search files (timing, best vs base, noise)")
     m = sub.add_parser("match")
     m.add_argument("--games", type=int, default=100)
     m.add_argument("--first", type=int, default=100001)
@@ -358,6 +502,17 @@ def main(argv=None) -> int:
         seats = parse_seats(args.seats)
         lines = play(args.games, seats, getattr(args, "out", None), args.weights, args.first, args.workers,
                      log=args.cmd == "play", weights_b=getattr(args, "weights_b", None))
+        report(lines, seats)
+    elif args.cmd == "search" and args.report:
+        lines = [l.rstrip("\n") for path in args.report for l in path.open(encoding="utf-8")]
+        search_report(lines)
+    elif args.cmd == "search":
+        seats = parse_seats(args.seats)
+        opts = {"points": args.points, "k": args.k, "samples": args.samples, "horizon": args.horizon,
+                "searched": args.searched, "check": args.check, "reshuffle": not args.no_reshuffle,
+                "rollout_budget": args.rollout_budget if args.rollout_budget >= 0 else None}
+        lines = play(args.games, seats, args.out, args.weights, args.first, args.workers,
+                     weights_b=args.weights_b, search=opts)
         report(lines, seats)
     elif args.cmd == "ensemble":
         import re
@@ -391,8 +546,13 @@ def main(argv=None) -> int:
         params = [[np.mean([n[0][li][k] for n in nets], axis=0) for k in (0, 1)] for li in range(len(nets[0][0]))]
         export(params, mean, std, args.out, "Average of " + ", ".join(w.name for w in args.weights) + ".")
     elif args.cmd == "train":
-        x, y, games, nxt = load(args.data, args.horizon, args.target, args.inputs, args.final_weight)
-        if args.bootstrap is not None:
+        if not args.data and not args.search:
+            raise SystemExit("train: give --data and/or --search")
+        if args.data:
+            x, y, games, nxt = load(args.data, args.horizon, args.target, args.inputs, args.final_weight)
+        else:
+            x, y, games, nxt = None, np.zeros(0, np.float32), np.zeros(0, int), np.zeros(0, int)
+        if args.bootstrap is not None and x is not None:
             # temporal difference: the change over the horizon plus what a trained network
             # expects from the position reached then (its own Q there, the choice then made),
             # instead of only the horizon (blind beyond it) or the end of the game (noisy)
@@ -409,6 +569,18 @@ def main(argv=None) -> int:
                   f"Q there mean {q[nxt[ahead]].mean():+.1f} sd {q[nxt[ahead]].std():.1f}")
             y = y.copy()
             y[ahead] = y[ahead] + args.gamma * q[nxt[ahead]]
+        if args.search:
+            # appended after the bootstrap (their value already holds the network's Q at the
+            # horizon, and nxt indexes the D rows); game = seed, so the hold-out split holds
+            sx, sy, sg = load_search(args.search, args.inputs)
+            if x is not None and sx.shape[1] != x.shape[1]:
+                raise SystemExit(f"--search rows have {sx.shape[1]} inputs, --data rows {x.shape[1]} (use --inputs)")
+            w = max(1, args.search_weight)
+            print(f"search labels: {len(sy)} rows x {w}, value mean {sy.mean():+.1f} sd {sy.std():.1f}")
+            sx, sy, sg = np.repeat(sx, w, axis=0), np.repeat(sy, w), np.repeat(sg, w)
+            x = sx if x is None else np.concatenate([x, sx])
+            y = np.concatenate([y, sy]).astype(np.float32)
+            games = np.concatenate([games, sg])
         print(f"{len(y)} decisions, {x.shape[1]} inputs, target mean {y.mean():+.1f} sd {y.std():.1f}")
         hidden = tuple(int(h) for h in args.hidden.split(","))
         if args.baseline:
@@ -419,7 +591,7 @@ def main(argv=None) -> int:
             vp, vmean, vstd = train(x[:, :n_state], y, hidden=hidden, epochs=args.epochs, lr=args.lr, games=games)
             y = y - predict(vp, (x[:, :n_state] - vmean) / vstd)
             print(f"residual target sd {y.std():.1f}")
-        note = f"{len(y)} decisions from {', '.join(p.name for p in args.data)}."
+        note = f"{len(y)} decisions from {', '.join(p.name for p in args.data + args.search)}."
         wanted = {int(e) for e in args.snapshots.split(",") if e.strip()}
         smean, sstd = x.mean(0), x.std(0)          # as train() normalises
         sstd[sstd < 1e-6] = 1.0
