@@ -30,17 +30,7 @@ end
 
 local function fmt(x) return string.format("%.3f", x):gsub("%.?0+$", "") end
 
--- the number of the card a choice is about (a card picked up, or named in the label as
--- "...: (123) Name"), 0 if none: logged for card-specific inputs later (an embedding)
-function M_card_number(c)
-  local name
-  if c.obj then
-    local ok, n = pcall(function() return c.obj.getName() end)
-    if ok then name = n end
-  end
-  name = name or (c.label or ""):match(": (.+)$") or c.label or ""
-  return tonumber(tostring(name):match("%((%d+)%)")) or 0
-end
+local M_card_number = features.card_number   -- the card a choice is about (0: none)
 
 local seed_now = 0
 policy.on_decision = function(player, list, pick)

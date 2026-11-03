@@ -77,15 +77,7 @@ local function inputs(player, c, h, version)
   return x
 end
 
-local function card_number(c)
-  local name
-  if c.obj then
-    local ok, n = pcall(function() return c.obj.getName() end)
-    if ok then name = n end
-  end
-  name = name or (c.label or ""):match(": (.+)$") or c.label or ""
-  return tonumber(tostring(name):match("%((%d+)%)")) or 0
-end
+local card_number = features.card_number      -- the card a choice is about (0: none)
 
 -- ------------------------------------------------------------------ seats
 local seed_now = 0
@@ -225,7 +217,7 @@ local function candidates(st, player, list)
   local fw, scored = forward(list), {}
   for i, c in ipairs(fw) do
     local h = heuristic(player, c)
-    scored[i] = { c = c, i = index_of(list, c), q = net.forward(inputs(player, c, h, version), w),
+    scored[i] = { c = c, i = index_of(list, c), q = net.forward(inputs(player, c, h, version), w, card_number(c)),
                   x = inputs(player, c, h), card = card_number(c), pos = i }
   end
   table.sort(scored, function(a, b) if a.q ~= b.q then return a.q > b.q end return a.pos < b.pos end)
@@ -260,7 +252,7 @@ local function rollout(st, pos, sample)
     -- the horizon: the margin change plus the network's Q for the choice the policy makes here
     local pick = base(player, list)
     local w = qweights[st.color]
-    local q = net.forward(inputs(player, pick, heuristic(player, pick), features.version_of(w)), w)
+    local q = net.forward(inputs(player, pick, heuristic(player, pick), features.version_of(w)), w, card_number(pick))
     ro.value = margin(player) - ro.start + q
     stop()
     return pick
