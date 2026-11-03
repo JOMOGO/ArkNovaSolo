@@ -263,4 +263,106 @@ T.test("assist: q_scored adds the assists to the network's Q, never to a rule's 
   T.eq(assisted[1].heuristic, plain[1].heuristic, "the hand-written score (an input) unchanged")
 end)
 
+-- final scoring card assist (final): the card held, read smoothly between its thresholds
+local function final_card(p, n) card_obj(n).deal(1, p.color, 2) end
+local FW = { build = 0, cp = 0, final = 3 }
+
+T.test("assist final: a card play that moves the own final scoring card, read between thresholds", function()
+  local p = hand_game({})
+  local research_sponsor = sim.cnsts.cards.base[201]
+  T.eq(policy.final_gain(p, research_sponsor), 0, "no final scoring card held")
+  final_card(p, 3)                                   -- research icons: 3 / 4 / 5 / 6 for 1-4 CP
+  T.ok(math.abs(policy.final_gain(p, research_sponsor) - 1 / 3) < 1e-9, "a third of the way to 3 icons")
+  set_icon_counter(p.icon_counters.research, 3, sim.cnsts.counter_style.icon)
+  T.ok(math.abs(policy.final_gain(p, research_sponsor) - 1) < 1e-9, "3 -> 4 icons: 1 CP more")
+  T.eq(policy.final_gain(p, sim.cnsts.cards.base[404]), 0, "no research icon")
+  set_icon_counter(p.icon_counters.research, 6, sim.cnsts.counter_style.icon)
+  T.eq(policy.final_gain(p, research_sponsor), 0, "the card's 4 CP reached")
+end)
+
+T.test("assist final: the best card held counts; the bonus on the card choices and the action card", function()
+  local p = hand_game({})
+  final_card(p, 1)                                   -- large animals: 1 / 2 / 4 / 5
+  final_card(p, 4)                                   -- map tests (no count): not moved by a card
+  T.eq(policy.final_gain(p, sim.cnsts.cards.base[401]), 1, "size 5: a large animal")
+  T.eq(policy.final_gain(p, sim.cnsts.cards.base[404]), 0, "size 2")
+  T.eq(policy.smooth_award(sim.cnsts.final_scoring_cards.base[1], 3), 2.5)
+  T.eq(policy.smooth_award(sim.cnsts.final_scoring_cards.base[11], 3), 1.5, "water icons / 2")
+  T.eq(policy.smooth_award(sim.cnsts.final_scoring_cards.base[5], 9), 4, "at most 4")
+  local lion = "play animal: " .. card_obj(401).getName()
+  T.eq(policy.assist_bonus(p, { kind = "pick_up", label = lion }, FW), 3 * 1 * 2, "3 x 1 CP x 2 points")
+  T.eq(policy.assist_bonus(p, { kind = "pick_up", label = lion }, W), 0, "final off")
+  T.eq(policy.assist_bonus(p, { kind = "pick_up", label = "select: " .. card_obj(401).getName() }, FW), 0,
+       "only a play counts")
+  T.eq(policy.assist_bonus(p, card_button(p, "build"), FW), 0, "not on BUILD")
+end)
+
+T.test("assist final: the final scoring discard keeps the card that scores more", function()
+  local p = hand_game({})
+  final_card(p, 1)                                   -- large animals: none, 0 CP
+  final_card(p, 7)                                   -- reputation 9: 2 CP
+  set_counter(p.rep_counter, 9, sim.cnsts.counter_style.score)
+  local large, rep = "select: " .. card_obj(1).getName(), "select: " .. card_obj(7).getName()
+  T.eq(policy.assist_bonus(p, { kind = "pick_up", label = rep }, FW), 0, "no discard panel open")
+  selection_panels = { Red = { action = "final scoring discard", selected = {}, num = 1, pool = {} } }
+  T.eq(policy.assist_bonus(p, { kind = "pick_up", label = rep }, FW), -3 * 2 * 2, "discarding 2 CP")
+  T.eq(policy.assist_bonus(p, { kind = "pick_up", label = large }, FW), 0, "discarding 0 CP")
+  T.eq(policy.assist_bonus(p, { kind = "pick_up", label = rep }, W), 0, "final off")
+  selection_panels = {}
+end)
+
+-- end-timing assist (ending)
+local EW = { build = 0, cp = 0, ending = 5 }
+
+local function end_game(own, other)
+  local p = sim.human_game(false, "map_A")
+  local q = sim.make_player("Blue", false)
+  players = { p, q }
+  set_counter(p.score_counter, own, sim.cnsts.counter_style.score)
+  set_counter(q.score_counter, other, sim.cnsts.counter_style.score)
+  -- ASSOCIATION at strength 5 can support Habitat Diversity: about 3 CP (6 points) at once
+  base_projects = { { sim.fake("(102) Habitat Diversity").getGUID(), {} } }
+  for i, icon in ipairs(sim.cnsts.icons.habitat) do
+    set_icon_counter(p.icon_counters[icon], i <= 3 and 1 or 0, sim.cnsts.counter_style.icon)
+  end
+  return p, q
+end
+
+T.test("assist ending: an action that ends a game it would then lose", function()
+  game_end_triggered = false
+  local p = end_game(95, 95)
+  local assoc = card_button(p, "association")
+  -- own 95 + 6 = 101 ends it; the other: 95 + 1.5 CP (3) + its last turn (6) = 104: 3 short
+  T.eq(policy.assist_bonus(p, assoc, EW), -3)
+  T.eq(policy.assist_bonus(p, assoc, { build = 0, cp = 0, ending = 2 }), -2, "at most the weight")
+  T.eq(policy.assist_bonus(p, card_button(p, "cards"), EW), 0, "CARDS does not end it")
+  T.eq(policy.assist_bonus(p, assoc, W), 4, "ending off: the cp assist alone")
+  final_card(p, 7)                                   -- reputation 6 / 9 / 12 / 15: 1 rep, 0 CP
+  set_counter(p.rep_counter, 9, sim.cnsts.counter_style.score)
+  T.eq(policy.assist_bonus(p, assoc, EW), 0, "own final scoring card: 2 CP (4 points), ahead")
+  game_end_triggered = true
+  local q = end_game(95, 95)
+  T.eq(policy.assist_bonus(q, card_button(q, "association"), EW), 0, "the end already triggered")
+  game_end_triggered = false
+  local r = end_game(80, 95)
+  T.eq(policy.assist_bonus(r, card_button(r, "association"), EW), 0, "does not reach 100")
+  local s2 = end_game(99, 60)
+  T.eq(policy.assist_bonus(s2, card_button(s2, "association"), EW), 0, "far ahead")
+  local t2 = end_game(95, 140)
+  T.eq(policy.assist_bonus(t2, card_button(t2, "association"), EW), 0, "lost by more than END_RANGE anyway")
+end)
+
+T.test("assist ending: ARNO's final scoring tokens (less his CP debt) count", function()
+  game_end_triggered = false
+  local p, q = end_game(95, 90)
+  q.is_arno = true
+  -- 90 + 6 (last turn) + 1.5 CP (3) = 99 < 101: fine without ARNO's tokens
+  T.eq(policy.assist_bonus(p, card_button(p, "association"), EW), 0)
+  arno_state = { bots = { Blue = { tokens_scoring = 5, tokens_notepad = 2, cp_debt = 1 } } }
+  -- 3 + 2 - 1 = 4 CP = 8 points: 90 + 8 + 6 = 104, 3 short
+  T.eq(policy.final_points(q, false), 8)
+  T.eq(policy.assist_bonus(p, card_button(p, "association"), EW), -3)
+  arno_state = nil
+end)
+
 T.finish("integration AI")

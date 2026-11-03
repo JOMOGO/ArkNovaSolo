@@ -172,14 +172,28 @@ end
 -- Points added to the network's Q of some choices (policy "network_a", opts.assist), for two
 -- habits the network does not learn (docs/AI_OPPONENT.md §10, behaviour analysis): a hand full
 -- of animals it cannot place (it never builds a special enclosure), and conservation projects
--- left unsupported. Off unless asked for (the shipped levels do not use them).
+-- left unsupported. The shipped levels use M.ASSIST (ai.levels); a weight of 0 is off.
 --   build  per animal in hand that has no enclosure now and would fit the one this choice
 --          builds (half for an animal one condition short); half of that on the BUILD
 --          action card, for the best such build it can afford at its strength
 --   cp     on the ASSOCIATION action card when it can support a conservation project at
 --          its strength (a worker free: the mod's own check), and on "Support a
 --          Conservation Project" in the association panel
-M.ASSIST = { build = 3, cp = 4 }
+--   final  per CP a card play adds to the own final scoring card (the best one held), read
+--          smoothly between the card's thresholds (so a step towards the next one counts),
+--          times a CP's worth in points now; half of the best such play on the ANIMALS /
+--          SPONSORS action card at its strength; and at the final scoring discard, minus a
+--          card's award (it keeps the better card)
+--   ending on an action card that would end the game (the own score crosses 100 with what
+--          the action gives now, roughly) while the score at the end is short: own score +
+--          own final scoring card vs the best other score + its final scoring (ARNO's tokens)
+--          + its last turn (END_LAST_TURN); minus the points short, at most `ending` (0 when
+--          short by more than END_RANGE: no waiting saves that game)
+-- (round 17, docs/AI_OPPONENT.md §10: final 1 / 2 and ending 6 brought nothing against ARNO 1: off)
+M.ASSIST = { build = 3, cp = 4, final = 0, ending = 0 }
+M.END_LAST_TURN = 6       -- what the other player's last turn brings, roughly (traces: ~6)
+M.END_OTHER_CP = 1.5      -- the final scoring CP of a player whose cards the AI cannot see
+M.END_RANGE = 25
 
 -- slots of a special enclosure (HexBoard SLOT_COUNTS) and the animal enclosure key it serves
 local SPECIAL = {
@@ -257,17 +271,214 @@ local function association_card_supports(player, c)
         and association_task_open(player, 5, strength, num, upgd, true))
 end
 
+-- ---- final scoring cards (final): the award read smoothly between the thresholds
+local function smooth_award(rule, count)
+  local cp
+  if rule.bands then
+    local pts = { { 0, 0 } }
+    for i = #rule.bands, 1, -1 do pts[#pts + 1] = rule.bands[i] end
+    cp = pts[#pts][2]
+    for i = 1, #pts - 1 do
+      local a, b = pts[i], pts[i + 1]
+      if count < b[1] then cp = a[2] + (b[2] - a[2]) * (count - a[1]) / (b[1] - a[1]) break end
+    end
+  elseif rule.divisor then cp = count / rule.divisor
+  elseif rule.per then cp = count
+  else cp = count - (rule.offset or 0) end
+  return math.max(0, math.min(4, cp))
+end
+M.smooth_award = smooth_award
+
+local function count_icons(data, icon)
+  local n = 0
+  for _, i in ipairs(data.icons or {}) do if i == icon then n = n + 1 end end
+  return n
+end
+
+local function reward_amount(data, word)
+  local n = 0
+  if type(data.rewards) ~= "table" then return 0 end
+  for _, r in ipairs(data.rewards) do
+    if type(r) == "string" then
+      local k, what = r:match("^(%d+) (%a+)$")
+      if k and what == word then n = n + tonumber(k) end
+    end
+  end
+  return n
+end
+
+-- how much playing a card (its data) adds to a final scoring count (nil: a count that a
+-- card play does not move, or a card that does not count: projects, maps, majorities)
+local FINAL_DELTA = {
+  large_animals = function(d) return (d.type == "animal" and (d.size or 0) >= 4) and 1 or 0 end,
+  small_animals = function(d) return (d.type == "animal" and (d.size or 9) <= 2) and 1 or 0 end,
+  research_icons = function(d) return count_icons(d, "research") end,
+  rock_icons = function(d) return count_icons(d, "rock") end,
+  water_icons = function(d) return count_icons(d, "water") end,
+  played_sponsors = function(d) return d.type == "sponsor" and 1 or 0 end,
+  reputation = function(d) return reward_amount(d, "rep") end,
+  played_conditions = function(d) return #(d.conditions or {}) end,
+}
+
+-- CP the play of a card (its data) adds to the best final scoring card held (smooth awards)
+function M.final_gain(player, data)
+  local before, after = 0, 0
+  for _, card in ipairs(final_scoring_cards(player)) do
+    local rule = final_scoring_data_for(card_number_of(card.getName()))
+    if rule then
+      local delta = rule.count and FINAL_DELTA[rule.count]
+      local b, a
+      if delta then
+        local n = final_score_count(player, rule.count)
+        b, a = smooth_award(rule, n), smooth_award(rule, n + delta(data))
+      else
+        b = final_score_award(player, rule); a = b
+      end
+      before, after = math.max(before, b), math.max(after, a)
+    end
+  end
+  return after - before
+end
+
+-- a held final scoring card's award now (smooth between the thresholds), in CP
+function M.final_card_award(player, name)
+  local rule = final_scoring_data_for(card_number_of(name))
+  if rule == nil then return 0 end
+  if rule.count and FINAL_DELTA[rule.count] then return smooth_award(rule, final_score_count(player, rule.count)) end
+  return final_score_award(player, rule)
+end
+
+local function card_final_bonus(player, name, w)
+  local data = card_data_for(name)
+  if data == nil or (data.type ~= "animal" and data.type ~= "sponsor") then return 0 end
+  return w.final * M.final_gain(player, data) * value.cp(player)
+end
+
+local function animals_count(player, strength)
+  return (strength >= (animals_upgraded(player) and 4 or 5)) and 2 or 1
+end
+
+local function affordable_animals(player)
+  local out, money = {}, get_counter_value(player.money_counter)
+  for _, a in ipairs(value.playable_animals(player)) do
+    if a.cost <= money then out[#out + 1] = a end
+  end
+  return out
+end
+
+-- ---- the end of the game (ending)
+local function points_of(player, data)
+  return reward_amount(data, "appeal") + reward_amount(data, "cp") * value.cp(player)
+end
+
+local function cp_points(player, cp)
+  local now = get_counter_value(player.cp_counter)
+  return cp_to_score(now + cp) - cp_to_score(now)
+end
+
+-- the points a player gets at the final scoring: ARNO's tokens (less his CP debt); the own
+-- best final scoring card (own = true); another player's estimated (END_OTHER_CP)
+function M.final_points(player, own)
+  local bot = arno_state and arno_state.bots and arno_state.bots[player.color]
+  if bot then
+    local cp = math.max(0, math.min(4, (bot.tokens_scoring or 0) - 2)) + (bot.tokens_notepad or 0)
+    return cp_points(player, cp - math.min(cp, bot.cp_debt or 0))
+  end
+  if not own then return cp_points(player, M.END_OTHER_CP) end
+  local best = 0
+  for _, card in ipairs(final_scoring_cards(player)) do
+    local rule = final_scoring_data_for(card_number_of(card.getName()))
+    if rule then best = math.max(best, final_score_award(player, rule)) end
+  end
+  return cp_points(player, best)
+end
+
+-- the score an action card brings at once, roughly
+local function action_points(player, kind, c, strength)
+  if kind == "ANIMALS" then
+    local v, money = 0, get_counter_value(player.money_counter)
+    local list = affordable_animals(player)
+    for i = 1, math.min(animals_count(player, strength), #list) do
+      if list[i].cost <= money then
+        v, money = v + points_of(player, card_data_for(list[i].name)), money - list[i].cost
+      end
+    end
+    return v
+  elseif kind == "SPONSORS" then
+    local best = 0
+    for _, cand in ipairs(playable_sponsor_candidates(player, strength)) do
+      best = math.max(best, points_of(player, card_data_for(cand.obj.getName())))
+    end
+    return best
+  elseif kind == "ASSOCIATION" then
+    return association_card_supports(player, c) and 3 * value.cp(player) or 0
+  elseif kind == "BUILD" then
+    return 1
+  end
+  return 0
+end
+
+-- the points short at the end if this action card ends the game now (0: it does not end
+-- it, or the game is won that way, or lost by more than END_RANGE)
+function M.ending_shortfall(player, c, kind, strength)
+  if game_end_triggered or #(players or {}) < 2 then return 0 end
+  local score = get_counter_value(player.score_counter)
+  local gain = action_points(player, kind, c, strength)
+  if score >= cnsts.game_end_score or score + gain < cnsts.game_end_score then return 0 end
+  local best
+  for _, p in ipairs(players) do
+    if p ~= player then
+      local s = get_counter_value(p.score_counter) + M.final_points(p, false) + M.END_LAST_TURN
+      if best == nil or s > best then best = s end
+    end
+  end
+  local margin = score + gain + M.final_points(player, true) - best
+  if margin >= 0 or margin < -M.END_RANGE then return 0 end
+  return -margin
+end
+
 local function assist_bonus(player, c, w)
   local label = c.label or ""
+  if c.kind == "pick_up" then
+    if (w.final or 0) == 0 then return 0 end
+    -- the final scoring discard: keep the card that scores more (the hand-written score and
+    -- the network do not read these cards)
+    local sel = selection_panels and selection_panels[player.color]
+    local held = label:match("^select: (.+)$")
+    if held and sel and sel.action == "final scoring discard" then
+      return -w.final * M.final_card_award(player, held) * value.cp(player)
+    end
+    local name = label:match("^play animal: (.+)$") or label:match("^sponsor: (.+)$")
+    return name and card_final_bonus(player, name, w) or 0
+  end
   if c.kind ~= "click" then return 0 end
   if c.handler == "on_action_card_button_clicked" then
     local kind = label:match("^(%a+)")
-    if kind == "BUILD" and (w.build or 0) ~= 0 then
-      return 0.5 * w.build * build_card_gain(player, c)
-    elseif kind == "ASSOCIATION" and (w.cp or 0) ~= 0 and association_card_supports(player, c) then
-      return w.cp
+    local v = 0
+    if (w.ending or 0) ~= 0 and kind then
+      local strength = choices_mod.strength(player, c)
+      if strength then v = v - math.min(w.ending, M.ending_shortfall(player, c, kind, strength)) end
     end
-    return 0
+    if (w.final or 0) ~= 0 and (kind == "ANIMALS" or kind == "SPONSORS") then
+      local strength = choices_mod.strength(player, c)
+      local best = 0
+      if strength and kind == "ANIMALS" then
+        for _, a in ipairs(affordable_animals(player)) do
+          best = math.max(best, card_final_bonus(player, a.name, w))
+        end
+      elseif strength then
+        for _, cand in ipairs(playable_sponsor_candidates(player, strength)) do
+          best = math.max(best, card_final_bonus(player, cand.obj.getName(), w))
+        end
+      end
+      v = v + 0.5 * best
+    end
+    if kind == "BUILD" and (w.build or 0) ~= 0 then
+      return v + 0.5 * w.build * build_card_gain(player, c)
+    elseif kind == "ASSOCIATION" and (w.cp or 0) ~= 0 and association_card_supports(player, c) then
+      return v + w.cp
+    end
+    return v
   end
   if label:find("^Support a Conservation Project") then return w.cp or 0 end
   local building = label:match("^Build an? ([^\n]+)")
@@ -278,9 +489,10 @@ local function assist_bonus(player, c, w)
   return 0
 end
 
--- the assists' points for one choice under weights w ({ build, cp }); 0 on any error
+-- the assists' points for one choice under weights w ({ build, cp, final, ending }); 0 on any error
 function M.assist_bonus(player, c, w)
   local ok, v = pcall(assist_bonus, player, c, w or M.ASSIST)
+  if not ok and M.on_assist_error then M.on_assist_error(v, c) end     -- tests, analysis
   return (ok and type(v) == "number") and v or 0
 end
 
@@ -328,7 +540,7 @@ M.q_scored = q_scored
 function M.budgeted(r, budget, opts)
   return function(player, choices)
     -- opts.weights: another network than the bundled one (training: new against current)
-    -- opts.assist: true (M.ASSIST) or { build =, cp = }: the assists on the network's Q
+    -- opts.assist: true (M.ASSIST) or { build =, cp =, final =, ending = }: the assists on the network's Q
     local assist = opts and opts.assist
     if assist == true then assist = M.ASSIST end
     local list = (opts and opts.network) and q_scored(player, choices, opts.weights, assist) or scored(player, choices)

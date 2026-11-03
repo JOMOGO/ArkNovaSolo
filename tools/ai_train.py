@@ -577,13 +577,16 @@ def main(argv=None) -> int:
     for q in (p, m):      # network_a seats: the network with the assists (ai.policy ASSIST)
         q.add_argument("--assist-build", type=float, help="network_a: points per animal a build would house")
         q.add_argument("--assist-cp", type=float, help="network_a: points for supporting a conservation project")
+        q.add_argument("--assist-final", type=float, help="network_a: points per CP a card play adds to the final scoring card")
+        q.add_argument("--assist-end", type=float, help="network_a: most points off an action that ends a game it would lose")
     args = ap.parse_args(argv)
 
     if args.cmd in ("play", "match"):
         seats = parse_seats(args.seats)
         lines = play(args.games, seats, getattr(args, "out", None), args.weights, args.first, args.workers,
                      log=args.cmd == "play", weights_b=getattr(args, "weights_b", None),
-                     assist={"assist_build": args.assist_build, "assist_cp": args.assist_cp})
+                     assist={"assist_build": args.assist_build, "assist_cp": args.assist_cp,
+                             "assist_final": args.assist_final, "assist_end": args.assist_end})
         report(lines, seats)
     elif args.cmd == "search" and args.report:
         lines = [l.rstrip("\n") for path in args.report for l in path.open(encoding="utf-8")]
