@@ -10,6 +10,8 @@ play   runs headless games of the built mod on every core (tests/lua/selfplay.lu
 train  fits Q(inputs) = final margin - margin at the decision with a small MLP (numpy, Adam,
        ReLU, mean squared error) and writes the weights as a Lua module (ai.net_weights).
 match  plays games and reports the average margin and win rate of each seat's policy.
+search values the top candidates of sampled decisions by replaying the game from its seed
+       (tests/lua/search.lua; S lines, docs/AI_OPPONENT.md §10); train --search uses them.
 Seats are policy:budget, policy = heuristic | network; they rotate with the seed.
 """
 from __future__ import annotations
@@ -478,11 +480,12 @@ def main(argv=None) -> int:
     s.add_argument("--workers", type=int)
     s.add_argument("--points", type=int, default=8, help="decision points per searched seat and game")
     s.add_argument("--k", type=int, default=5, help="candidates per point (top k by Q, plus the base choice)")
-    s.add_argument("--samples", type=int, default=2, help="rollouts per candidate")
+    s.add_argument("--samples", type=int, default=3, help="rollouts per candidate")
     s.add_argument("--horizon", type=int, default=20, help="own decisions played on after the point")
     s.add_argument("--searched", default="ai", help="the searched seat's colour, or 'ai' (every policy seat)")
-    s.add_argument("--rollout-budget", type=float, default=1.0,
-                   help="the policies' budget after the point (so samples differ); < 0: the seats' own")
+    s.add_argument("--rollout-budget", type=float, default=0.0,
+                   help="the policies' budget after the point (0: their best choice; the samples then differ "
+                        "by the reshuffled deck, with less noise than budget 1); < 0: the seats' own")
     s.add_argument("--check", action="store_true",
                    help="also replay each game with every choice forced and compare the final scores")
     s.add_argument("--no-reshuffle", action="store_true",

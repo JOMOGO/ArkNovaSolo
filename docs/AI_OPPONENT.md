@@ -619,7 +619,7 @@ inputs v3); matches 100001+, 200001+, 300001+, 400001+, 500001+, 600001+, 700001
 900001+ (FIXPILE repro), 1000001+ ... 2300001+ (every 100000 up to 2300001; 2026-11-01 checks and ladder),
 2400001+ and 2600001+ (200 games each), 3000001+ ... 3400001+ (100 each), 3500001+ and 3700001+
 (200 each), 3900001+ (200), 4100001+ ... 4300001+ (100 each), 4400001+ (2, smoke test),
-4500001+ and 4700001+ (200 each), 4900001+ and 5100001+ (200 each), 5300001+ ... 5500001+ (ladder), 5700001+ (200), 6000001+ and 7000001+ (sweeps, 1000 each, 0 failures), 8000001+ (smoke test), 10000001+ ... 10800001+ (round 11), 11000001+ ... 11200001+ (ladder), 12000001+ and 12200001+ (round 12). Self-play 23000-27499 (round 10). Self-play: 20000-22499 (round 5).
+4500001+ and 4700001+ (200 each), 4900001+ and 5100001+ (200 each), 5300001+ ... 5500001+ (ladder), 5700001+ (200), 6000001+ and 7000001+ (sweeps, 1000 each, 0 failures), 8000001+ (smoke test), 10000001+ ... 10800001+ (round 11), 11000001+ ... 11200001+ (ladder), 12000001+ and 12200001+ (round 12). Self-play 23000-27499 (round 10). Self-play: 20000-22499 (round 5). Search probes (2026-11-03): 30000001-30000003, 40000001-40000002, 40000101-40000102, 40001001-40001008, 40001101-40001106, 40001201-40001202; search labels from 40100001.
 
 | Round | Data | Result |
 |---|---|---|
@@ -652,6 +652,75 @@ checked yet.
 **Next steps (2026-11-02):** recalibrate the level budgets for the TD ensemble (Hard vs Medium
 57%); check in
 TTS how long the ensemble (4 passes per choice) thinks on big decisions.
+
+### Search labels (`ai_train.py search`, 2026-11-03)
+
+AlphaZero-lite, step 1: for sampled decisions of real games, a value for **each** of the best
+few candidates, instead of the one noisy sample of the choice made (a D line). The state cannot
+be copied, so every sample replays the game from its seed (`tests/lua/search.lua`):
+
+1. **Record:** the game is played once with the base policies; every call of every policy seat
+   notes the index of the choice it took (the choice lists are deterministic for a state).
+2. **Points:** `--points` N per searched seat (`--searched` colour or `ai`), one per stretch of
+   its decisions with >= 2 choices and no fixed rule (`policy.rule`), seeded by the game.
+3. **Candidates:** the top `--k` by the seat's network Q, plus the base choice if it is not
+   among them. Per candidate and sample (`--samples` m): replay forcing the recorded choices
+   up to the point (no scoring: fast), force the candidate, shuffle the cards left in the zoo
+   deck (the replay would otherwise know the next draws; `--no-reshuffle`), then play on
+   with the policies (seed per sample, the same for every candidate; `--rollout-budget`,
+   default 0) for `--horizon` H = 20 own decisions: value = margin then − margin at the point
+   + the network's Q there for the choice the policy makes (as `train --bootstrap`); if the
+   game ends first, final margin − margin at the point. The rollout then ends at the turn's
+   end (as the turn cap; an error in mid-turn left panel state behind for the next replay).
+
+```
+python tools/ai_train.py search --games 100 --first 40100001 --seats network:1,arno:5 --weights build/ai/td2.lua --workers 10 --out build/ai/search1.txt
+python tools/ai_train.py search --report build/ai/search1.txt          # timing, best vs base, noise
+python tools/ai_train.py train --data ... --search build/ai/search1.txt --search-weight 3 --inputs 1 --horizon 20 --bootstrap ... --out build/ai/rS.lua
+```
+
+Lines (`--out` gets each finished game's lines, `<out>.done` at the end):
+`S|seed|color|point|rank|value|sd|base|inputs|card` per candidate (point = the decision's index
+among the seat's D lines; rank by Q, 1 = best; value = mean over the samples, sd between
+them; base = 1 for the base policy's choice; inputs at the point before the candidate,
+`features.state .. features.choice` at the current `features.VERSION`, exactly as a D line;
+card number as D field 7). Also `V|` (each sample's value), `T|` (seconds and rollouts per
+point), `E|` (the recorded game), `C|` (`--check`: the game replayed with every choice forced
+gives the same scores, outcome and call counts) and `X|` (failures). `train --search FILE`
+(repeatable) adds every S row with its value as the target (after the bootstrap; not
+bootstrapped again), each repeated `--search-weight` times (default 3), projected by
+`--inputs` like D rows; `--data` is then optional.
+
+Determinism: the forced replay reproduces the final scores exactly (2-seat network self-play,
+network vs ARNO, a Marine Worlds game). Two causes fixed in the runner: the mod's own
+`math.random` (`pilfer_card`) is reseeded per replay, and a rollout no longer stops by an error
+in mid-turn. MoonSharp traps met: the first `os.clock()` of a process returns nothing, and
+locals of a loop body captured by closures can alias each other (state kept in tables).
+
+**Measured (2026-11-03, network:1 (td2) vs arno:5, H 20, k 5; a point has 4.2 candidates on
+average, many decisions offer fewer than 5):**
+
+| Rollouts | One worker, idle machine | Sample sd | Noise of a value (sd/√m) | Median gap of two candidates |
+|---|---|---|---|---|
+| budget 1, m 2 | 12.3 s per point (1.5 s per rollout), 1230 labels/h | 6.1-6.8 | 4.8 | 2.5 |
+| budget 1, m 4 | (loaded machine) | 6.1 | 3.0 | 2.7 |
+| budget 0, m 3 (**default**) | 18.0 s per point, 840 labels/h | 4.2-5.0 | 2.6-2.9 | 2.5-2.7 |
+| budget 0, m 4 | (loaded machine) | 4.2 | 2.1 | 2.8 |
+
+A rollout costs about the same before and after the point: late points take 2-3x longer than
+early ones (the forced replay of the game so far). Labels per hour fall with m only (each
+label costs m rollouts; k only sets the labels per point). Budget-0 rollouts are less noisy
+(the deck reshuffle is the only randomness left) and value a candidate under the network's
+best play; m 3 brings the noise to about the typical gap between two candidates, m 4 below it.
+Two candidates' sample values do not move together (sd of a difference 4.9-7.4, more than one
+value's): the samples share their seeds, but the games part at once.
+
+Search's best candidate is not the base choice at 54-75% of the points (mean gap best - base
++2 to +5), but most of that is noise: a split-half check (best on the odd samples, measured on
+the even ones; 48 points with m 4) agrees 58% and leaves an unbiased gap of only +0.4 to +0.5.
+At these settings the labels refine the values of the candidates (far less noisy than a D row's
+one sample to the horizon) rather than flip many choices. Whether training on them wins is the
+next check (`train --search`, then `match`).
 
 **Robustness sweeps (2026-11-01/02, round-5 network and the hand-written policy, mixed
 budgets):** 2000 two-player games (seeds 6000001+, 7000001+), 200 three-player (8000101+) and

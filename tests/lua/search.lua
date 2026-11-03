@@ -35,7 +35,7 @@ local levels = require("ai.levels")
 
 local COLORS = { "Red", "Blue", "Yellow", "White" }
 os.clock()          -- (MoonSharp: the first call of a process returns nothing)
-local POINTS, K, SAMPLES, HORIZON = OPTS.points or 5, OPTS.k or 5, OPTS.samples or 2, OPTS.horizon or 20
+local POINTS, K, SAMPLES, HORIZON = OPTS.points or 5, OPTS.k or 5, OPTS.samples or 3, OPTS.horizon or 20
 
 local function player_of(color)
   for _, p in ipairs(players) do if p.color == color then return p end end
