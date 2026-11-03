@@ -36,6 +36,7 @@ M.PLANS = {
 }
 M.PLAN_ORDER = { "animals", "conservation", "building", "sponsors" }
 M.ENDGAME_PROGRESS = 0.85
+M.ASSIST = true          -- the levels play with policy.ASSIST (false: the network alone)
 
 local function above(level)
   for i, name in ipairs(M.ORDER) do
@@ -88,7 +89,10 @@ function M.policy(level, seed)
                    + (step or 0) * 1299709) % 4294967296
     local plan = M.plan(level, player, base)
     local spec = M.LEVELS[level] or {}
-    local opts = { network = true }
+    -- the assists (policy.ASSIST: builds that house the hand's animals, conservation projects)
+    -- correct two blind spots of the network; every level uses them (round 16: +11 / 68%
+    -- against the same network without, and -19 -> -10 against ARNO 1)
+    local opts = { network = true, assist = M.ASSIST ~= false }
     if plan then opts.weight = function(_, c) return M.fits(plan, c, spec.personality) end end
     return policy.budgeted(rng.new(mixed), M.budget(level), opts)(player, choices)
   end
