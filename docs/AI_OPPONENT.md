@@ -549,6 +549,8 @@ Found on the way:
 | 2026-11-01 | Ladder with the ensemble (same budgets), 100 games each | Expert vs Hard +18.5 (72%), Hard vs Medium +8.2 (62%), Medium vs Easy +18.5 (70%): order holds, 0 stalls in 300 games |
 | 2026-11-02 | Round 11: temporal-difference targets (`train --bootstrap`, two iterations), an ensemble of 4 such networks (ens_td2) | **beats the round-9 ensemble: +9.0 / 62.5%, confirmed +12.3 / 67% (200 + 200 games)**; bundled |
 | 2026-11-02 | Ladder with ens_td2 (same budgets), 100 games each | Expert vs Hard +9.0 (63%), Hard vs Medium +11.3 (57%), Medium vs Easy +10.5 (64%): order holds, 0 stalls in 300 games; Hard-Medium is the narrow step (next: recalibrate the budgets, the TD network's Q has a larger spread) |
+| 2026-11-03 | Levels with the assists (build 3, cp 4; seats `expert`...), 100 games each | Expert vs Hard +9.4 (64%), Hard vs Medium +19.1 (71%), Medium vs Easy +10.2 (58%): Medium too weak |
+| 2026-11-03 | Shipped: + unlock 3 / upgrade 0.5 (round 19), Medium budget 1.3 -> 1.15; 100 games each (seeds 22000001+) | Expert vs Hard +13.5 (72%), Hard vs Medium +9.1 (64%), Medium vs Easy +9.0 (59%): order holds, 0 stalls in 300 games |
 
 Ladder (2-seat games, seats swapped, `tools/ai_train.py match`; a margin is the average
 final score difference; ±4 points is noise at 100 games):
