@@ -370,7 +370,7 @@ local UW = { build = 0, cp = 0, unlock = 3 }
 local function flip(name) return click(name, "on_card_flip_clicked") end
 
 T.test("assist unlock: the ANIMALS / SPONSORS upgrade for hand cards that need it", function()
-  local p = hand_game({ 421, 403 })                  -- Dingo (upgrade), Lion (africa partner)
+  local p = hand_game({ 421, 403 })                  -- New Zealand Fur Seal (upgrade), Leopard (africa partner)
   T.eq(policy.assist_bonus(p, flip("ANIMALS"), UW), 3, "the upgrade animal")
   T.eq(policy.assist_bonus(p, flip("SPONSORS"), UW), 0, "no sponsor needs it")
   T.eq(policy.assist_bonus(p, flip("CARDS"), UW), 0)
@@ -378,7 +378,7 @@ T.test("assist unlock: the ANIMALS / SPONSORS upgrade for hand cards that need i
   T.eq(policy.assist_bonus(p, click("ANIMALS"), UW), 0, "only the flip, not another button")
   p.animals_flipped = true
   T.eq(policy.assist_bonus(p, flip("ANIMALS"), UW), 0, "already met")
-  local q = hand_game({ 207, 426, 431 })             -- a sponsor (upgrade, max 25 appeal), 2 upgrade animals
+  local q = hand_game({ 207, 426, 431 })             -- Basic Research (upgrade, max 25 appeal); 2 elephants (upgrade)
   T.eq(policy.assist_bonus(q, flip("SPONSORS"), UW), 3, "the sponsor's last unmet condition")
   T.eq(policy.assist_bonus(q, flip("ANIMALS"), UW), 6, "two animals")
 end)

@@ -576,7 +576,7 @@ later rows face a slightly stronger, correct ARNO:
 | Medium | −30.7 (8%) | −49.4 (2%) | −70.2 (0%) | −81.4 (0%) | −84.4 (0%) |
 | Easy | −42.3 (7%) | −58.4 (0%) | −81.5 (0%) | −85.9 (0%) | −94.2 (0%) |
 
-With the assists (round 16, 2026-11-03): Expert vs ARNO 1 −4.7 (48%) on the table's seeds. Round 17's two further assists (final scoring card, end timing) brought nothing and are off.
+With the assists (round 16, 2026-11-03): Expert vs ARNO 1 −4.7 (48%) on the table's seeds. Round 17's two further assists (final scoring card, end timing) brought nothing and are off. Round 19's two (`unlock`, `upgrade`) help against ARNO 1 and against the network without them, not against ARNO 3: off.
 
 Every AI level loses to every ARNO level: the AI, trained only against AIs, plays a slow
 game; ARNO races (in a traced game ARNO had 105 points after 40 turns, the AI 53). The goal
@@ -644,7 +644,7 @@ inputs v3); matches 100001+, 200001+, 300001+, 400001+, 500001+, 600001+, 700001
 900001+ (FIXPILE repro), 1000001+ ... 2300001+ (every 100000 up to 2300001; 2026-11-01 checks and ladder),
 2400001+ and 2600001+ (200 games each), 3000001+ ... 3400001+ (100 each), 3500001+ and 3700001+
 (200 each), 3900001+ (200), 4100001+ ... 4300001+ (100 each), 4400001+ (2, smoke test),
-4500001+ and 4700001+ (200 each), 4900001+ and 5100001+ (200 each), 5300001+ ... 5500001+ (ladder), 5700001+ (200), 6000001+ and 7000001+ (sweeps, 1000 each, 0 failures), 8000001+ (smoke test), 10000001+ ... 10800001+ (round 11), 11000001+ ... 11200001+ (ladder), 12000001+ and 12200001+ (round 12). Self-play 23000-27499 (round 10). Self-play: 20000-22499 (round 5). Search probes (2026-11-03): 30000001-30000003, 40000001-40000002, 40000101-40000102, 40001001-40001008, 40001101-40001106, 40001201-40001202; search labels from 40100001. Round 17 (2026-11-03): traces 91000001-91000012, 91100001-91100012, 91200001-91200008 (91300001+ started and stopped), matches 18000001+ (60 each), 18100001+ (100 each), 18900001-18900002 (smoke test).
+4500001+ and 4700001+ (200 each), 4900001+ and 5100001+ (200 each), 5300001+ ... 5500001+ (ladder), 5700001+ (200), 6000001+ and 7000001+ (sweeps, 1000 each, 0 failures), 8000001+ (smoke test), 10000001+ ... 10800001+ (round 11), 11000001+ ... 11200001+ (ladder), 12000001+ and 12200001+ (round 12). Self-play 23000-27499 (round 10). Self-play: 20000-22499 (round 5). Search probes (2026-11-03): 30000001-30000003, 40000001-40000002, 40000101-40000102, 40001001-40001008, 40001101-40001106, 40001201-40001202; search labels from 40100001. Round 17 (2026-11-03): traces 91000001-91000012, 91100001-91100012, 91200001-91200008 (91300001+ started and stopped), matches 18000001+ (60 each), 18100001+ (100 each), 18900001-18900002 (smoke test). Round 19 (2026-11-03): traces 91900001, 92000001-92000024, 92100001-92100020, 92200001-92200010, 92300001-92300003, 92400001-92400002; matches 21000001+ and 21100001+ (60 each), 21200001+, 21300001+ and 21400001+ (100 each).
 
 | Round | Data | Result |
 |---|---|---|
@@ -664,6 +664,7 @@ inputs v3); matches 100001+, 200001+, 300001+, 400001+, 500001+, 600001+, 700001
 | 15 (2026-11-03) | search pilot: `ai_train.py search` on 100 games td2 vs ARNO 1 (`--samples 4`, seeds 42000001+; 2400 labels). Unbiased best-vs-base gap +1.30 (+0.4 in the lost ARNO 5 games), split-half 62%. Trained td2's recipe + `--search` (weight 5) = r15s | r15s vs ARNO 1 −21.5 / **25%** (td2 −25.5 / 13%), vs td2 +1.2 / 52% (100): a small step up; search labels at scale next (ARNO 1, 2, self; 6 workers: a search worker takes ~1.5 GB) |
 | 16 (2026-11-03) | the assists (policy.ASSIST), measured on td2 and then on the shipped Expert | td2 vs ARNO 1 (60 games, 16000001+): plain −19.1 / 20%; build/cp 2/3 −7.7 / 32%; 3/4 −9.7 / 28%; 4/6 −12.8 / 30%. Assisted vs plain td2 (100, 16100001+): +8.1 / 65%, +10.8 / 68%, +10.7 / 70%. **Levels use 3/4 (shipped).** Expert (ens_td2 + assists): vs ARNO 1 −4.7 / 48% (same seeds as the table: −8.6 / 38%), vs ARNO 3 −26.6 / 7% (table −23.8 / 18%, but that row ran before the harness fix gave ARNO his setup draw), vs the same ensemble without assists +12.2 / 66% (100, 17000001+). The largest single step against ARNO: two hand-written blind spots fixed |
 | 17 (2026-11-03) | second analysis (traces of the shipped Expert, with the assists) and two more assists, `final` and `ending` (below), measured on td2 + the round-16 assists (build 3, cp 4) | vs ARNO 1 (60 games, 18000001+): round 16 alone −12.6 / 25%; + final 1 −14.4 / 20%; + final 2 −13.3 / 23%; + ending 6 −13.1 / 23% (20 debug games: final 4 doubles the final scoring card's CP, 1.15 -> 2.3, and loses 1.7 points; ending fired in 3 games of 20 and changed one by 1 point). Against td2 without assists (100, 18100001+): round 16 / + ending 6: +8.0 / 57% and +6.7 / 55%. **Not kept: both weights stay 0** (the code and `--assist-final/--assist-end` are in for later tries) |
+| 19 (2026-11-03) | third analysis (early game, own turns 1-16; traces of the shipped Expert vs ARNO 3, 1 and itself) and two assists, `unlock` and `upgrade` (below), measured on td2 + the round-16 assists (build 3, cp 4); every baseline rerun on the same seeds (the final scoring cards are shuffled now) | vs ARNO 3 (60 games, 21000001+): round 16 alone −28.8 / 7%; + unlock 3 −22.5 / 17%; + unlock 3 + upgrade 0.5 −24.3 / 10%; + upgrade 0.5 −27.6 / 10%. **Confirmed on fresh seeds (100, 21300001+): round 16 −31.9 / 5%, + unlock 3 −32.0 / 7%, + both −32.0 / 6%: no gain against ARNO 3.** vs ARNO 1 (60, 21100001+): −14.6 / 23%; unlock 3 −14.7 / 22%; both −9.8 / 28%; confirmed (100, 21400001+): −16.4 / 21% against both −10.2 / 35%. Against td2 without assists (100, 21200001+): round 16 +9.7 / 67%, + unlock 3 +15.3 / 70%, + both +17.0 / 69%. **Not kept (the keep rule asks for a gain against ARNO 3): both weights stay 0**; both together are a confirmed step against ARNO 1 (+6) and the network (+7): a candidate if the rule allows it |
 | 18 (2026-11-03) | search labels at scale (td2 against ARNO 1 100 games, ARNO 2 100, itself 17 of 60; ~7200 labels + the pilot's 2400) in td2's recipe (`--search`, weight 5) = r18; after the card shuffle fix, new baselines | with the assists (network_a): vs ARNO 1 (60, 19000001+) td2 −17.3 / 23%, r18 −15.3 / 27%; vs ARNO 3 (60, 19100001+) td2 −34.3 / 7%, r18 −34.8 / 3%; r18 vs td2 (100) −5.4 / 41%. **Not kept: search distillation does not help this network** (the pilot's gain was noise; at single decisions the candidates are close, the losses come from blind spots the assists fix) |
 
 **Behaviour analysis (2026-11-03, 1000 games td2 vs ARNO 1 + 21 traced games):** the AI keeps
@@ -703,6 +704,42 @@ once, while own score + own final scoring card < the best other score + its fina
 (ARNO's tokens less his CP debt) + one last turn (6): minus the points short, at most the
 weight). Neither helped (round 17): the final scoring card is worth only 3-6 points, and
 chasing it costs as much elsewhere; the losing endings the AI can avoid are rare (2 of 12).
+
+**Third analysis (round 19, 2026-11-03; the early game, own turns 1-16; traces of the shipped
+Expert: 24 games against ARNO 3, 10 against ARNO 1, 20 against itself; `build/assist3/`:
+`trace.lua` (+ U| upgrades, slot order, workers; P| every card pick with its options'
+conditions; F| every upgrade choice with its options' Q), `early.py` (per own turn: state and
+what each action did), `hand.py`, `life.py`, `conds.py`, `picks.py`, `corr.py`, `firstup.py`):**
+the AI's own pace is the same against ARNO 3 and against itself (turn 16: appeal 18.4 / 17.6,
+CP 3.1 / 3.8, income 18, 3.3 animals, 1.8 upgrades); ARNO 3 is just faster (score 20.3
+against 10.6 at turn 16: −2.5 appeal and −3.4 CP, most of his CP from his own deck). Action mix
+in turns 1-16 (per seat): ASSOCIATION 3.6 (mostly university / partner zoo, 0.9 projects),
+CARDS 3.4 (2.2 draws at strength ~4), BUILD 3.1 (size 4-5), ANIMALS 3.0 (one animal each; two
+only 0.07 times), SPONSORS 2.9 (1.7 of them break / money while ~20 money lie idle). Found:
+- **The hand clogs with animals whose conditions are unmet**, not only with ones that lack an
+  enclosure: in turns 1-16, 68% of the hand animals have unmet conditions and only 23% of the
+  turns have a playable animal (then ANIMALS is taken 81%). Animals with 1+ unmet conditions
+  when they reach the hand are played 8-15% of the time and sit 10-13 turns; with none 63-69%.
+  The blockers: `upgrade` (ANIMALS II; 22 of 127 against ARNO 3), `research` (21), then
+  continents, partner zoos and species. Discards and snaps already lean the right way (a
+  playable animal is snapped 64% of the times one is offered, a blocked one 12%).
+- **The network cannot tell the upgrades apart:** at every upgrade choice ANIMALS, CARDS,
+  SPONSORS and ASSOCIATION get exactly the same Q (BUILD 1-2 lower, never taken), so the
+  first upgrade was a random draw (against ARNO 3: SPONSORS 7, CARDS 7, ANIMALS 5,
+  ASSOCIATION 5 of 24; in self-play ANIMALS 18 of 40). The choice inputs do not say which
+  card is flipped. In self-play, ANIMALS among the first two upgrades: +4.7 against −5.2
+  (40 seats, noise level).
+
+**Assists of round 19** (off, weight 0): `unlock` (per hand card whose unmet conditions a
+choice meets, 1 if all, 1/2 if some: the ANIMALS / SPONSORS upgrade for `upgrade` animals /
+sponsors, a partner zoo (its continent icon, `<continent> partner`, `partner zoo`), a
+university (its icons, `university`, its reputation); on "Take a Partner Zoo / University"
+the best on offer; `--assist-unlock`) and `upgrade` (points on the ANIMALS upgrade: a fixed
+tie-break, ANIMALS II first; `--assist-upgrade`). Results in the table: unlock alone and
+both together are flat against ARNO 3 on 160 games (−30.7 → −29.1 for both) but help against
+ARNO 1 (both: +4.8 and +6.2 on two seed sets) and against the network without them (+7.3).
+Next candidates: the upgrade choice in the network itself (an input naming the flipped
+card), and the money left idle (SPONSORS for money with ~20 in hand).
 
 The richer inputs (v2, v3) predict held-out games better but play worse: a lower validation
 error does not mean better choices. (Not because the state explains most of the target: with
