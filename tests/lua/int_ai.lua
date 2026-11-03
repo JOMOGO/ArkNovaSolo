@@ -365,4 +365,56 @@ T.test("assist ending: ARNO's final scoring tokens (less his CP debt) count", fu
   arno_state = nil
 end)
 
+-- conditions met (unlock)
+local UW = { build = 0, cp = 0, unlock = 3 }
+local function flip(name) return click(name, "on_card_flip_clicked") end
+
+T.test("assist unlock: the ANIMALS / SPONSORS upgrade for hand cards that need it", function()
+  local p = hand_game({ 421, 403 })                  -- Dingo (upgrade), Lion (africa partner)
+  T.eq(policy.assist_bonus(p, flip("ANIMALS"), UW), 3, "the upgrade animal")
+  T.eq(policy.assist_bonus(p, flip("SPONSORS"), UW), 0, "no sponsor needs it")
+  T.eq(policy.assist_bonus(p, flip("CARDS"), UW), 0)
+  T.eq(policy.assist_bonus(p, flip("ANIMALS"), W), 0, "unlock off")
+  T.eq(policy.assist_bonus(p, click("ANIMALS"), UW), 0, "only the flip, not another button")
+  p.animals_flipped = true
+  T.eq(policy.assist_bonus(p, flip("ANIMALS"), UW), 0, "already met")
+  local q = hand_game({ 207, 426, 431 })             -- a sponsor (upgrade, max 25 appeal), 2 upgrade animals
+  T.eq(policy.assist_bonus(q, flip("SPONSORS"), UW), 3, "the sponsor's last unmet condition")
+  T.eq(policy.assist_bonus(q, flip("ANIMALS"), UW), 6, "two animals")
+end)
+
+T.test("assist upgrade: the ANIMALS upgrade first", function()
+  local p = hand_game({})
+  local GW = { build = 0, cp = 0, upgrade = 0.5 }
+  T.eq(policy.assist_bonus(p, flip("ANIMALS"), GW), 0.5)
+  T.eq(policy.assist_bonus(p, flip("CARDS"), GW), 0)
+  T.eq(policy.assist_bonus(p, click("ANIMALS"), GW), 0, "not the action card")
+  T.eq(policy.assist_bonus(p, flip("ANIMALS"), W), 0, "upgrade off")
+  local q = hand_game({ 421 })
+  T.eq(policy.assist_bonus(q, flip("ANIMALS"), { unlock = 3, upgrade = 0.5 }), 3.5, "both")
+end)
+
+T.test("assist unlock: a partner zoo or university that meets an animal's condition", function()
+  local p = hand_game({ 403, 501 })                  -- africa partner; asia icon
+  T.eq(policy.assist_bonus(p, click("Africa Partner Zoo"), UW), 3)
+  T.eq(policy.assist_bonus(p, click("Asia Partner Zoo"), UW), 3, "its continent icon")
+  T.eq(policy.assist_bonus(p, click("Europe Partner Zoo"), UW), 0)
+  local saved = available_partner_zoos            -- the human test table has no partner zoo tiles
+  available_partner_zoos = function() return { "europe", "asia" } end
+  T.eq(policy.assist_bonus(p, click("Take a Partner Zoo"), UW), 3, "the best on offer")
+  available_partner_zoos = function() return { "europe" } end
+  T.eq(policy.assist_bonus(p, click("Take a Partner Zoo"), UW), 0, "none on offer helps")
+  available_partner_zoos = saved
+  T.eq(policy.assist_bonus(p, click("Take a University"), UW), 0, "no university helps")
+  local q = hand_game({ 425, 427 })                  -- two animals that need a research icon
+  T.eq(policy.assist_bonus(q, click("Double Research University"), UW), 6, "both")
+  T.eq(policy.assist_bonus(q, click("Double Reputation University"), UW), 6, "its research icon")
+  T.eq(policy.assist_bonus(q, click("Hand Size University"), UW), 0, "no research icon")
+  local saved_uni = available_universities
+  available_universities = function() return { "hand_size", "double_rep" } end
+  T.eq(policy.assist_bonus(q, click("Take a University"), UW), 6, "the best on offer")
+  T.eq(policy.assist_bonus(q, click("Take a University"), W), 0, "unlock off")
+  available_universities = saved_uni
+end)
+
 T.finish("integration AI")

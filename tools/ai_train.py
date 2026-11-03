@@ -579,6 +579,8 @@ def main(argv=None) -> int:
         q.add_argument("--assist-cp", type=float, help="network_a: points for supporting a conservation project")
         q.add_argument("--assist-final", type=float, help="network_a: points per CP a card play adds to the final scoring card")
         q.add_argument("--assist-end", type=float, help="network_a: most points off an action that ends a game it would lose")
+        q.add_argument("--assist-unlock", type=float, help="network_a: points per hand card whose conditions a choice meets")
+        q.add_argument("--assist-upgrade", type=float, help="network_a: points on upgrading the ANIMALS action card")
     args = ap.parse_args(argv)
 
     if args.cmd in ("play", "match"):
@@ -586,7 +588,8 @@ def main(argv=None) -> int:
         lines = play(args.games, seats, getattr(args, "out", None), args.weights, args.first, args.workers,
                      log=args.cmd == "play", weights_b=getattr(args, "weights_b", None),
                      assist={"assist_build": args.assist_build, "assist_cp": args.assist_cp,
-                             "assist_final": args.assist_final, "assist_end": args.assist_end})
+                             "assist_final": args.assist_final, "assist_end": args.assist_end,
+                             "assist_unlock": args.assist_unlock, "assist_upgrade": args.assist_upgrade})
         report(lines, seats)
     elif args.cmd == "search" and args.report:
         lines = [l.rstrip("\n") for path in args.report for l in path.open(encoding="utf-8")]

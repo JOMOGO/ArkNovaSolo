@@ -189,8 +189,15 @@ end
 --          own final scoring card vs the best other score + its final scoring (ARNO's tokens)
 --          + its last turn (END_LAST_TURN); minus the points short, at most `ending` (0 when
 --          short by more than END_RANGE: no waiting saves that game)
+--   unlock per hand card with unmet conditions that a choice meets (all of them: 1, some: 1/2):
+--          the upgrade of the ANIMALS / SPONSORS action card ("upgrade" animals / sponsors), a
+--          partner zoo (its continent icon, "<continent> partner", "partner zoo"), a university
+--          (its icons, "university", its reputation); on "Take a Partner Zoo / University" the
+--          best one on offer
+--   upgrade on the upgrade of the ANIMALS action card (the network scores the four upgrades
+--          it would take the same: it drew one at random; round 19)
 -- (round 17, docs/AI_OPPONENT.md §10: final 1 / 2 and ending 6 brought nothing against ARNO 1: off)
-M.ASSIST = { build = 3, cp = 4, final = 0, ending = 0 }
+M.ASSIST = { build = 3, cp = 4, final = 0, ending = 0, unlock = 0, upgrade = 0 }
 M.END_LAST_TURN = 6       -- what the other player's last turn brings, roughly (traces: ~6)
 M.END_OTHER_CP = 1.5      -- the final scoring CP of a player whose cards the AI cannot see
 M.END_RANGE = 25
@@ -437,7 +444,85 @@ function M.ending_shortfall(player, c, kind, strength)
   return -margin
 end
 
-local function assist_bonus(player, c, w)
+-- ---- conditions met (unlock): the condition supply a choice adds, { [condition] = n } as
+-- player_condition_supply counts it (rep: reputation gained, for the "N rep" conditions)
+function M.partner_delta(owner)
+  return { [owner] = 1, [owner .. " partner"] = 1, ["partner zoo"] = 1 }
+end
+
+function M.university_delta(name)
+  local spec = cnsts.universities[name]
+  local d = { university = 1 }
+  for _, icon in ipairs(spec.icons or {}) do d[icon] = (d[icon] or 0) + 1 end
+  for _, r in ipairs(spec.rewards or {}) do
+    local n = tostring(r):match("^(%d+) rep$")
+    if n then d.rep = (d.rep or 0) + tonumber(n) end
+  end
+  return d
+end
+
+-- hand cards of `kind` ("animal" / "sponsor") whose unmet conditions the supply `delta`
+-- meets: all of them 1, some 1/2
+function M.unlock_gain(player, delta, kind)
+  local n = 0
+  local rep_now = get_counter_value(player.rep_counter)
+  for _, card in ipairs(player_hand_cards(player)) do
+    local ok, data = pcall(card_data_for, card.getName())
+    if ok and data and data.type == kind and data.conditions and #data.conditions > 0
+       and not (kind == "animal" and waza_assignment_blocks(data, player)) then
+      local unmet = kind == "animal" and animal_conditions_unmet(data, player) or conditions_unmet(data, player)
+      if unmet > 0 then
+        local need = {}
+        for _, cond in ipairs(data.conditions) do need[cond] = (need[cond] or 0) + 1 end
+        local met = 0
+        for cond, k in pairs(need) do
+          local short = math.max(0, k - player_condition_supply(player, cond, data.type))
+          if short > 0 then
+            local add = delta[cond] or 0
+            local rep = cond:match("^(%d+) rep$")
+            if rep and delta.rep and rep_now + delta.rep >= tonumber(rep) then add = 1 end
+            met = met + math.min(short, add)
+          end
+        end
+        if met >= unmet then n = n + 1 elseif met > 0 then n = n + 0.5 end
+      end
+    end
+  end
+  return n
+end
+
+local function unlock_bonus(player, c, label)
+  if c.handler == "on_card_flip_clicked" then
+    if label == "ANIMALS" then return M.unlock_gain(player, { upgrade = 1 }, "animal") end
+    if label == "SPONSORS" then return M.unlock_gain(player, { upgrade = 1 }, "sponsor") end
+    return 0
+  end
+  if label == "Take a Partner Zoo" or label == "Take a University" then
+    local best = 0
+    if label == "Take a Partner Zoo" then
+      for _, owner in ipairs(available_partner_zoos(player, false)) do
+        best = math.max(best, M.unlock_gain(player, M.partner_delta(owner), "animal"))
+      end
+    else
+      for _, name in ipairs(available_universities(player, false)) do
+        best = math.max(best, M.unlock_gain(player, M.university_delta(name), "animal"))
+      end
+    end
+    return best
+  end
+  if label:find("Partner Zoo$") then
+    for _, owner in ipairs(cnsts.icons.habitat) do
+      if partner_zoo_label(owner) == label then return M.unlock_gain(player, M.partner_delta(owner), "animal") end
+    end
+  elseif label:find("University$") then
+    for name, spec in pairs(cnsts.universities) do
+      if spec.label == label then return M.unlock_gain(player, M.university_delta(name), "animal") end
+    end
+  end
+  return 0
+end
+
+local function other_bonus(player, c, w)
   local label = c.label or ""
   if c.kind == "pick_up" then
     if (w.final or 0) == 0 then return 0 end
@@ -489,7 +574,14 @@ local function assist_bonus(player, c, w)
   return 0
 end
 
--- the assists' points for one choice under weights w ({ build, cp, final, ending }); 0 on any error
+local function assist_bonus(player, c, w)
+  local v = other_bonus(player, c, w)
+  if c.kind == "click" and (w.unlock or 0) ~= 0 then v = v + w.unlock * unlock_bonus(player, c, c.label or "") end
+  if (w.upgrade or 0) ~= 0 and c.handler == "on_card_flip_clicked" and c.label == "ANIMALS" then v = v + w.upgrade end
+  return v
+end
+
+-- the assists' points for one choice under weights w ({ build, cp, final, ending, unlock }); 0 on any error
 function M.assist_bonus(player, c, w)
   local ok, v = pcall(assist_bonus, player, c, w or M.ASSIST)
   if not ok and M.on_assist_error then M.on_assist_error(v, c) end     -- tests, analysis
