@@ -77,7 +77,11 @@ function M.play(seed, opts)
   local mw = opts.mw or false
   local cap = opts.cap or 250 * #colors
   local r = rng.new(seed)
-  sim.ai_table(colors, rng.shuffle(r, M.zoo_cards(mw)), { mw = mw, names = NAMES })
+  local zoo = rng.shuffle(r, M.zoo_cards(mw))
+  -- the final scoring cards shuffled too (they were dealt 1, 2 / 3, 4 in every game: the
+  -- network saw 4 of the 11, found in round 17)
+  sim.ai_table(colors, zoo, { mw = mw, names = NAMES,
+                              final_scoring = rng.shuffle(r, { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 }) })
   if opts.arno then M.seat_arno(opts.arno.color, opts.arno.level, seed) end
   driver.reset(seed)
   for color, make in pairs(opts.policies or {}) do driver.policies[color] = make(seed) end

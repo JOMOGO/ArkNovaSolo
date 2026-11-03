@@ -462,7 +462,8 @@ function sim.ai_table(colors, deck, opts)
   for _ = 1, opts.discards or 10 do discard_pile.putObject(card(deck[at])); at = at + 1 end
   zoo_deck = sim.fake("zoo deck"); zoo_deck.tag = "Deck"
   for i = at, #deck do zoo_deck.putObject(card(deck[i])) end
-  final_scoring_deck = sim.deck({ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 })
+  -- opts.final_scoring: the deck's order (shuffled by the game, as in TTS); else 1..11
+  final_scoring_deck = sim.deck(opts.final_scoring or { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 })
   for _, p in ipairs(players) do
     for _ = 1, 2 do final_scoring_deck.takeObject({}).deal(1, p.color, 2) end
   end
