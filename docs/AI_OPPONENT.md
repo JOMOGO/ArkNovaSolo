@@ -563,6 +563,29 @@ final score difference; ±4 points is noise at 100 games):
 | Easy vs hand-written policy | 80 | +14.1 | 73% |
 | Expert vs hand-written policy | 99 | +31.7 | 89% |
 
+AI levels against ARNO 3.0 (2026-11-03, bundled ens_td2; 60 games each, the AI starts;
+`ai_train.py match --seats expert:0,arno:5`; AI's average margin and win rate). A harness
+audit found it fair (ARNO's scoring, CP debt, start order, end trigger as in TTS); its two
+fixes (ARNO's setup draw, the base projects' blocking cubes) landed during the sweep, so the
+later rows face a slightly stronger, correct ARNO:
+
+| AI \ ARNO | 1 | 3 | 5 | 7 | 10 |
+|---|---|---|---|---|---|
+| Expert | −8.6 (38%) | −23.8 (18%) | −49.2 (0%) | −55.3 (0%) | −63.8 (0%) |
+| Hard | −19.5 (22%) | −43.1 (2%) | −62.7 (0%) | −72.5 (0%) | −82.2 (0%) |
+| Medium | −30.7 (8%) | −49.4 (2%) | −70.2 (0%) | −81.4 (0%) | −84.4 (0%) |
+| Easy | −42.3 (7%) | −58.4 (0%) | −81.5 (0%) | −85.9 (0%) | −94.2 (0%) |
+
+Every AI level loses to every ARNO level: the AI, trained only against AIs, plays a slow
+game; ARNO races (in a traced game ARNO had 105 points after 40 turns, the AI 53). The goal
+(owner, 2026-11-03): Expert near unbeatable against any player; this table is the benchmark.
+
+Round 13 (running, 2026-11-03): mixed opponents, played by td2 (budget 1), card numbers
+logged: 800 games each against ARNO 3, 5, 8 (seeds 30000+, 31000+, 32000+;
+`round7_arno3/5/8.txt`), 500 against the hand-written policy (33000+, `round7_heur.txt`).
+Next: search labels (`ai_train.py search`, --samples 4) in the same matchups, then train on
+everything and check against ens_td2 and this table.
+
 The order holds; the steps are uneven (Easy stands out further below). The plan's next
 strength steps, not done yet: more training rounds (network self-play, §9), the lookahead
 (§4b) and Expert's opponent model (§4 Levels), each kept only if it wins in the ladder.
