@@ -580,6 +580,23 @@ later rows face a slightly stronger, correct ARNO:
 
 With the assists (round 16, 2026-11-03): Expert vs ARNO 1 −4.7 (48%) on the table's seeds. Round 17's two further assists (final scoring card, end timing) brought nothing and are off. Round 19's two (`unlock`, `upgrade`) help against ARNO 1 and against the network without them, not against ARNO 3: off.
 
+Shipped levels against ARNO (2026-11-03 evening: ens_td2 + assists build 3 / cp 4 / unlock 3 /
+upgrade 0.5, Medium 1.15; after the harness fixes, so not strictly paired with the table above;
+60 games each, the same seeds; paused by the owner before Easy vs ARNO 3 finished):
+
+| AI \ ARNO | 1 | 2 | 3 | 5 | 10 |
+|---|---|---|---|---|---|
+| Expert | −5.1 (35%) | −20.6 (20%) | −25.4 (17%) | −41.1 (5%) | −61.5 (0%) |
+| Hard | −9.3 (35%) | | −29.4 (5%) | | |
+| Medium | −18.3 (10%) | | −38.1 (5%) | | |
+| Easy | −31.5 (7%) | | (not run) | | |
+
+Against the first table every level gained 3-15 points against ARNO 1 and 3; Hard and below most.
+
+**Paused 2026-11-03 20:15 (owner needed the PC).** Round 20 (a fourth analysis and assist,
+scratch copy build/assist4/) was stopped mid-measurement; nothing of it is committed. To resume:
+the last line of build/ai/final.cmd (Easy vs ARNO 3), then round 20 again.
+
 Every AI level loses to every ARNO level: the AI, trained only against AIs, plays a slow
 game; ARNO races (in a traced game ARNO had 105 points after 40 turns, the AI 53). The goal
 (owner, 2026-11-03): Expert near unbeatable against any player; this table is the benchmark.
