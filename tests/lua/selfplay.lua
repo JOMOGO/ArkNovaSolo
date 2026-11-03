@@ -1,7 +1,7 @@
 -- Self-play for training (docs/AI_OPPONENT.md §4a), run by tools/ai_train.py (not part of the
 -- test suite). Plays whole games on the built Global.lua and prints one line per decision
 -- with two or more choices:
---   D|<seed>|<color>|<margin now>|<inputs, comma separated>|<own score now>
+--   D|<seed>|<color>|<margin now>|<inputs, comma separated>|<own score now>|<card number or 0>
 -- and per seat at the end:
 --   E|<seed>|<color>|<final margin>|<outcome>
 -- margin = own score minus the best other score. The trainer's target for a decision is
@@ -30,6 +30,18 @@ end
 
 local function fmt(x) return string.format("%.3f", x):gsub("%.?0+$", "") end
 
+-- the number of the card a choice is about (a card picked up, or named in the label as
+-- "...: (123) Name"), 0 if none: logged for card-specific inputs later (an embedding)
+function M_card_number(c)
+  local name
+  if c.obj then
+    local ok, n = pcall(function() return c.obj.getName() end)
+    if ok then name = n end
+  end
+  name = name or (c.label or ""):match(": (.+)$") or c.label or ""
+  return tonumber(tostring(name):match("%((%d+)%)")) or 0
+end
+
 local seed_now = 0
 policy.on_decision = function(player, list, pick)
   if #list < 2 or OPTS.log == false then return end
@@ -37,8 +49,8 @@ policy.on_decision = function(player, list, pick)
   for _, v in ipairs(features.choice(player, pick.choice, pick.heuristic)) do x[#x + 1] = v end
   local parts = {}
   for i, v in ipairs(x) do parts[i] = fmt(v) end
-  print(string.format("D|%d|%s|%d|%s|%d", seed_now, player.color, margin(player), table.concat(parts, ","),
-    get_counter_value(player.score_counter)))
+  print(string.format("D|%d|%s|%d|%s|%d|%d", seed_now, player.color, margin(player), table.concat(parts, ","),
+    get_counter_value(player.score_counter), M_card_number(pick.choice)))
 end
 
 driver.LOG_LINES = 50

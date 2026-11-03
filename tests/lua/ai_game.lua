@@ -40,13 +40,17 @@ end
 -- turns the table's seat `color` into ARNO 3.0 at `level`, as the mod's setup does
 -- (ARNO.setup.add_bots, prepare_bot): his own state, cards and CP debt; no hand, no final
 -- scoring cards (ARNO holds none)
-function M.seat_arno(color, level)
+function M.seat_arno(color, level, seed)
   local seat
   for _, p in ipairs(players) do if p.color == color then seat = p end end
   arno_setup = { levels = { [color] = level }, ai = {}, project_module = false }
   local others = {}
   for _, p in ipairs(players) do if p ~= seat then others[#others + 1] = p end end
   ARNO.setup.add_bots(others)
+  -- ARNO's own random stream from the game's seed (add_bots takes the clock): a game replays
+  local s = math.floor((seed or 0) * 2654435761) % 4294967296
+  arno_state.seed = string.format("%08x", s)
+  arno_state.rng = { hi = math.floor(s / 65536), lo = s % 65536 }
   for k, v in pairs(others[#others]) do seat[k] = v end
   seat.is_ai = nil
   for _, index in ipairs({ 1, 2 }) do
@@ -69,7 +73,7 @@ function M.play(seed, opts)
   local cap = opts.cap or 250 * #colors
   local r = rng.new(seed)
   sim.ai_table(colors, rng.shuffle(r, M.zoo_cards(mw)), { mw = mw, names = NAMES })
-  if opts.arno then M.seat_arno(opts.arno.color, opts.arno.level) end
+  if opts.arno then M.seat_arno(opts.arno.color, opts.arno.level, seed) end
   driver.reset(seed)
   for color, make in pairs(opts.policies or {}) do driver.policies[color] = make(seed) end
   failures = {}
