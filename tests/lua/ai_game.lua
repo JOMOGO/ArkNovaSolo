@@ -37,6 +37,28 @@ function M.panels()
   return table.concat(out, ", ")
 end
 
+-- turns the table's seat `color` into ARNO 3.0 at `level`, as the mod's setup does
+-- (ARNO.setup.add_bots, prepare_bot): his own state, cards and CP debt; no hand, no final
+-- scoring cards (ARNO holds none)
+function M.seat_arno(color, level)
+  local seat
+  for _, p in ipairs(players) do if p.color == color then seat = p end end
+  arno_setup = { levels = { [color] = level }, ai = {}, project_module = false }
+  local others = {}
+  for _, p in ipairs(players) do if p ~= seat then others[#others + 1] = p end end
+  ARNO.setup.add_bots(others)
+  for k, v in pairs(others[#others]) do seat[k] = v end
+  seat.is_ai = nil
+  for _, index in ipairs({ 1, 2 }) do
+    for _, card in ipairs(Player[color].getHandObjects(index)) do put_on_discard_pile(card) end
+  end
+  local saved = { apply_map_choice = apply_map_choice, deal_action_cards = deal_action_cards }
+  apply_map_choice, deal_action_cards = function() end, function() end   -- the table did both
+  ARNO.setup.prepare_bot(seat)
+  apply_map_choice, deal_action_cards = saved.apply_map_choice, saved.deal_action_cards
+  return seat
+end
+
 -- plays one game; returns outcome ("scored", "turn cap", "deck ran out"), turns, scores
 -- (by colour). Raises on a Lua error, a stall or a driver loop.
 -- policies: color -> policy (driver.policies); others play the seeded random policy
@@ -47,6 +69,7 @@ function M.play(seed, opts)
   local cap = opts.cap or 250 * #colors
   local r = rng.new(seed)
   sim.ai_table(colors, rng.shuffle(r, M.zoo_cards(mw)), { mw = mw, names = NAMES })
+  if opts.arno then M.seat_arno(opts.arno.color, opts.arno.level) end
   driver.reset(seed)
   for color, make in pairs(opts.policies or {}) do driver.policies[color] = make(seed) end
   failures = {}

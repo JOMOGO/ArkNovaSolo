@@ -45,20 +45,24 @@ driver.LOG_LINES = 50
 for seed = OPTS.from, OPTS.to do
   seed_now = seed
   local seats = OPTS.seats
-  local colors, makers = {}, {}
-  -- the seats rotate with the seed, so every policy plays every position
+  local colors, makers, arno = {}, {}, nil
+  local with_arno = false
+  for _, spec in ipairs(seats) do if spec.arno then with_arno = true end end
+  -- the seats rotate with the seed, so every policy plays every position (not against
+  -- ARNO: a player starts, ARNO sits after the AI seats)
   for i = 1, #seats do
-    local spec = seats[((i - 1 + seed) % #seats) + 1]
+    local spec = with_arno and seats[i] or seats[((i - 1 + seed) % #seats) + 1]
     local color = COLORS[i]
     colors[i] = color
-    makers[color] = function(s)
+    if spec.arno then arno = { color = color, level = spec.arno } end
+    if not spec.arno then makers[color] = function(s)
       if spec.level then return levels.policy(spec.level, s * 31 + i) end     -- a shipped level
       local opts = { network = spec.policy == "network" or spec.policy == "network_b" }
       if spec.policy == "network_b" then opts.weights = require("ai.net_weights_b") end
       return policy.budgeted(rng.new(s * 31 + i), spec.budget or 0, opts)
-    end
+    end end
   end
-  local ok, outcome, _, scores = pcall(game.play, seed, { colors = colors, policies = makers,
+  local ok, outcome, _, scores = pcall(game.play, seed, { colors = colors, policies = makers, arno = arno,
                                                           mw = OPTS.mw_every and seed % OPTS.mw_every == 0 })
   if not ok then
     print("X|" .. seed .. "|" .. tostring(outcome):gsub("\n", " / "))

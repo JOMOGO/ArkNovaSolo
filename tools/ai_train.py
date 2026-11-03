@@ -48,6 +48,8 @@ def lua_options(first: int, last: int, seats, mw_every: int, log: bool = True) -
     def seat(p, b):
         if p in ("easy", "medium", "hard", "expert"):      # a shipped level (ai.levels)
             return f'{{ level = "{p}" }}'
+        if p == "arno":                                    # ARNO 3.0 at this level (1-10)
+            return f'{{ arno = {int(b)} }}'
         return f'{{ policy = "{p}", budget = {b} }}'
     seat_list = ", ".join(seat(p, b) for p, b in seats)
     return (f'ARNO_MODULES["tests.selfplay_options"] = function(require)\n'
@@ -139,6 +141,8 @@ def play(games: int, seats, out: Path | None, weights: Path | None, first: int =
 
 def seat_specs(seats, seed: int, n: int) -> dict[str, tuple[str, float]]:
     colors = ["Red", "Blue", "Yellow", "White"]
+    if any(name == "arno" for name, _ in seats):   # against ARNO the seats stay: a player starts
+        return {colors[i]: seats[i] for i in range(n)}
     return {colors[i]: seats[(i + seed) % len(seats)] for i in range(n)}
 
 
