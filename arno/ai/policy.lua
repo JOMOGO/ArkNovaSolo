@@ -197,7 +197,7 @@ end
 --   upgrade on the upgrade of the ANIMALS action card (the network scores the four upgrades
 --          it would take the same: it drew one at random; round 19)
 -- (round 17, docs/AI_OPPONENT.md §10: final 1 / 2 and ending 6 brought nothing against ARNO 1: off)
-M.ASSIST = { build = 3, cp = 4, final = 0, ending = 0, unlock = 0, upgrade = 0 }
+M.ASSIST = { build = 3, cp = 4, final = 0, ending = 0, unlock = 3, upgrade = 0.5 }   -- round 19: unlock + upgrade on
 M.END_LAST_TURN = 6       -- what the other player's last turn brings, roughly (traces: ~6)
 M.END_OTHER_CP = 1.5      -- the final scoring CP of a player whose cards the AI cannot see
 M.END_RANGE = 25
