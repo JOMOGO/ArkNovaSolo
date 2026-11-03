@@ -695,6 +695,11 @@ be copied, so every sample replays the game from its seed (`tests/lua/search.lua
    + the network's Q there for the choice the policy makes (as `train --bootstrap`); if the
    game ends first, final margin − margin at the point. The rollout then ends at the turn's
    end (as the turn cap; an error in mid-turn left panel state behind for the next replay).
+   `--target score` (default `margin`, as `train --target`): the own score instead of the
+   margin (own score then − own score at the point + Q; at the end, final own score − own
+   score at the point); `--weights` must then be a network trained with `train --target score`.
+   (Smoke test, 1 game vs arno:3, m 2, td2 as a stand-in network: 24 labels, value mean +6.6,
+   sd 6.4; 7.7 s per point.)
 
 ```
 python tools/ai_train.py search --games 100 --first 40100001 --seats network:1,arno:5 --weights build/ai/td2.lua --workers 10 --out build/ai/search1.txt
@@ -703,16 +708,18 @@ python tools/ai_train.py train --data ... --search build/ai/search1.txt --search
 ```
 
 Lines (`--out` gets each finished game's lines, `<out>.done` at the end):
-`S|seed|color|point|rank|value|sd|base|inputs|card` per candidate (point = the decision's index
+`S|seed|color|point|rank|value|sd|base|inputs|card|target` per candidate (point = the decision's index
 among the seat's D lines; rank by Q, 1 = best; value = mean over the samples, sd between
 them; base = 1 for the base policy's choice; inputs at the point before the candidate,
 `features.state .. features.choice` at the current `features.VERSION`, exactly as a D line;
-card number as D field 7). Also `V|` (each sample's value), `T|` (seconds and rollouts per
+card number as D field 7; target = `margin` or `score`, what the value measures; files
+before 2026-11-03 have no field 11 and are margin). Also `V|` (each sample's value), `T|` (seconds and rollouts per
 point), `E|` (the recorded game), `C|` (`--check`: the game replayed with every choice forced
 gives the same scores, outcome and call counts) and `X|` (failures). `train --search FILE`
 (repeatable) adds every S row with its value as the target (after the bootstrap; not
 bootstrapped again), each repeated `--search-weight` times (default 3), projected by
-`--inputs` like D rows; `--data` is then optional.
+`--inputs` like D rows; `--data` is then optional. It refuses S rows whose target is not
+`train --target` (a margin and a score value cannot share a network).
 
 Determinism: the forced replay reproduces the final scores exactly (2-seat network self-play,
 network vs ARNO, a Marine Worlds game). Two causes fixed in the runner: the mod's own

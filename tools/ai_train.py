@@ -315,9 +315,11 @@ def load(paths: list[Path], horizon: int = 0, target: str = "margin",
             np.array(cards, dtype=np.int16))
 
 
-def load_search(paths: list[Path], inputs: int | None = None):
+def load_search(paths: list[Path], inputs: int | None = None, target: str | None = None):
     """S lines (ai_train search): inputs, the searched value of the candidate, the game (seed).
-    S|seed|color|point|rank|value|sd|base|inputs|card; and the card number of every row."""
+    S|seed|color|point|rank|value|sd|base|inputs|card|target; and the card number of every row.
+    target (field 11, "margin" or "score"; files without it: margin) is what the value
+    measures; given `target`, rows of the other one are refused (train --target)."""
     xs, ys, games, cards = [], [], [], []
     for path in paths:
         with path.open(encoding="utf-8") as f:
@@ -335,6 +337,10 @@ def load_search(paths: list[Path], inputs: int | None = None):
                 games.append(int(parts[1]))
                 card = int(parts[9]) if len(parts) > 9 and parts[9].strip().isdigit() else 0
                 cards.append(card if card <= N_CARDS else 0)
+                found = parts[10].strip() if len(parts) > 10 and parts[10].strip() else "margin"
+                if target is not None and found != target:
+                    raise SystemExit(f"{path}: search labels with target {found}, but train --target {target} "
+                                     f"(run search with --target {target}, or train with --target {found})")
     if not xs:
         raise SystemExit(f"no S lines in {', '.join(map(str, paths))}")
     return np.stack(xs), np.array(ys, dtype=np.float32), np.array(games), np.array(cards, dtype=np.int16)
@@ -546,6 +552,9 @@ def main(argv=None) -> int:
     s.add_argument("--k", type=int, default=5, help="candidates per point (top k by Q, plus the base choice)")
     s.add_argument("--samples", type=int, default=3, help="rollouts per candidate")
     s.add_argument("--horizon", type=int, default=20, help="own decisions played on after the point")
+    s.add_argument("--target", choices=("margin", "score"), default="margin",
+                   help="a rollout's value: the change of the margin or of the own score (then --weights "
+                        "must be trained with train --target score: its Q at the horizon is added)")
     s.add_argument("--searched", default="ai", help="the searched seat's colour, or 'ai' (every policy seat)")
     s.add_argument("--rollout-budget", type=float, default=0.0,
                    help="the policies' budget after the point (0: their best choice; the samples then differ "
@@ -576,7 +585,7 @@ def main(argv=None) -> int:
     elif args.cmd == "search":
         seats = parse_seats(args.seats)
         opts = {"points": args.points, "k": args.k, "samples": args.samples, "horizon": args.horizon,
-                "searched": args.searched, "check": args.check, "reshuffle": not args.no_reshuffle,
+                "searched": args.searched, "check": args.check, "target": args.target, "reshuffle": not args.no_reshuffle,
                 "rollout_budget": args.rollout_budget if args.rollout_budget >= 0 else None}
         lines = play(args.games, seats, args.out, args.weights, args.first, args.workers,
                      weights_b=args.weights_b, search=opts)
@@ -651,7 +660,7 @@ def main(argv=None) -> int:
         if args.search:
             # appended after the bootstrap (their value already holds the network's Q at the
             # horizon, and nxt indexes the D rows); game = seed, so the hold-out split holds
-            sx, sy, sg, sc = load_search(args.search, args.inputs)
+            sx, sy, sg, sc = load_search(args.search, args.inputs, args.target)
             if x is not None and sx.shape[1] != x.shape[1]:
                 raise SystemExit(f"--search rows have {sx.shape[1]} inputs, --data rows {x.shape[1]} (use --inputs)")
             w = max(1, args.search_weight)

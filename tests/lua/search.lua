@@ -11,10 +11,13 @@
 --      candidate, play on with the policies (sample-seeded, rollout budget) for H own
 --      decisions; value = margin then - margin at the point + Q there for the choice then
 --      made (as train --bootstrap); if the game ends first, final margin - margin at the point
+--      (target "score": the own score instead of the margin, and the Q of a network trained
+--      with train --target score)
 -- Lines:
---   S|seed|color|point|rank|value|sd|base|inputs|card    (inputs at the point, before the
---     candidate: features.state .. features.choice, features.VERSION, as selfplay's D lines;
---     point = the decision's index among the seat's D lines; rank = by the network's Q, 1 = best)
+--   S|seed|color|point|rank|value|sd|base|inputs|card|target    (inputs at the point, before
+--     the candidate: features.state .. features.choice, features.VERSION, as selfplay's D lines;
+--     point = the decision's index among the seat's D lines; rank = by the network's Q, 1 = best;
+--     target = "margin" or "score", what the value measures; lines without it: margin)
 --   V|seed|color|point|rank|value of each sample        (for the noise report)
 --   T|seed|color|point|seconds|rollouts                  (time spent on that point)
 --   C|seed|ok|details                                   (determinism check, opts.check)
@@ -23,7 +26,8 @@
 -- Options (module "tests.search_options"):
 --   { from, to, seats (as selfplay), mw_every, points, k, samples, horizon, searched = "ai" | color,
 --     rollout_budget (nil: the seats' own budgets), check, reshuffle (false: keep the seed's deck order
---     after the point; by default every sample shuffles the cards left in the zoo deck there) }
+--     after the point; by default every sample shuffles the cards left in the zoo deck there),
+--     target = "margin" (default) | "score" }
 local game = require("tests.ai_game")
 local OPTS = require("tests.search_options")
 local policy = require("ai.policy")
@@ -50,6 +54,14 @@ local function margin(player)
     end
   end
   return own - (best or own)
+end
+
+-- what a value measures: the margin, or (target "score") the own score
+local TARGET = OPTS.target or "margin"
+assert(TARGET == "margin" or TARGET == "score", "target: margin or score")
+local function measure(player)
+  if TARGET == "score" then return get_counter_value(player.score_counter) end
+  return margin(player)
 end
 
 local function fmt(x) return string.format("%.3f", x):gsub("%.?0+$", "") end
@@ -236,7 +248,7 @@ local function rollout(st, pos, sample)
   run = { record = false, rec = st.rec, at = { color = st.color, call = st.pt.call },
           policy_seed = st.seed + 7919 * sample, budget = OPTS.rollout_budget }
   run.hook = function(player, list)
-    ro.start = margin(player)
+    ro.start = measure(player)
     if st.cands == nil then
       st.cands, st.margin = candidates(st, player, list), ro.start
     elseif ro.start ~= st.margin or #list ~= st.rec[st.color].n[st.pt.call] then
@@ -249,11 +261,11 @@ local function rollout(st, pos, sample)
     if #forward(list) < 2 then return nil end
     ro.own = ro.own + 1
     if ro.own < HORIZON then return nil end
-    -- the horizon: the margin change plus the network's Q for the choice the policy makes here
+    -- the horizon: the change (margin or own score) plus the network's Q for the choice the policy makes here
     local pick = base(player, list)
     local w = qweights[st.color]
     local q = net.forward(inputs(player, pick, heuristic(player, pick), features.version_of(w)), w, card_number(pick))
-    ro.value = margin(player) - ro.start + q
+    ro.value = measure(player) - ro.start + q
     stop()
     return pick
   end
@@ -266,7 +278,7 @@ local function rollout(st, pos, sample)
       st.failed = (tostring(err) .. " / " .. game.last_log(6)):gsub("\n", " / ")
       return nil
     end
-    ro.value = margin(player_of(st.color)) - ro.start     -- the game ended first
+    ro.value = measure(player_of(st.color)) - ro.start     -- the game ended first
   end
   return ro.value
 end
@@ -296,8 +308,8 @@ local function search_point(seed, color, pt, rec)
     local mean = sum / #vs
     local parts = {}
     for i, x in ipairs(e.x) do parts[i] = fmt(x) end
-    print(string.format("S|%d|%s|%d|%d|%s|%s|%d|%s|%d", seed, color, pt.dline, e.rank, fmt(mean),
-      fmt(sd_of(vs, mean)), e.base and 1 or 0, table.concat(parts, ","), e.card))
+    print(string.format("S|%d|%s|%d|%d|%s|%s|%d|%s|%d|%s", seed, color, pt.dline, e.rank, fmt(mean),
+      fmt(sd_of(vs, mean)), e.base and 1 or 0, table.concat(parts, ","), e.card, TARGET))
     local each = {}
     for i, x in ipairs(vs) do each[i] = fmt(x) end
     print(string.format("V|%d|%s|%d|%d|%s", seed, color, pt.dline, e.rank, table.concat(each, ",")))

@@ -108,6 +108,15 @@ class CardInputsTest(unittest.TestCase):
             spath.write_text(f"S|1|Red|0|1|2.5|1|1|{row}|77\nS|1|Red|0|2|1.5|1|0|{row}\n", encoding="utf-8")
             sx, sy, sg, sc = ai_train.load_search([spath])
             self.assertEqual(list(sc), [77, 0])
+            # field 11, the target: lines without it are margin; train --target must match
+            ai_train.load_search([spath], target="margin")
+            with self.assertRaises(SystemExit):
+                ai_train.load_search([spath], target="score")
+            spath.write_text(f"S|1|Red|0|1|2.5|1|1|{row}|77|score\n", encoding="utf-8")
+            sx, sy, sg, sc = ai_train.load_search([spath], target="score")
+            self.assertEqual(list(sc), [77])
+            with self.assertRaises(SystemExit):
+                ai_train.load_search([spath], target="margin")
 
 
 if __name__ == "__main__":
