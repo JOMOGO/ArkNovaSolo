@@ -471,6 +471,8 @@ function sim.ai_table(colors, deck, opts)
   base_projects = {}
   for i, n in ipairs({ 101, 102, 103 }) do
     base_projects[i] = { sim.fake(names[n] or string.format("(%03d) Project %d", n, n)).getGUID(), {} }
+    -- 2 players: a neutral cube blocks slot i of base project i (setup_game 4124-4127)
+    if #colors == 2 then base_projects[i][2][i] = sim.fake("cube").getGUID() end
   end
   added_projects = {}
   break_init_val = ({ [2] = 9, [3] = 12, [4] = 15 })[#players]

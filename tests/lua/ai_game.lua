@@ -53,13 +53,18 @@ function M.seat_arno(color, level, seed)
   arno_state.rng = { hi = math.floor(s / 65536), lo = s % 65536 }
   for k, v in pairs(others[#others]) do seat[k] = v end
   seat.is_ai = nil
-  for _, index in ipairs({ 1, 2 }) do
-    for _, card in ipairs(Player[color].getHandObjects(index)) do put_on_discard_pile(card) end
-  end
+  for _, card in ipairs(Player[color].getHandObjects(1)) do put_on_discard_pile(card) end
+  for _, card in ipairs(Player[color].getHandObjects(2)) do final_scoring_deck.putObject(card) end
   local saved = { apply_map_choice = apply_map_choice, deal_action_cards = deal_action_cards }
   apply_map_choice, deal_action_cards = function() end, function() end   -- the table did both
   ARNO.setup.prepare_bot(seat)
   apply_map_choice, deal_action_cards = saved.apply_map_choice, saved.deal_action_cards
+  -- his setup draw (H8, rules p3): 8 zoo cards, keeps up to 2 projects on his mat, one
+  -- face-down final scoring card
+  local apply = require("adapter.apply")
+  apply.last_discard_pile = discard_pile
+  apply.deal_bot_setup_cards({ seat }, function() end)
+  apply.last_discard_pile = nil
   return seat
 end
 
