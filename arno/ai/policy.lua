@@ -168,6 +168,122 @@ function M.heuristic(r)
   return M.budgeted(r, 0)
 end
 
+-- ---------------------------------------------------------------- assists
+-- Points added to the network's Q of some choices (policy "network_a", opts.assist), for two
+-- habits the network does not learn (docs/AI_OPPONENT.md §10, behaviour analysis): a hand full
+-- of animals it cannot place (it never builds a special enclosure), and conservation projects
+-- left unsupported. Off unless asked for (the shipped levels do not use them).
+--   build  per animal in hand that has no enclosure now and would fit the one this choice
+--          builds (half for an animal one condition short); half of that on the BUILD
+--          action card, for the best such build it can afford at its strength
+--   cp     on the ASSOCIATION action card when it can support a conservation project at
+--          its strength (a worker free: the mod's own check), and on "Support a
+--          Conservation Project" in the association panel
+M.ASSIST = { build = 3, cp = 4 }
+
+-- slots of a special enclosure (HexBoard SLOT_COUNTS) and the animal enclosure key it serves
+local SPECIAL = {
+  ["PETTING ZOO"] = { petting = true, slots = 3 },
+  ["REPTILE HOUSE"] = { key = "repthouse", slots = 5 },
+  ["LARGE BIRD AVIARY"] = { key = "aviary", slots = 5 },
+  ["SMALL AQUARIUM"] = { key = "aquarium", slots = 2 },
+  ["LARGE AQUARIUM"] = { key = "aquarium", slots = 5 },
+}
+
+local function has_icon(data, icon)
+  for _, i in ipairs(data.icons or {}) do if i == icon then return true end end
+  return false
+end
+
+-- would an animal fit a new building of this search name ("SIZE 3", "PETTING ZOO", ...)?
+-- (as valid_animal_enclosures; terrain touches and size bonuses left out)
+local function fits_new(data, search_name)
+  local petting = has_icon(data, "petting")
+  local special = SPECIAL[search_name]
+  if petting then return special ~= nil and special.petting == true end
+  local size = tonumber(search_name:match("^SIZE (%d)$") or "")
+  if size then return not data.no_std_enc and (data.size or 0) <= size end
+  if special and special.key and data.enclosure then
+    local need = data.enclosure[special.key]
+    return need ~= nil and need <= special.slots
+  end
+  return false
+end
+
+-- animals in hand helped by a new building: no enclosure fits now, the new one would
+-- (conditions met: 1, one short: 1/2); at most as many as the building holds
+function M.build_gain(player, search_name)
+  local special = SPECIAL[search_name]
+  if not (special or search_name:match("^SIZE %d$")) then return 0 end
+  local n = 0
+  for _, card in ipairs(player_hand_cards(player)) do
+    local ok, data = pcall(card_data_for, card.getName())
+    if ok and data and data.type == "animal" and fits_new(data, search_name)
+       and not waza_assignment_blocks(data, player)
+       and not animal_fits_enclosure(data, player) then
+      local unmet = animal_conditions_unmet(data, player)
+      if unmet <= 0 then n = n + 1 elseif unmet == 1 then n = n + 0.5 end
+    end
+  end
+  return math.min(n, special and special.slots or 1)
+end
+
+local function action_card_num(player, slot)
+  local ok, name = pcall(function() return action_card_object(player, slot).getName() end)
+  return ok and name and string.sub(name, -1) or "0"
+end
+
+local function build_card_gain(player, c)
+  local slot = tonumber((c.arg or ""):match("_(%d+)$") or "")
+  local strength = choices_mod.strength(player, c)
+  if slot == nil or strength == nil then return 0 end
+  local num = action_card_num(player, slot)
+  local best = 0
+  for _, cand in ipairs(build_candidates(player, { upgd = player.build_flipped, num = num, built = {},
+                                                   remaining = strength + (num == "3" and 1 or 0) })) do
+    best = math.max(best, M.build_gain(player, cand.option.search_name))
+  end
+  return best
+end
+
+local function association_card_supports(player, c)
+  local slot = tonumber((c.arg or ""):match("_(%d+)$") or "")
+  local strength = choices_mod.strength(player, c)
+  if slot == nil or strength == nil then return false end
+  local num = action_card_num(player, slot)
+  local upgd = player.association_flipped
+  return association_task_open(player, 5, strength, num, upgd, false)
+    or (association_extra_worker_allowed(num, upgd)
+        and association_task_open(player, 5, strength, num, upgd, true))
+end
+
+local function assist_bonus(player, c, w)
+  local label = c.label or ""
+  if c.kind ~= "click" then return 0 end
+  if c.handler == "on_action_card_button_clicked" then
+    local kind = label:match("^(%a+)")
+    if kind == "BUILD" and (w.build or 0) ~= 0 then
+      return 0.5 * w.build * build_card_gain(player, c)
+    elseif kind == "ASSOCIATION" and (w.cp or 0) ~= 0 and association_card_supports(player, c) then
+      return w.cp
+    end
+    return 0
+  end
+  if label:find("^Support a Conservation Project") then return w.cp or 0 end
+  local building = label:match("^Build an? ([^\n]+)")
+  if building and (w.build or 0) ~= 0 then
+    building = building:gsub("%s*%(.*$", "")         -- "Build a Kiosk (3 money)", "(Engineer)"
+    return w.build * M.build_gain(player, build_tile_search_name("Build a " .. building))
+  end
+  return 0
+end
+
+-- the assists' points for one choice under weights w ({ build, cp }); 0 on any error
+function M.assist_bonus(player, c, w)
+  local ok, v = pcall(assist_bonus, player, c, w or M.ASSIST)
+  return (ok and type(v) == "number") and v or 0
+end
+
 -- the network's scores (Q: expected change of the margin, in points); the hand-written
 -- score is one of its inputs. Falls back to the hand-written scores without weights.
 local features = require("ai.features")
@@ -178,7 +294,7 @@ local net = require("ai.net")
 M.yielding = false
 M.YIELD_EVERY = 8
 
-local function q_scored(player, choices, weights)
+local function q_scored(player, choices, weights, assist)
   local list = scored(player, choices)
   if (weights == nil and not net.available()) or #list < 2 then return list end
   local version = features.version_of(weights or net.weights())     -- the inputs it was trained on
@@ -193,9 +309,14 @@ local function q_scored(player, choices, weights)
     local x = {}
     for i, v in ipairs(state) do x[i] = v end
     for _, v in ipairs(features.choice(player, e.choice, e.heuristic, version)) do x[#x + 1] = v end
-    -- rules over the network (M.rule)
-    e.score = M.rule(player, e.choice)
-      or net.forward(x, weights, with_cards and features.card_number(e.choice) or nil)
+    -- rules over the network (M.rule); the assists (M.assist_bonus) on top of the network only
+    local ruled = M.rule(player, e.choice)
+    if ruled ~= nil then
+      e.score = ruled
+    else
+      e.score = net.forward(x, weights, with_cards and features.card_number(e.choice) or nil)
+      if assist then e.score = e.score + M.assist_bonus(player, e.choice, assist) end
+    end
   end
   return list
 end
@@ -207,7 +328,10 @@ M.q_scored = q_scored
 function M.budgeted(r, budget, opts)
   return function(player, choices)
     -- opts.weights: another network than the bundled one (training: new against current)
-    local list = (opts and opts.network) and q_scored(player, choices, opts.weights) or scored(player, choices)
+    -- opts.assist: true (M.ASSIST) or { build =, cp = }: the assists on the network's Q
+    local assist = opts and opts.assist
+    if assist == true then assist = M.ASSIST end
+    local list = (opts and opts.network) and q_scored(player, choices, opts.weights, assist) or scored(player, choices)
     local best
     for _, e in ipairs(list) do
       if best == nil or e.score > best then best = e.score end

@@ -92,13 +92,13 @@ def build_suite(weights: Path | None, weights_b: Path | None = None, runner: str
 
 
 def run_chunk(template: str, idx: int, first: int, last: int, seats, mw_every: int, log: bool = True,
-              search: dict | None = None) -> str:
+              search: dict | None = None, extra: dict | None = None) -> str:
     """search: the options of tests/lua/search.lua (the template is then that runner)."""
     BUILD.mkdir(parents=True, exist_ok=True)
     kind = "search" if search is not None else "selfplay"
     path = BUILD / f"{kind}_{os.getpid()}_{idx}.lua"    # own files per run: runs may overlap
     options = (lua_options(first, last, seats, mw_every, log, search, "tests.search_options")
-               if search is not None else lua_options(first, last, seats, mw_every, log))
+               if search is not None else lua_options(first, last, seats, mw_every, log, extra))
     path.write_text(template.replace("@@OPTIONS@@", options), encoding="utf-8", newline="\n")
     out = subprocess.run(["dotnet", str(run_tests.MOONRUN), str(path)], capture_output=True,
                          text=True, encoding="utf-8", errors="replace")
@@ -119,7 +119,8 @@ def parse_seats(text: str) -> list[tuple[str, float]]:
 
 def play(games: int, seats, out: Path | None, weights: Path | None, first: int = 1,
          workers: int | None = None, mw_every: int = 3, log: bool = True,
-         weights_b: Path | None = None, search: dict | None = None) -> list[str]:
+         weights_b: Path | None = None, search: dict | None = None,
+         assist: dict | None = None) -> list[str]:
     template = build_suite(weights, weights_b, "search.lua" if search is not None else "selfplay.lua")
     workers = workers or max(1, (os.cpu_count() or 2) - 2)
     # many small chunks: each runner's output stays small (memory), and the pool keeps busy
@@ -135,7 +136,8 @@ def play(games: int, seats, out: Path | None, weights: Path | None, first: int =
         out.write_text("", encoding="utf-8")
         Path(str(out) + ".done").unlink(missing_ok=True)
     with cf.ThreadPoolExecutor(max_workers=workers) as pool:
-        futures = [pool.submit(run_chunk, template, i, a, b, seats, mw_every, log, search) for i, a, b in chunks]
+        futures = [pool.submit(run_chunk, template, i, a, b, seats, mw_every, log, search, assist)
+                   for i, a, b in chunks]
         for n, f in enumerate(cf.as_completed(futures), 1):
             chunk = f.result().splitlines()
             lines.extend(chunk)
@@ -572,12 +574,16 @@ def main(argv=None) -> int:
     m.add_argument("--weights", type=Path)
     m.add_argument("--weights-b", type=Path, help="the network of network_b seats (new against current)")
     m.add_argument("--workers", type=int)
+    for q in (p, m):      # network_a seats: the network with the assists (ai.policy ASSIST)
+        q.add_argument("--assist-build", type=float, help="network_a: points per animal a build would house")
+        q.add_argument("--assist-cp", type=float, help="network_a: points for supporting a conservation project")
     args = ap.parse_args(argv)
 
     if args.cmd in ("play", "match"):
         seats = parse_seats(args.seats)
         lines = play(args.games, seats, getattr(args, "out", None), args.weights, args.first, args.workers,
-                     log=args.cmd == "play", weights_b=getattr(args, "weights_b", None))
+                     log=args.cmd == "play", weights_b=getattr(args, "weights_b", None),
+                     assist={"assist_build": args.assist_build, "assist_cp": args.assist_cp})
         report(lines, seats)
     elif args.cmd == "search" and args.report:
         lines = [l.rstrip("\n") for path in args.report for l in path.open(encoding="utf-8")]

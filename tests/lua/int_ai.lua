@@ -155,4 +155,112 @@ T.test("the view tells a new claim table from the same one shown again", functio
   T.ok(choices.fingerprint(p) ~= first, "a new table just like it: another view")
 end)
 
+-- ---------------------------------------------------------------- assists (policy.ASSIST)
+local policy = require("ai.policy")
+local net = require("ai.net")
+local W = { build = 3, cp = 4 }
+local ANY_TERRAIN = { upgd = true, rock = true, water = true, cover = 0 }
+
+local function click(label, handler, arg)
+  return { kind = "click", label = label, handler = handler or "on_claim_clicked", arg = arg }
+end
+
+local function card_button(p, name)
+  local slot = action_card_slot_named(p, name)
+  return click(string.upper(name), "on_action_card_button_clicked", "Red_" .. slot)
+end
+
+local function hand_game(numbers)
+  local p = sim.human_game(false, "map_A")
+  for _, n in ipairs(numbers) do card_obj(n).deal(1, "Red", 1) end
+  -- the map's starting enclosures taken: no animal has an enclosure yet
+  for _, tile in pairs(p.map.tiles) do
+    if tile.tags.occupied == false then tile.tags.occupied = true end
+  end
+  return p
+end
+
+local function place(p, kind)
+  local cells = p.map:findValidPlacement(sim.cnsts.build_tile_shapes[kind], { allowed = ANY_TERRAIN })
+  T.ok(p.map:place(cells, { (kind:lower():gsub(" ", "_")) }, ANY_TERRAIN) ~= nil, kind .. " placed")
+end
+
+T.test("assist: a petting zoo for a petting-zoo animal in hand, no other building", function()
+  local p = hand_game({ 519 })
+  T.eq(policy.assist_bonus(p, click("Build a Petting Zoo"), W), 3)
+  T.eq(policy.assist_bonus(p, click("Build a Size-1 Enclosure"), W), 0, "a petting animal needs the petting zoo")
+  T.eq(policy.assist_bonus(p, click("Build a Reptile House"), W), 0)
+  T.eq(policy.assist_bonus(p, click("Build a Kiosk"), W), 0)
+  T.eq(policy.assist_bonus(p, click("Build a Kiosk (3 money)"), W), 0)
+  T.eq(policy.assist_bonus(p, click("Build a Petting Zoo\n(Engineer)"), W), 3, "the Engineer's build too")
+  place(p, "PETTING ZOO")
+  T.eq(policy.assist_bonus(p, click("Build a Petting Zoo"), W), 0, "it has a petting zoo already")
+end)
+
+T.test("assist: an enclosure big enough, once per enclosure, conditions counted", function()
+  local p = hand_game({ 408, 404 })               -- size-3 and size-2 predators, no conditions
+  T.eq(policy.assist_bonus(p, click("Build a Size-3 Enclosure"), W), 3, "one enclosure houses one animal")
+  T.eq(policy.assist_bonus(p, click("Build a Size-1 Enclosure"), W), 0, "too small for both")
+  place(p, "SIZE 2")
+  T.eq(policy.assist_bonus(p, click("Build a Size-2 Enclosure"), W), 0, "the size-2 animal has its enclosure")
+  T.eq(policy.assist_bonus(p, click("Build a Size-3 Enclosure"), W), 3, "the size-3 animal has none")
+  local q = hand_game({ 402 })                      -- size 4, three predator conditions unmet
+  T.eq(policy.assist_bonus(q, click("Build a Size-4 Enclosure"), W), 0, "conditions far from met")
+end)
+
+T.test("assist: a reptile house for a reptile that needs one", function()
+  local p = hand_game({ 470 })                       -- size 2, repthouse 1, two conditions unmet
+  T.eq(policy.assist_bonus(p, click("Build a Reptile House"), W), 0, "conditions unmet")
+  set_icon_counter(p.icon_counters.reptile, 1, sim.cnsts.counter_style.icon)
+  T.eq(policy.assist_bonus(p, click("Build a Reptile House"), W), 1.5, "one condition short: half")
+  set_icon_counter(p.icon_counters.africa, 1, sim.cnsts.counter_style.icon)
+  T.eq(policy.assist_bonus(p, click("Build a Reptile House"), W), 3)
+  T.eq(policy.assist_bonus(p, click("Build a Large Bird Aviary"), W), 0)
+end)
+
+T.test("assist: the BUILD action card, when such a build is affordable at its strength", function()
+  local p = hand_game({ 519 })
+  local strength = choices.strength(p, card_button(p, "build"))
+  T.eq(strength, 3, "BUILD in slot 3")
+  T.eq(policy.assist_bonus(p, card_button(p, "build"), W), 1.5, "half of the petting zoo's bonus")
+  set_counter(p.money_counter, 5, sim.cnsts.counter_style.cp)
+  T.eq(policy.assist_bonus(p, card_button(p, "build"), W), 0, "the petting zoo costs 6")
+  T.eq(policy.assist_bonus(p, card_button(p, "build"), { build = 3, cp = 0 }), 0)
+  local q = hand_game({})
+  T.eq(policy.assist_bonus(q, card_button(q, "build"), W), 0, "no animal in hand")
+end)
+
+T.test("assist: ASSOCIATION when a project can be supported at its strength and a worker is free", function()
+  local p = sim.human_game(false, "map_A")
+  local assoc = card_button(p, "association")
+  T.eq(choices.strength(p, assoc), 5)
+  T.eq(policy.assist_bonus(p, assoc, W), 0, "no project on the table")
+  base_projects = { { sim.fake("(102) Habitat Diversity").getGUID(), {} } }
+  for i, icon in ipairs(sim.cnsts.icons.habitat) do
+    set_icon_counter(p.icon_counters[icon], i <= 3 and 1 or 0, sim.cnsts.counter_style.icon)
+  end
+  T.eq(policy.assist_bonus(p, assoc, W), 4, "Habitat Diversity, slot 3")
+  T.eq(policy.assist_bonus(p, card_button(p, "build"), W), 0, "not on other cards")
+  p.deployed_workers = { { guid = "w", task = 2 } }
+  T.eq(policy.assist_bonus(p, assoc, W), 0, "no worker free")
+  p.deployed_workers = {}
+  -- at strength 4 (ASSOCIATION in slot 4) a project is out of reach
+  p.action_cards[4], p.action_cards[5] = p.action_cards[5], p.action_cards[4]
+  T.eq(policy.assist_bonus(p, card_button(p, "association"), W), 0, "strength 4")
+  T.eq(policy.assist_bonus(p, click("Support a Conservation Project"), W), 4, "the association panel")
+  T.eq(policy.assist_bonus(p, click("Take 2 Reputation"), W), 0)
+  T.eq(policy.assist_bonus(p, click("Support a Conservation Project"), { build = 3 }), 0)
+end)
+
+T.test("assist: q_scored adds the assists to the network's Q, never to a rule's choice", function()
+  if not net.available() then return end
+  local p = hand_game({ 519 })
+  local list = { click("Build a Petting Zoo"), click("Build a Size-1 Enclosure"), click("Pay the Venom Fee") }
+  local plain, assisted = policy.q_scored(p, list), policy.q_scored(p, list, nil, W)
+  T.ok(math.abs(assisted[1].score - plain[1].score - 3) < 1e-9, "petting zoo + 3")
+  T.ok(math.abs(assisted[2].score - plain[2].score) < 1e-9, "size 1 unchanged")
+  T.eq(assisted[3].score, 1000, "the rule's score")
+  T.eq(assisted[1].heuristic, plain[1].heuristic, "the hand-written score (an input) unchanged")
+end)
+
 T.finish("integration AI")
