@@ -665,7 +665,7 @@ inputs v3); matches 100001+, 200001+, 300001+, 400001+, 500001+, 600001+, 700001
 900001+ (FIXPILE repro), 1000001+ ... 2300001+ (every 100000 up to 2300001; 2026-11-01 checks and ladder),
 2400001+ and 2600001+ (200 games each), 3000001+ ... 3400001+ (100 each), 3500001+ and 3700001+
 (200 each), 3900001+ (200), 4100001+ ... 4300001+ (100 each), 4400001+ (2, smoke test),
-4500001+ and 4700001+ (200 each), 4900001+ and 5100001+ (200 each), 5300001+ ... 5500001+ (ladder), 5700001+ (200), 6000001+ and 7000001+ (sweeps, 1000 each, 0 failures), 8000001+ (smoke test), 10000001+ ... 10800001+ (round 11), 11000001+ ... 11200001+ (ladder), 12000001+ and 12200001+ (round 12). Self-play 23000-27499 (round 10). Self-play: 20000-22499 (round 5). Search probes (2026-11-03): 30000001-30000003, 40000001-40000002, 40000101-40000102, 40001001-40001008, 40001101-40001106, 40001201-40001202; search labels from 40100001. Round 17 (2026-11-03): traces 91000001-91000012, 91100001-91100012, 91200001-91200008 (91300001+ started and stopped), matches 18000001+ (60 each), 18100001+ (100 each), 18900001-18900002 (smoke test). Round 19 (2026-11-03): traces 91900001, 92000001-92000024, 92100001-92100020, 92200001-92200010, 92300001-92300003, 92400001-92400002; matches 21000001+ and 21100001+ (60 each), 21200001+, 21300001+ and 21400001+ (100 each). Round 20 (2026-11-03/04): traces 93000001, 93000008, 93100001; matches 23000001+ (100), 23100001+ (60), 23200001+ (100). Round 22 (2026-11-04): traces 94000001-94000012, 94100001-94100012, 94000101-94000110, 94100101-94100108; matches 27000001+ (100), 27100001+ (60).
+4500001+ and 4700001+ (200 each), 4900001+ and 5100001+ (200 each), 5300001+ ... 5500001+ (ladder), 5700001+ (200), 6000001+ and 7000001+ (sweeps, 1000 each, 0 failures), 8000001+ (smoke test), 10000001+ ... 10800001+ (round 11), 11000001+ ... 11200001+ (ladder), 12000001+ and 12200001+ (round 12). Self-play 23000-27499 (round 10). Self-play: 20000-22499 (round 5). Search probes (2026-11-03): 30000001-30000003, 40000001-40000002, 40000101-40000102, 40001001-40001008, 40001101-40001106, 40001201-40001202; search labels from 40100001. Round 17 (2026-11-03): traces 91000001-91000012, 91100001-91100012, 91200001-91200008 (91300001+ started and stopped), matches 18000001+ (60 each), 18100001+ (100 each), 18900001-18900002 (smoke test). Round 19 (2026-11-03): traces 91900001, 92000001-92000024, 92100001-92100020, 92200001-92200010, 92300001-92300003, 92400001-92400002; matches 21000001+ and 21100001+ (60 each), 21200001+, 21300001+ and 21400001+ (100 each). Round 20 (2026-11-03/04): traces 93000001, 93000008, 93100001; matches 23000001+ (100), 23100001+ (60), 23200001+ (100). Round 22 (2026-11-04): traces 94000001-94000012, 94100001-94100012, 94000101-94000110, 94100101-94100108; matches 27000001+ (100), 27100001+ (60). Round 23 (2026-11-04): traces 95000001-95000010 (and 95000001-95000004 with rep 4); matches 28000001+ (100), 28100001+ (60).
 
 | Round | Data | Result |
 |---|---|---|
@@ -690,6 +690,7 @@ inputs v3); matches 100001+, 200001+, 300001+, 400001+, 500001+, 600001+, 700001
 | 20 (2026-11-04) | fourth analysis (X-tokens; traces of td2 with the shipped assists against ARNO 3 and itself) and one assist, `xtoken` (below), measured on td2 + the current defaults (build 3, cp 4, unlock 3, upgrade 0.5; network_a) | paired: vs ARNO 3 (100 games, 23000001+): without −27.8 / 7%; xtoken 3 **−20.8 / 22%**; xtoken 6 −22.7 / 17%. vs ARNO 1 (60, 23100001+): −11.9 / 30%; xtoken 3 **−6.3 / 42%**; xtoken 6 −10.0 / 32%. vs the network without assists (100, 23200001+): +16.9 / 67%; xtoken 3 +18.9 / 73%; xtoken 6 not run (stopped: low memory on the owner's PC). **Kept at weight 3** (+7.0 against ARNO 3, +5.6 against ARNO 1, not worse against the network); the default stays 0 until build/ai/r21.cmd (which reads M.ASSIST) is done, then `xtoken = 3` |
 | 21 (2026-11-04) | data played by the assisted policy (`network_a` on td2): 1000 games against itself, 800 each against ARNO 1 and 2, 400 against the hand-written policy (seeds 37000-40399, `round9_*.txt`); td2's recipe on every round (minus the ARNO 3-8 games) + these = r21. xtoken (round 20) confirmed on fresh seeds | both with the assists, paired: vs ARNO 1 (60, 24000001+) td2 −3.2 / 43%, r21 −4.7 / 47%; vs ARNO 3 (60, 24100001+) td2 −27.4 / 12%, r21 −30.1 / 7%; vs plain td2 (100) td2 +11.5 / 64%, r21 +15.5 / 70%: r21 not kept (no gain against ARNO). xtoken 3, fresh seeds: vs ARNO 3 (100, 25000001+) −28.9 → −25.1, vs ARNO 1 (60, 25100001+) −5.5 → −4.0: positive on both seed sets, **switched on** (M.ASSIST xtoken = 3). Easy vs ARNO 3 (the paused cell): −46.9 / 0% |
 | 22 (2026-11-04) | fifth analysis (traces of the shipped Expert against ARNO 3 and itself, 12 games each, + 10 / 8 with the display at each CARDS choice) and one assist, `snap` (below), measured on td2 + the current defaults (build 3, cp 4, unlock 3, upgrade 0.5, xtoken 3; network_a) | paired: vs ARNO 3 (100 games, 27000001+): without −26.8 / 12%; snap 2 (near animals 1/2) −27.9 / 13%; snap 2 (playable animals only) −27.6 / 12%. vs ARNO 1 (60, 27100001+): −6.5 / 35%; −7.6 / 42%; −5.7 / 40%. **Not kept: the weight stays 0** (no gain against ARNO 3, under the +3 needed for a confirmation; the code and `--assist-snap` are in for later tries) |
+| 23 (2026-11-04) | sixth analysis (reputation; traces of the shipped Expert against ARNO 3, 10 games, + 4 with rep 4) and one assist, `rep` (below), measured on td2 + the current defaults (build 3, cp 4, unlock 3, upgrade 0.5, xtoken 3; network_a) | paired: vs ARNO 3 (100 games, 28000001+): without −28.6 / 11%; rep 2 −26.1 / 9%; rep 4 −27.1 / 15%. vs ARNO 1 (60, 28100001+): −4.9 / 40%; rep 2 −5.3 / 38%; rep 4 −3.1 / 45%. **Not kept: the weight stays 0** (+2.5 / +1.5 against ARNO 3, under the +3 needed for a confirmation; the code and `--assist-rep` are in for later tries) |
 
 **Behaviour analysis (2026-11-03, 1000 games td2 vs ARNO 1 + 21 traced games):** the AI keeps
 pace on appeal and loses on CP, final scoring and game length (ARNO ends it, ~5 turns earlier
@@ -799,6 +800,31 @@ card at a strength that snaps, `M.cards_snaps`; `--assist-snap`). With weight 2 
 it snapped at 51 of 52 CARDS choices (a near animal is almost always on display), so SNAP_NEAR
 is 0 now. Neither moved the result (table): one better card a few times a game is worth little,
 the gap to ARNO 3 is the pace of appeal from turn 3.
+
+**Sixth analysis (round 23, 2026-11-04; reputation; traces of the shipped Expert against ARNO 3,
+10 games, + R| lines (every choice with a reputation option, all options' Q) and W| lines (at each
+action choice: could ASSOCIATION take the reputation task); `build/assist6/`: `trace.lua`, `rep23.py`):**
+the AI's reputation comes passively: map placement bonuses 2.4 a game, the map project bonus 1.9,
+ANIMALS II at strength 5 2.4, universities 1.5, the 8-CP bonus 0.6, cards ~0.7; ASSOCIATION's
+"Take 2 Reputation" 0.2 (taken once in 73 offers, Q 1-2.5 points under a partner zoo or university
+early, 5-8 under a conservation project later). ARNO 3's lead is his own deck (9.6 of his ~12 a
+game), not choices the AI could copy. Rep at own turn 8 / 16 / 24: AI 2.2 / 3.5 / 8.3, ARNO 3.2 /
+7.1 / 10.4; 5 reached at turn 19.5 (ARNO 10.5). Early workers are the limit: 0.4-0.5 free at the
+action choices of turns 1-16. Without the CARDS upgrade the track stops at 9 ("cannot gain any
+more" 9 times in 12 round-22 games). The partner zoo and the university get the same Q at the
+association panel (the network cannot tell them apart).
+
+**Assist of round 23** (off, weight 0): `rep` (a choice's reputation, `M.rep_gain`: each track reward
+(`M.REP_REWARD`: card flip 1.5, worker 1, CP 0.5, draw / X-token 0.3) spread evenly over the steps
+from the previous reward, 0 above the cap; + `M.REP_DISPLAY` (1/2) x `M.display_card_gain` for a
+display slot it opens with ANIMALS / SPONSORS upgraded; times 1 − progress. On "Take 2
+Reputation", "N Reputation" (claims, project cubes), a university (its reputation; "Take a
+University": the best on offer) and one reputation's worth on the ASSOCIATION action card that
+can take the task; `--assist-rep`). With weight 4 the AI reached 5 at turn 13 (was 20.5), mostly
+through the Double Reputation University; it still never took "Take 2 Reputation" (the network
+rates it ~5 points under the alternatives). Results in the table: +2.5 / +1.5 against ARNO 3, −0.4
+/ +1.8 against ARNO 1: earlier reputation is worth little on its own; the free upgrade at 5 comes
+6 turns sooner but costs the actions that would have scored.
 
 The richer inputs (v2, v3) predict held-out games better but play worse: a lower validation
 error does not mean better choices. (Not because the state explains most of the target: with
