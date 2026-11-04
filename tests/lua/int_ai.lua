@@ -311,6 +311,49 @@ T.test("assist final: the final scoring discard keeps the card that scores more"
   selection_panels = {}
 end)
 
+-- round 24: choices with identical inputs (slot, discard, partner)
+T.test("assist slot: a conservation project's slots by what they give; a project by its best slot", function()
+  local p = hand_game({})
+  local SW = { slot = 1 }
+  local species = sim.cnsts.cards.base[101]          -- 5 / 3 / 2 CP
+  local slot = function(n) return click(sim.cnsts.project_slot_labels[n], "on_project_support_slot_clicked", "Red|" .. n) end
+  T.eq(policy.assist_bonus(p, slot(1), SW), 0, "no support panel open")
+  project_supports = { Red = { player = p, chosen = { card = species, slots = {} },
+                               offers = { { card = species, slots = { { slot = 2, boost = 0 }, { slot = 3, boost = 0 } } } },
+                               boosts = {} } }
+  T.eq(policy.assist_bonus(p, slot(1), SW), 5 * 2, "5 CP, 2 points each")
+  T.eq(policy.assist_bonus(p, slot(3), SW), 2 * 2)
+  T.eq(policy.assist_bonus(p, slot(1), W), 0, "slot off")
+  T.eq(policy.assist_bonus(p, click("Species Diversity", "on_project_support_project_clicked", "Red|1"), SW), 3 * 2,
+       "the project: its best slot (2nd)")
+  project_supports = {}
+end)
+
+T.test("assist discard: the final scoring discard keeps the card that scores more", function()
+  local p = hand_game({})
+  final_card(p, 1)                                   -- large animals: none, 0 CP
+  final_card(p, 7)                                   -- reputation 9: 2 CP
+  set_counter(p.rep_counter, 9, sim.cnsts.counter_style.score)
+  local DW = { discard = 1 }
+  local large, rep = "select: " .. card_obj(1).getName(), "select: " .. card_obj(7).getName()
+  T.eq(policy.assist_bonus(p, { kind = "pick_up", label = rep }, DW), 0, "no discard panel open")
+  selection_panels = { Red = { action = "final scoring discard", selected = {}, num = 1, pool = {} } }
+  T.eq(policy.assist_bonus(p, { kind = "pick_up", label = rep }, DW), -2 * 2, "discarding 2 CP")
+  T.eq(policy.assist_bonus(p, { kind = "pick_up", label = large }, DW), 0, "discarding 0 CP")
+  T.eq(policy.assist_bonus(p, { kind = "pick_up", label = rep }, W), 0, "discard off")
+  selection_panels = {}
+end)
+
+T.test("assist partner: a continent's partner zoo by the money it saves on the hand's animals", function()
+  local p = hand_game({ 401, 403 })                  -- Lion, Leopard: both africa
+  local PW = { partner = 1 }
+  local value = require("ai.value")
+  T.ok(math.abs(policy.assist_bonus(p, click("Africa Partner Zoo"), PW) - 6 * value.money()) < 1e-9, "3 money on each")
+  T.eq(policy.assist_bonus(p, click("Europe Partner Zoo"), PW), 0)
+  T.eq(policy.assist_bonus(p, click("Take a Partner Zoo"), PW), 0, "only the continent's button")
+  T.eq(policy.assist_bonus(p, click("Africa Partner Zoo"), W), 0, "partner off")
+end)
+
 -- end-timing assist (ending)
 local EW = { build = 0, cp = 0, ending = 5 }
 

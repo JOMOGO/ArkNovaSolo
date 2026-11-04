@@ -211,8 +211,17 @@ end
 --          over the steps to them, + a display slot it opens for a card the AI wants, fading
 --          with the game's progress): "Take 2 Reputation", "N Reputation", a university, and
 --          one reputation's worth on the ASSOCIATION action card that can take that task (round 23)
+--   Round 24 (the audit of choices the network scores the same, their inputs being identical):
+--   slot    per point a conservation project slot's rewards are worth (M.project_slot_value:
+--           the 1st slot's 5 CP over the 3rd's 2), on the slot buttons; on a project in the
+--           support panel its best slot's
+--   discard at the final scoring discard, minus the card's award in points now (the `final`
+--           assist's discard part on its own key)
+--   partner on "<continent> Partner Zoo", the money the zoo saves on the hand's animals of that
+--           continent (3 each), in points
 -- (round 17, docs/AI_OPPONENT.md §10: final 1 / 2 and ending 6 brought nothing against ARNO 1: off)
-M.ASSIST = { build = 3, cp = 4, final = 0, ending = 0, unlock = 3, upgrade = 0.5, xtoken = 3, snap = 0, rep = 0 }   -- round 19: unlock + upgrade; round 20: xtoken (confirmed on fresh seeds)
+M.ASSIST = { build = 3, cp = 4, final = 0, ending = 0, unlock = 3, upgrade = 0.5, xtoken = 3, snap = 0, rep = 0,
+             slot = 0, discard = 0, partner = 0 }   -- round 19: unlock + upgrade; round 20: xtoken (confirmed on fresh seeds)
 M.END_LAST_TURN = 6       -- what the other player's last turn brings, roughly (traces: ~6)
 M.END_OTHER_CP = 1.5      -- the final scoring CP of a player whose cards the AI cannot see
 M.END_RANGE = 25
@@ -806,8 +815,67 @@ function M.rep_bonus(player, c)
   return M.rep_gain(player, rep_amount(player, c))
 end
 
+-- ---- round 24: choices whose inputs are identical (the network scores them the same)
+-- a conservation project slot's rewards, in points (project_slot_awards: 5 / 3 / 2 CP, ...)
+function M.project_slot_value(player, card, slot)
+  local ok, rewards = pcall(project_slot_awards, player, card, slot)
+  if not ok or type(rewards) ~= "table" then return 0 end
+  local v = 0
+  for _, r in ipairs(rewards) do v = v + value.reward(tostring(r), player) end
+  return v
+end
+
+local function slot_bonus(player, c)
+  local state = project_supports and project_supports[player.color]
+  if state == nil then return 0 end
+  if c.handler == "on_project_support_slot_clicked" and state.chosen then
+    local slot = tonumber((c.arg or ""):match("|(%d+)$") or "")
+    return slot and M.project_slot_value(player, state.chosen.card, slot) or 0
+  elseif c.handler == "on_project_support_project_clicked" then
+    local offer = state.offers and state.offers[tonumber((c.arg or ""):match("|(%d+)$") or "")]
+    if offer == nil or offer.card.project == "release" then return 0 end
+    local best = 0
+    for _, entry in ipairs(offer.slots or {}) do
+      if (entry.boost or 0) == 0 then best = math.max(best, M.project_slot_value(player, offer.card, entry.slot)) end
+    end
+    return best
+  end
+  return 0
+end
+
+local function discard_bonus(player, c)
+  local held = (c.label or ""):match("^select: (.+)$")
+  local sel = selection_panels and selection_panels[player.color]
+  if held == nil or sel == nil or sel.action ~= "final scoring discard" then return 0 end
+  return -M.final_card_award(player, held) * value.cp(player)
+end
+
+-- the money a partner zoo of `owner` saves on the animals in hand (animal_play_cost: 3 per icon)
+function M.partner_saving(player, owner)
+  local n = 0
+  for _, card in ipairs(player_hand_cards(player)) do
+    local ok, data = pcall(card_data_for, card.getName())
+    if ok and data and data.type == "animal" then
+      for _, icon in ipairs(data.icons or {}) do if icon == owner then n = n + 3 end end
+    end
+  end
+  return n * value.money()
+end
+
+local function partner_bonus(player, c)
+  local label = c.label or ""
+  if c.kind ~= "click" or not label:find("Partner Zoo$") then return 0 end
+  for _, owner in ipairs(cnsts.icons.habitat) do
+    if partner_zoo_label(owner) == label then return M.partner_saving(player, owner) end
+  end
+  return 0
+end
+
 local function assist_bonus(player, c, w)
   local v = other_bonus(player, c, w)
+  if (w.slot or 0) ~= 0 and c.kind == "click" then v = v + w.slot * slot_bonus(player, c) end
+  if (w.discard or 0) ~= 0 and c.kind == "pick_up" then v = v + w.discard * discard_bonus(player, c) end
+  if (w.partner or 0) ~= 0 then v = v + w.partner * partner_bonus(player, c) end
   if (w.rep or 0) ~= 0 then v = v + w.rep * M.rep_bonus(player, c) end
   if (w.snap or 0) ~= 0 then v = v + snap_bonus(player, c, w.snap) end
   if c.kind == "click" and (w.xtoken or 0) ~= 0 then v = v + x_bonus(player, c, w.xtoken) end
@@ -816,7 +884,7 @@ local function assist_bonus(player, c, w)
   return v
 end
 
--- the assists' points for one choice under weights w ({ build, cp, final, ending, unlock, upgrade, xtoken, snap, rep }); 0 on any error
+-- the assists' points for one choice under weights w ({ build, cp, final, ending, unlock, upgrade, xtoken, snap, rep, slot, discard, partner }); 0 on any error
 function M.assist_bonus(player, c, w)
   local ok, v = pcall(assist_bonus, player, c, w or M.ASSIST)
   if not ok and M.on_assist_error then M.on_assist_error(v, c) end     -- tests, analysis
