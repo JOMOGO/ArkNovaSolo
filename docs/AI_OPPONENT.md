@@ -599,6 +599,9 @@ card) helps against ARNO 3 (+7.0) and ARNO 1 (+5.6) at weight 3: kept, to be swi
 (`xtoken = 3` in M.ASSIST) once the running batch build/ai/r21.cmd is done. Still open: the last
 line of build/ai/final.cmd (Easy vs ARNO 3).
 
+Round 24 (2026-11-04, §10): an audit of the choices the network scores the same; three tie-break
+assists (`slot`, `discard`, `partner`) together +1.3 to +3.6 against ARNO 3 and 1 on two seed sets: switched on.
+
 Every AI level loses to every ARNO level: the AI, trained only against AIs, plays a slow
 game; ARNO races (in a traced game ARNO had 105 points after 40 turns, the AI 53). The goal
 (owner, 2026-11-03): Expert near unbeatable against any player; this table is the benchmark.
@@ -665,7 +668,7 @@ inputs v3); matches 100001+, 200001+, 300001+, 400001+, 500001+, 600001+, 700001
 900001+ (FIXPILE repro), 1000001+ ... 2300001+ (every 100000 up to 2300001; 2026-11-01 checks and ladder),
 2400001+ and 2600001+ (200 games each), 3000001+ ... 3400001+ (100 each), 3500001+ and 3700001+
 (200 each), 3900001+ (200), 4100001+ ... 4300001+ (100 each), 4400001+ (2, smoke test),
-4500001+ and 4700001+ (200 each), 4900001+ and 5100001+ (200 each), 5300001+ ... 5500001+ (ladder), 5700001+ (200), 6000001+ and 7000001+ (sweeps, 1000 each, 0 failures), 8000001+ (smoke test), 10000001+ ... 10800001+ (round 11), 11000001+ ... 11200001+ (ladder), 12000001+ and 12200001+ (round 12). Self-play 23000-27499 (round 10). Self-play: 20000-22499 (round 5). Search probes (2026-11-03): 30000001-30000003, 40000001-40000002, 40000101-40000102, 40001001-40001008, 40001101-40001106, 40001201-40001202; search labels from 40100001. Round 17 (2026-11-03): traces 91000001-91000012, 91100001-91100012, 91200001-91200008 (91300001+ started and stopped), matches 18000001+ (60 each), 18100001+ (100 each), 18900001-18900002 (smoke test). Round 19 (2026-11-03): traces 91900001, 92000001-92000024, 92100001-92100020, 92200001-92200010, 92300001-92300003, 92400001-92400002; matches 21000001+ and 21100001+ (60 each), 21200001+, 21300001+ and 21400001+ (100 each). Round 20 (2026-11-03/04): traces 93000001, 93000008, 93100001; matches 23000001+ (100), 23100001+ (60), 23200001+ (100). Round 22 (2026-11-04): traces 94000001-94000012, 94100001-94100012, 94000101-94000110, 94100101-94100108; matches 27000001+ (100), 27100001+ (60). Round 23 (2026-11-04): traces 95000001-95000010 (and 95000001-95000004 with rep 4); matches 28000001+ (100), 28100001+ (60).
+4500001+ and 4700001+ (200 each), 4900001+ and 5100001+ (200 each), 5300001+ ... 5500001+ (ladder), 5700001+ (200), 6000001+ and 7000001+ (sweeps, 1000 each, 0 failures), 8000001+ (smoke test), 10000001+ ... 10800001+ (round 11), 11000001+ ... 11200001+ (ladder), 12000001+ and 12200001+ (round 12). Self-play 23000-27499 (round 10). Self-play: 20000-22499 (round 5). Search probes (2026-11-03): 30000001-30000003, 40000001-40000002, 40000101-40000102, 40001001-40001008, 40001101-40001106, 40001201-40001202; search labels from 40100001. Round 17 (2026-11-03): traces 91000001-91000012, 91100001-91100012, 91200001-91200008 (91300001+ started and stopped), matches 18000001+ (60 each), 18100001+ (100 each), 18900001-18900002 (smoke test). Round 19 (2026-11-03): traces 91900001, 92000001-92000024, 92100001-92100020, 92200001-92200010, 92300001-92300003, 92400001-92400002; matches 21000001+ and 21100001+ (60 each), 21200001+, 21300001+ and 21400001+ (100 each). Round 20 (2026-11-03/04): traces 93000001, 93000008, 93100001; matches 23000001+ (100), 23100001+ (60), 23200001+ (100). Round 22 (2026-11-04): traces 94000001-94000012, 94100001-94100012, 94000101-94000110, 94100101-94100108; matches 27000001+ (100), 27100001+ (60). Round 23 (2026-11-04): traces 95000001-95000010 (and 95000001-95000004 with rep 4); matches 28000001+ (100), 28100001+ (60). Round 24 (2026-11-04): traces 96000001-96000030 (ARNO 3), 96100001-96100020 (self); matches 29000001+ (100), 29100001+ (60), 29200001+ (100), 29300001+ (60), 29400001+ (100).
 
 | Round | Data | Result |
 |---|---|---|
@@ -691,6 +694,7 @@ inputs v3); matches 100001+, 200001+, 300001+, 400001+, 500001+, 600001+, 700001
 | 21 (2026-11-04) | data played by the assisted policy (`network_a` on td2): 1000 games against itself, 800 each against ARNO 1 and 2, 400 against the hand-written policy (seeds 37000-40399, `round9_*.txt`); td2's recipe on every round (minus the ARNO 3-8 games) + these = r21. xtoken (round 20) confirmed on fresh seeds | both with the assists, paired: vs ARNO 1 (60, 24000001+) td2 −3.2 / 43%, r21 −4.7 / 47%; vs ARNO 3 (60, 24100001+) td2 −27.4 / 12%, r21 −30.1 / 7%; vs plain td2 (100) td2 +11.5 / 64%, r21 +15.5 / 70%: r21 not kept (no gain against ARNO). xtoken 3, fresh seeds: vs ARNO 3 (100, 25000001+) −28.9 → −25.1, vs ARNO 1 (60, 25100001+) −5.5 → −4.0: positive on both seed sets, **switched on** (M.ASSIST xtoken = 3). Easy vs ARNO 3 (the paused cell): −46.9 / 0% |
 | 22 (2026-11-04) | fifth analysis (traces of the shipped Expert against ARNO 3 and itself, 12 games each, + 10 / 8 with the display at each CARDS choice) and one assist, `snap` (below), measured on td2 + the current defaults (build 3, cp 4, unlock 3, upgrade 0.5, xtoken 3; network_a) | paired: vs ARNO 3 (100 games, 27000001+): without −26.8 / 12%; snap 2 (near animals 1/2) −27.9 / 13%; snap 2 (playable animals only) −27.6 / 12%. vs ARNO 1 (60, 27100001+): −6.5 / 35%; −7.6 / 42%; −5.7 / 40%. **Not kept: the weight stays 0** (no gain against ARNO 3, under the +3 needed for a confirmation; the code and `--assist-snap` are in for later tries) |
 | 23 (2026-11-04) | sixth analysis (reputation; traces of the shipped Expert against ARNO 3, 10 games, + 4 with rep 4) and one assist, `rep` (below), measured on td2 + the current defaults (build 3, cp 4, unlock 3, upgrade 0.5, xtoken 3; network_a) | paired: vs ARNO 3 (100 games, 28000001+): without −28.6 / 11%; rep 2 −26.1 / 9%; rep 4 −27.1 / 15%. vs ARNO 1 (60, 28100001+): −4.9 / 40%; rep 2 −5.3 / 38%; rep 4 −3.1 / 45%. **Not kept: the weight stays 0** (+2.5 / +1.5 against ARNO 3, under the +3 needed for a confirmation; the code and `--assist-rep` are in for later tries) |
+| 24 (2026-11-04) | seventh analysis (an audit of the choices the network scores the same: traces of the shipped Expert, 30 games against ARNO 3, 20 against itself) and three assists, `slot`, `discard`, `partner` (below), measured on td2 + the current defaults (network_a) | paired, vs ARNO 3 (100 games, 29000001+): without −29.1 / 13%; slot 1 −28.1; discard 1 −28.4; partner 1 −27.0; all three −26.5 / 13%. vs ARNO 1 (60, 29100001+): −5.4 / 45%; slot −2.5; discard −5.3; partner −5.4; all three −1.8 / 47%. All three, fresh seeds: vs ARNO 3 (100, 29200001+) −24.9 → −23.6, vs ARNO 1 (60, 29300001+) −0.8 → +1.5; vs the network without assists (100, 29400001+) +15.3 / 70% → +20.5 / 73%. **Kept and switched on** (M.ASSIST slot = 1, discard = 1, partner = 1): positive on both seed sets, better against the plain network |
 
 **Behaviour analysis (2026-11-03, 1000 games td2 vs ARNO 1 + 21 traced games):** the AI keeps
 pace on appeal and loses on CP, final scoring and game length (ARNO ends it, ~5 turns earlier
@@ -825,6 +829,29 @@ through the Double Reputation University; it still never took "Take 2 Reputation
 rates it ~5 points under the alternatives). Results in the table: +2.5 / +1.5 against ARNO 3, −0.4
 / +1.8 against ARNO 1: earlier reputation is worth little on its own; the free upgrade at 5 comes
 6 turns sooner but costs the actions that would have scored.
+
+**Seventh analysis (round 24, 2026-11-04; ties; traces of the shipped Expert, 30 games against ARNO 3
+and 20 against itself; `build/assist7/`: `trace.lua` (T| every decision whose top choices lie within
+0.05 of each other, with Q, the network's part, the hand-written score and how far their choice
+inputs differ), `ties.py` (groups by panel + choice type), `show.py`):** of 13,400 decisions with 2+
+choices, the near ties per seat and game (70 seat-games), nearly all with identical inputs: tile
+spots 6.9 (196 of 483 the same cells in another order; the rest differ only in place); the X-token
++ / − 4.3 (a round trip, no stake); card picks at a discard 2.8 and sponsor picks 2.2 (inputs
+differ: the network's own judgement); Size-4 against Size-5 enclosure 2.0 (2 money); Take a
+Partner Zoo / University 1.3, which university 1.1, which continent 0.9; the final scoring discard
+1.1; the clever / boost card 0.9 / 0.8; upgrades other than ANIMALS 1.8; Kiosk / Pavilion 1.2; which
+project slot 0.5 (1st 5 CP, 3rd 2 CP: it took the 3rd with the 1st open). The labels of these
+choices carry no number or word the inputs read, so value.reward gives them all the same (0.5,
+3, 8), and the hand-written score cannot tell them apart either.
+
+**Assists of round 24** (on, weight 1 each): `slot` (on a project slot, its rewards in points,
+`M.project_slot_value`; on a project in the support panel its best slot's), `discard` (at the
+final scoring discard, minus the card's award in points now: the `final` assist's discard part on
+its own key) and `partner` (on "<continent> Partner Zoo", the money it saves on the hand's animals
+of that continent, 3 each, `M.partner_saving`; `--assist-slot/--assist-discard/--assist-partner`).
+Each alone +0.7 to +2.9; together +2.6 / +3.6 and on fresh seeds +1.3 / +2.3 against ARNO 3 / 1,
++5.2 against the plain network (table). Left: Partner Zoo against University and which
+university (no clear rule), the upgrades other than ANIMALS, tile spots.
 
 The richer inputs (v2, v3) predict held-out games better but play worse: a lower validation
 error does not mean better choices. (Not because the state explains most of the target: with
