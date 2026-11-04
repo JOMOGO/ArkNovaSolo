@@ -202,7 +202,7 @@ end
 --          action card the chosen tokens lift (round 20: the network spends ~2 of its tokens a
 --          game, never on ANIMALS, and ends with 2.5-3.7 unused)
 -- (round 17, docs/AI_OPPONENT.md §10: final 1 / 2 and ending 6 brought nothing against ARNO 1: off)
-M.ASSIST = { build = 3, cp = 4, final = 0, ending = 0, unlock = 3, upgrade = 0.5, xtoken = 0 }   -- round 19: unlock + upgrade on
+M.ASSIST = { build = 3, cp = 4, final = 0, ending = 0, unlock = 3, upgrade = 0.5, xtoken = 3 }   -- round 19: unlock + upgrade; round 20: xtoken (confirmed on fresh seeds)
 M.END_LAST_TURN = 6       -- what the other player's last turn brings, roughly (traces: ~6)
 M.END_OTHER_CP = 1.5      -- the final scoring CP of a player whose cards the AI cannot see
 M.END_RANGE = 25
