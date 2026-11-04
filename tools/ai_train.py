@@ -587,6 +587,9 @@ def main(argv=None) -> int:
         q.add_argument("--assist-slot", type=float, help="network_a: points per point a conservation project slot gives")
         q.add_argument("--assist-discard", type=float, help="network_a: at the final scoring discard, minus the card's award (points)")
         q.add_argument("--assist-partner", type=float, help="network_a: per point a partner zoo saves on the hand's animals")
+        q.add_argument("--assist-flip", type=float, help="network_a: the upgrade order after ANIMALS (policy.FLIP_ORDER)")
+        q.add_argument("--assist-uni", type=float, help="network_a: the Hand Size University first (policy.UNI_ORDER)")
+        q.add_argument("--assist-enc", type=float, help="network_a: a Size-5 enclosure over Size-4 (policy.ENC_ORDER)")
     args = ap.parse_args(argv)
 
     if args.cmd in ("play", "match"):
@@ -598,7 +601,9 @@ def main(argv=None) -> int:
                              "assist_unlock": args.assist_unlock, "assist_upgrade": args.assist_upgrade,
                              "assist_x": args.assist_x, "assist_snap": args.assist_snap,
                              "assist_rep": args.assist_rep, "assist_slot": args.assist_slot,
-                             "assist_discard": args.assist_discard, "assist_partner": args.assist_partner})
+                             "assist_discard": args.assist_discard, "assist_partner": args.assist_partner,
+                             "assist_flip": args.assist_flip, "assist_uni": args.assist_uni,
+                             "assist_enc": args.assist_enc})
         report(lines, seats)
     elif args.cmd == "search" and args.report:
         lines = [l.rstrip("\n") for path in args.report for l in path.open(encoding="utf-8")]

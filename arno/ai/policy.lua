@@ -219,9 +219,19 @@ end
 --           assist's discard part on its own key)
 --   partner on "<continent> Partner Zoo", the money the zoo saves on the hand's animals of that
 --           continent (3 each), in points
+--   Round 25 (rollouts of the tied options, build/assist8: the network scores them the same;
+--   429 upgrade, 293 university, 510 enclosure points; rollout value against a random pick):
+--   flip    the upgrade order after ANIMALS (M.FLIP_ORDER: ASSOCIATION +2.8, then CARDS -0.8,
+--           BUILD 0.0 (rare), SPONSORS -2.2 last). On (weight 1): +6.9 / +8.7 against ARNO 3 / 1
+--           on fresh seeds
+--   uni     on "Hand Size University" (M.UNI_ORDER; over Double Research +0.6 in rollouts) and
+--   enc     on "Build a Size-5 Enclosure" over Size-4 (M.ENC_ORDER; +0.4 in rollouts): off, no
+--           gain in matches
+--           (all three: a fixed tie-break below the `upgrade` assist's 0.5 and far below unlock's
+--           3 per hand card, so a hand that needs research still takes Double Research)
 -- (round 17, docs/AI_OPPONENT.md §10: final 1 / 2 and ending 6 brought nothing against ARNO 1: off)
 M.ASSIST = { build = 3, cp = 4, final = 0, ending = 0, unlock = 3, upgrade = 0.5, xtoken = 3, snap = 0, rep = 0,
-             slot = 1, discard = 1, partner = 1 }   -- round 19: unlock + upgrade; round 20: xtoken; round 24: slot + discard + partner (confirmed on fresh seeds)
+             slot = 1, discard = 1, partner = 1, flip = 1, uni = 0, enc = 0 }   -- round 19: unlock + upgrade; round 20: xtoken; round 24: slot + discard + partner (confirmed on fresh seeds); round 25: flip
 M.END_LAST_TURN = 6       -- what the other player's last turn brings, roughly (traces: ~6)
 M.END_OTHER_CP = 1.5      -- the final scoring CP of a player whose cards the AI cannot see
 M.END_RANGE = 25
@@ -871,8 +881,23 @@ local function partner_bonus(player, c)
   return 0
 end
 
+-- round 25: fixed tie-breaks found by rollouts (points per unit weight)
+M.FLIP_ORDER = { ASSOCIATION = 0.3, CARDS = 0.2, BUILD = 0.1, SPONSORS = 0 }
+M.UNI_ORDER = { ["Hand Size University"] = 0.3 }
+M.ENC_ORDER = { ["Build a Size-5 Enclosure"] = 0.3 }
+
+local function order_bonus(c, w)
+  local v, label = 0, c.label or ""
+  if (w.flip or 0) ~= 0 and c.handler == "on_card_flip_clicked" then v = v + w.flip * (M.FLIP_ORDER[label] or 0) end
+  if c.kind == "click" then
+    if (w.uni or 0) ~= 0 then v = v + w.uni * (M.UNI_ORDER[label] or 0) end
+    if (w.enc or 0) ~= 0 then v = v + w.enc * (M.ENC_ORDER[label] or 0) end
+  end
+  return v
+end
+
 local function assist_bonus(player, c, w)
-  local v = other_bonus(player, c, w)
+  local v = other_bonus(player, c, w) + order_bonus(c, w)
   if (w.slot or 0) ~= 0 and c.kind == "click" then v = v + w.slot * slot_bonus(player, c) end
   if (w.discard or 0) ~= 0 and c.kind == "pick_up" then v = v + w.discard * discard_bonus(player, c) end
   if (w.partner or 0) ~= 0 then v = v + w.partner * partner_bonus(player, c) end
@@ -884,7 +909,7 @@ local function assist_bonus(player, c, w)
   return v
 end
 
--- the assists' points for one choice under weights w ({ build, cp, final, ending, unlock, upgrade, xtoken, snap, rep, slot, discard, partner }); 0 on any error
+-- the assists' points for one choice under weights w ({ build, cp, final, ending, unlock, upgrade, xtoken, snap, rep, slot, discard, partner, flip, uni, enc }); 0 on any error
 function M.assist_bonus(player, c, w)
   local ok, v = pcall(assist_bonus, player, c, w or M.ASSIST)
   if not ok and M.on_assist_error then M.on_assist_error(v, c) end     -- tests, analysis

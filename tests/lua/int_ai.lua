@@ -354,6 +354,24 @@ T.test("assist partner: a continent's partner zoo by the money it saves on the h
   T.eq(policy.assist_bonus(p, click("Africa Partner Zoo"), W), 0, "partner off")
 end)
 
+-- round 25: tie-breaks found by rollouts (flip, uni, enc)
+T.test("assist flip / uni / enc: fixed orders where the network scores the options the same", function()
+  local p = hand_game({})
+  local OW = { flip = 1, uni = 1, enc = 1 }
+  local flip = function(name) return click(name, "on_card_flip_clicked", "Red|1") end
+  local a, c, b, s = policy.assist_bonus(p, flip("ASSOCIATION"), OW), policy.assist_bonus(p, flip("CARDS"), OW),
+                     policy.assist_bonus(p, flip("BUILD"), OW), policy.assist_bonus(p, flip("SPONSORS"), OW)
+  T.ok(a > c and c > b and b > s, "ASSOCIATION, CARDS, BUILD, SPONSORS")
+  T.ok(a < 0.5, "below the upgrade assist's ANIMALS")
+  T.eq(policy.assist_bonus(p, flip("ASSOCIATION"), W), 0, "flip off")
+  T.eq(policy.assist_bonus(p, click("ASSOCIATION"), { flip = 1 }), 0, "only the upgrade buttons")
+  T.ok(policy.assist_bonus(p, click("Hand Size University"), OW) > policy.assist_bonus(p, click("Double Research University"), OW))
+  T.eq(policy.assist_bonus(p, click("Hand Size University"), W), 0, "uni off")
+  T.ok(policy.assist_bonus(p, click("Build a Size-5 Enclosure"), OW) > policy.assist_bonus(p, click("Build a Size-4 Enclosure"), OW))
+  T.eq(policy.assist_bonus(p, click("Build a Size-5 Enclosure"), W), 0, "enc off")
+  T.eq(policy.assist_bonus(p, click("Build a Size-5 Enclosure"), { flip = 1, uni = 1 }), 0, "own key")
+end)
+
 -- end-timing assist (ending)
 local EW = { build = 0, cp = 0, ending = 5 }
 
