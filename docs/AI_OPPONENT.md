@@ -593,9 +593,10 @@ upgrade 0.5, Medium 1.15; after the harness fixes, so not strictly paired with t
 
 Against the first table every level gained 3-15 points against ARNO 1 and 3; Hard and below most.
 
-**Paused 2026-11-03 20:15 (owner needed the PC).** Round 20 (a fourth analysis and assist,
-scratch copy build/assist4/) was stopped mid-measurement; nothing of it is committed. To resume:
-the last line of build/ai/final.cmd (Easy vs ARNO 3), then round 20 again.
+Round 20 (2026-11-04, §10): the `xtoken` assist (X-tokens spent where they lift an action
+card) helps against ARNO 3 (+7.0) and ARNO 1 (+5.6) at weight 3: kept, to be switched on
+(`xtoken = 3` in M.ASSIST) once the running batch build/ai/r21.cmd is done. Still open: the last
+line of build/ai/final.cmd (Easy vs ARNO 3).
 
 Every AI level loses to every ARNO level: the AI, trained only against AIs, plays a slow
 game; ARNO races (in a traced game ARNO had 105 points after 40 turns, the AI 53). The goal
@@ -663,7 +664,7 @@ inputs v3); matches 100001+, 200001+, 300001+, 400001+, 500001+, 600001+, 700001
 900001+ (FIXPILE repro), 1000001+ ... 2300001+ (every 100000 up to 2300001; 2026-11-01 checks and ladder),
 2400001+ and 2600001+ (200 games each), 3000001+ ... 3400001+ (100 each), 3500001+ and 3700001+
 (200 each), 3900001+ (200), 4100001+ ... 4300001+ (100 each), 4400001+ (2, smoke test),
-4500001+ and 4700001+ (200 each), 4900001+ and 5100001+ (200 each), 5300001+ ... 5500001+ (ladder), 5700001+ (200), 6000001+ and 7000001+ (sweeps, 1000 each, 0 failures), 8000001+ (smoke test), 10000001+ ... 10800001+ (round 11), 11000001+ ... 11200001+ (ladder), 12000001+ and 12200001+ (round 12). Self-play 23000-27499 (round 10). Self-play: 20000-22499 (round 5). Search probes (2026-11-03): 30000001-30000003, 40000001-40000002, 40000101-40000102, 40001001-40001008, 40001101-40001106, 40001201-40001202; search labels from 40100001. Round 17 (2026-11-03): traces 91000001-91000012, 91100001-91100012, 91200001-91200008 (91300001+ started and stopped), matches 18000001+ (60 each), 18100001+ (100 each), 18900001-18900002 (smoke test). Round 19 (2026-11-03): traces 91900001, 92000001-92000024, 92100001-92100020, 92200001-92200010, 92300001-92300003, 92400001-92400002; matches 21000001+ and 21100001+ (60 each), 21200001+, 21300001+ and 21400001+ (100 each).
+4500001+ and 4700001+ (200 each), 4900001+ and 5100001+ (200 each), 5300001+ ... 5500001+ (ladder), 5700001+ (200), 6000001+ and 7000001+ (sweeps, 1000 each, 0 failures), 8000001+ (smoke test), 10000001+ ... 10800001+ (round 11), 11000001+ ... 11200001+ (ladder), 12000001+ and 12200001+ (round 12). Self-play 23000-27499 (round 10). Self-play: 20000-22499 (round 5). Search probes (2026-11-03): 30000001-30000003, 40000001-40000002, 40000101-40000102, 40001001-40001008, 40001101-40001106, 40001201-40001202; search labels from 40100001. Round 17 (2026-11-03): traces 91000001-91000012, 91100001-91100012, 91200001-91200008 (91300001+ started and stopped), matches 18000001+ (60 each), 18100001+ (100 each), 18900001-18900002 (smoke test). Round 19 (2026-11-03): traces 91900001, 92000001-92000024, 92100001-92100020, 92200001-92200010, 92300001-92300003, 92400001-92400002; matches 21000001+ and 21100001+ (60 each), 21200001+, 21300001+ and 21400001+ (100 each). Round 20 (2026-11-03/04): traces 93000001, 93000008, 93100001; matches 23000001+ (100), 23100001+ (60), 23200001+ (100).
 
 | Round | Data | Result |
 |---|---|---|
@@ -685,6 +686,7 @@ inputs v3); matches 100001+, 200001+, 300001+, 400001+, 500001+, 600001+, 700001
 | 17 (2026-11-03) | second analysis (traces of the shipped Expert, with the assists) and two more assists, `final` and `ending` (below), measured on td2 + the round-16 assists (build 3, cp 4) | vs ARNO 1 (60 games, 18000001+): round 16 alone −12.6 / 25%; + final 1 −14.4 / 20%; + final 2 −13.3 / 23%; + ending 6 −13.1 / 23% (20 debug games: final 4 doubles the final scoring card's CP, 1.15 -> 2.3, and loses 1.7 points; ending fired in 3 games of 20 and changed one by 1 point). Against td2 without assists (100, 18100001+): round 16 / + ending 6: +8.0 / 57% and +6.7 / 55%. **Not kept: both weights stay 0** (the code and `--assist-final/--assist-end` are in for later tries) |
 | 18 (2026-11-03) | search labels at scale (td2 against ARNO 1 100 games, ARNO 2 100, itself 17 of 60; ~7200 labels + the pilot's 2400) in td2's recipe (`--search`, weight 5) = r18; after the card shuffle fix, new baselines | with the assists (network_a): vs ARNO 1 (60, 19000001+) td2 −17.3 / 23%, r18 −15.3 / 27%; vs ARNO 3 (60, 19100001+) td2 −34.3 / 7%, r18 −34.8 / 3%; r18 vs td2 (100) −5.4 / 41%. **Not kept: search distillation does not help this network** (the pilot's gain was noise; at single decisions the candidates are close, the losses come from blind spots the assists fix) |
 | 19 (2026-11-03) | third analysis (early game, own turns 1-16; traces of the shipped Expert vs ARNO 3, 1 and itself) and two assists, `unlock` and `upgrade` (below), measured on td2 + the round-16 assists (build 3, cp 4); every baseline rerun on the same seeds (the final scoring cards are shuffled now) | vs ARNO 3 (60 games, 21000001+): round 16 alone −28.8 / 7%; + unlock 3 −22.5 / 17%; + unlock 3 + upgrade 0.5 −24.3 / 10%; + upgrade 0.5 −27.6 / 10%. **Confirmed on fresh seeds (100, 21300001+): round 16 −31.9 / 5%, + unlock 3 −32.0 / 7%, + both −32.0 / 6%: no gain against ARNO 3.** vs ARNO 1 (60, 21100001+): −14.6 / 23%; unlock 3 −14.7 / 22%; both −9.8 / 28%; confirmed (100, 21400001+): −16.4 / 21% against both −10.2 / 35%. Against td2 without assists (100, 21200001+): round 16 +9.7 / 67%, + unlock 3 +15.3 / 70%, + both +17.0 / 69%. **Not kept (the keep rule asks for a gain against ARNO 3): both weights stay 0**; both together are a confirmed step against ARNO 1 (+6) and the network (+7): a candidate if the rule allows it |
+| 20 (2026-11-04) | fourth analysis (X-tokens; traces of td2 with the shipped assists against ARNO 3 and itself) and one assist, `xtoken` (below), measured on td2 + the current defaults (build 3, cp 4, unlock 3, upgrade 0.5; network_a) | paired: vs ARNO 3 (100 games, 23000001+): without −27.8 / 7%; xtoken 3 **−20.8 / 22%**; xtoken 6 −22.7 / 17%. vs ARNO 1 (60, 23100001+): −11.9 / 30%; xtoken 3 **−6.3 / 42%**; xtoken 6 −10.0 / 32%. vs the network without assists (100, 23200001+): +16.9 / 67%; xtoken 3 +18.9 / 73%; xtoken 6 not run (stopped: low memory on the owner's PC). **Kept at weight 3** (+7.0 against ARNO 3, +5.6 against ARNO 1, not worse against the network); the default stays 0 until build/ai/r21.cmd (which reads M.ASSIST) is done, then `xtoken = 3` |
 
 **Behaviour analysis (2026-11-03, 1000 games td2 vs ARNO 1 + 21 traced games):** the AI keeps
 pace on appeal and loses on CP, final scoring and game length (ARNO ends it, ~5 turns earlier
@@ -759,6 +761,23 @@ both together are flat against ARNO 3 on 160 games (−30.7 → −29.1 for both
 ARNO 1 (both: +4.8 and +6.2 on two seed sets) and against the network without them (+7.3).
 Next candidates: the upgrade choice in the network itself (an input naming the flipped
 card), and the money left idle (SPONSORS for money with ~20 in hand).
+
+**Fourth analysis (round 20, 2026-11-03; X-tokens; traces of td2 with the shipped assists:
+14 seats against ARNO 3, 20 in self-play; `build/assist4/`: `trace.lua`, `xt.py` (tokens gained,
+used, held), `under.py` (actions below strength 5 with tokens in hand)):** the network spends
+few X-tokens: 1.8 per game against ARNO 3 (3.3 in self-play), never on ANIMALS, and ends with
+3.3 unused (2.6); 60 of its 506 turns against ARNO 3 began at the cap of 5, where new tokens are
+lost. It took 59 ANIMALS actions below strength 5 with tokens in hand, 71 times one token would
+have reached 5.
+
+**Assist of round 20** (weight 0 for now, kept at 3): `xtoken` (on an X-token "+" the best gain
+per token over the action cards, `M.card_gain_at`: 1 for a second animal (two playable and
+affordable together) or a supportable conservation project, the build assist's points for a
+build that houses a hand animal, 1/2 for a sponsor that becomes playable; minus that on "-";
+and on the action card the chosen tokens lift; `--assist-x`). With weight 3 the AI spends 6
+tokens a game (mostly ASSOCIATION, BUILD, SPONSORS), holds 0.6 at the end and never sits at
+the cap. Results in the table: +7.0 against ARNO 3 and +5.6 against ARNO 1 at weight 3; 6 is
+weaker (+5.1, +1.9). Not yet confirmed on fresh seeds.
 
 The richer inputs (v2, v3) predict held-out games better but play worse: a lower validation
 error does not mean better choices. (Not because the state explains most of the target: with
