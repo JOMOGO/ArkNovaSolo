@@ -534,4 +534,59 @@ T.test("assist snap: the CARDS action card at a strength that snaps", function()
   T.eq(policy.cards_snaps(p, "0", 7), 1, "strength above 5")
 end)
 
+-- reputation (rep): worth more on the way to a track reward (card flip at 5, worker at 8, ...)
+local RW = { build = 0, cp = 0, rep = 2 }
+local function near(a, b, msg) T.ok(math.abs(a - b) < 1e-9, (msg or "") .. ": " .. tostring(a) .. " ~= " .. tostring(b)) end
+local function rep_at(p, n) set_counter(p.rep_counter, n, sim.cnsts.counter_style.score) end
+
+T.test("assist rep: reputation towards the card flip and the worker, capped, fading", function()
+  local p = hand_game({})
+  local fade = 1 - require("ai.value").progress()
+  T.ok(fade > 0.5, "early in the game")
+  rep_at(p, 1)
+  -- 1 -> 3: two of the four steps to the card flip (1.5)
+  near(policy.assist_bonus(p, click("Take 2 Reputation", "on_claim_button_clicked"), RW), 2 * 0.75 * fade, "take 2")
+  near(policy.assist_bonus(p, click("2 Reputation", "on_project_support_cube_clicked"), RW), 2 * 0.75 * fade, "a project cube")
+  near(policy.assist_bonus(p, click("1 Reputation", "on_claim_button_clicked"), RW), 2 * 0.375 * fade, "a claim")
+  near(policy.assist_bonus(p, click("Double Reputation University"), RW), 2 * 0.75 * fade, "2 rep")
+  near(policy.assist_bonus(p, click("Hand Size University"), RW), 2 * 0.375 * fade, "1 rep")
+  T.eq(policy.assist_bonus(p, click("Double Research University"), RW), 0, "no reputation")
+  T.eq(policy.assist_bonus(p, click("Take a Partner Zoo"), RW), 0)
+  T.eq(policy.assist_bonus(p, click("Take 2 Reputation", "on_claim_button_clicked"), W), 0, "rep off")
+  local saved_uni = available_universities
+  available_universities = function() return { "hand_size", "double_research" } end
+  near(policy.assist_bonus(p, click("Take a University"), RW), 2 * 0.375 * fade, "the best on offer")
+  available_universities = saved_uni
+  -- 4 -> 6: the last step to the flip (0.375) and one of three to the worker (1/3)
+  rep_at(p, 4)
+  near(policy.rep_gain(p, 2), (0.375 + 1 / 3) * fade)
+  rep_at(p, 9)
+  T.eq(policy.rep_gain(p, 2), 0, "capped at 9 without the CARDS upgrade")
+  p.cards_flipped = true
+  near(policy.rep_gain(p, 1), 0.15 * fade, "9 -> 10: half the way from the worker (8) to a draw")
+  p.cards_flipped = false
+  rep_at(p, 1)
+  set_counter(p.score_counter, 100, sim.cnsts.counter_style.score)
+  T.eq(policy.rep_gain(p, 2), 0, "faded at the end")
+end)
+
+T.test("assist rep: the ASSOCIATION card and a display slot opened", function()
+  local p = hand_game({})
+  local fade = 1 - require("ai.value").progress()
+  rep_at(p, 1)
+  local slot = action_card_slot_named(p, "association")
+  p.action_cards[slot], p.action_cards[5] = p.action_cards[5], p.action_cards[slot]
+  near(policy.assist_bonus(p, card_button(p, "association"), RW), 2 * 0.375 * fade, "one reputation's worth")
+  T.eq(policy.assist_bonus(p, card_button(p, "cards"), RW), 0, "not another card")
+  local q = snap_game({ 102, 102, 408 })             -- slot 3 (reputation 4): a size-3 predator
+  place(q, "SIZE 3")
+  rep_at(q, 3)
+  local fq = 1 - require("ai.value").progress()
+  near(policy.rep_gain(q, 2), 0.75 * fq, "ANIMALS not upgraded: no display range")
+  q.animals_flipped = true
+  near(policy.rep_gain(q, 2), (0.75 + 0.5) * fq, "the display slot it opens")
+  rep_at(q, 4)
+  near(policy.rep_gain(q, 1), 0.375 * fq, "already open")
+end)
+
 T.finish("integration AI")

@@ -207,8 +207,12 @@ end
 --          its strength allows a snap (round 22: the network scores Snap and Draw within
 --          0.1-0.6 points: it cannot see the display, and drew with a playable animal there
 --          half of the time)
+--   rep    per point of a choice's reputation worth (M.rep_gain: the track rewards ahead, spread
+--          over the steps to them, + a display slot it opens for a card the AI wants, fading
+--          with the game's progress): "Take 2 Reputation", "N Reputation", a university, and
+--          one reputation's worth on the ASSOCIATION action card that can take that task (round 23)
 -- (round 17, docs/AI_OPPONENT.md §10: final 1 / 2 and ending 6 brought nothing against ARNO 1: off)
-M.ASSIST = { build = 3, cp = 4, final = 0, ending = 0, unlock = 3, upgrade = 0.5, xtoken = 3, snap = 0 }   -- round 19: unlock + upgrade; round 20: xtoken (confirmed on fresh seeds)
+M.ASSIST = { build = 3, cp = 4, final = 0, ending = 0, unlock = 3, upgrade = 0.5, xtoken = 3, snap = 0, rep = 0 }   -- round 19: unlock + upgrade; round 20: xtoken (confirmed on fresh seeds)
 M.END_LAST_TURN = 6       -- what the other player's last turn brings, roughly (traces: ~6)
 M.END_OTHER_CP = 1.5      -- the final scoring CP of a player whose cards the AI cannot see
 M.END_RANGE = 25
@@ -725,8 +729,86 @@ local function snap_bonus(player, c, w)
   return 0
 end
 
+-- ---- reputation (rep): a choice's reputation, worth more on the way to a track reward
+-- (round 23: the AI's reputation stays at 1-2 for 12 turns; it takes "Take 2 Reputation" once
+-- in 73 offers). Each reward on the track (cnsts.rep_rewards) is worth REP_REWARD points,
+-- spread evenly over the steps from the previous reward; a step that opens a display slot
+-- (ANIMALS / SPONSORS upgraded) adds REP_DISPLAY x what that card would do in hand
+-- (M.display_card_gain); all of it fades with the game's progress.
+M.REP_REWARD = { ["card flip"] = 1.5, ["unlock worker"] = 1, ["draw 1"] = 0.3, ["1 cp"] = 0.5, ["1 x_token"] = 0.3 }
+M.REP_DISPLAY = 0.5
+
+-- the track's worth up to reputation r: rewards reached, plus the share of the next one
+local function rep_potential(r)
+  local total, prev = 0, 1
+  for k, reward in ipairs(cnsts.rep_rewards) do
+    local v = M.REP_REWARD[reward]
+    if v then
+      if r >= k then total = total + v
+      else return total + v * math.max(0, r - prev) / (k - prev) end
+      prev = k
+    end
+  end
+  return total
+end
+
+-- what `amount` more reputation is worth now (0 above the cap)
+function M.rep_gain(player, amount)
+  if amount == nil or amount <= 0 then return 0 end
+  local r = get_counter_value(player.rep_counter)
+  local to = math.min(max_reputation(player), r + amount)
+  if to <= r then return 0 end
+  local v = rep_potential(to) - rep_potential(r)
+  if animals_upgraded(player) or sponsors_upgraded(player) then
+    for i, t in ipairs(cnsts.rep_range_thresholds) do
+      local card = display_cards and display_cards[i]
+      if t > r and t <= to and card then v = v + M.REP_DISPLAY * M.display_card_gain(player, card.getName()) end
+    end
+  end
+  return v * math.max(0, 1 - value.progress())
+end
+
+-- the reputation a choice gives: "Take 2 Reputation", "N Reputation" (a claim, a project cube),
+-- a university (its reputation; "Take a University": the best on offer), and half of 2 on the
+-- ASSOCIATION action card when it can take the reputation task
+local function rep_amount(player, c)
+  local label = c.label or ""
+  if c.kind ~= "click" then return 0 end
+  local n = label:match("^Take (%d+) Reputation$") or label:match("^(%d+) Reputation$")
+  if n then return tonumber(n) end
+  if label == "Take a University" then
+    local best = 0
+    for _, name in ipairs(available_universities(player, false)) do
+      best = math.max(best, M.university_delta(name).rep or 0)
+    end
+    return best
+  end
+  if label:find("University$") then
+    for name, spec in pairs(cnsts.universities) do
+      if spec.label == label then return M.university_delta(name).rep or 0 end
+    end
+    return 0
+  end
+  if c.handler == "on_action_card_button_clicked" and label:match("^(%a+)") == "ASSOCIATION" then
+    local slot = tonumber((c.arg or ""):match("_(%d+)$") or "")
+    local strength = choices_mod.strength(player, c)
+    if slot == nil or strength == nil then return 0 end
+    local num = action_card_num(player, slot)
+    local upgd = player.association_flipped
+    local open = association_task_open(player, 2, strength, num, upgd, false)
+      or (association_extra_worker_allowed(num, upgd) and association_task_open(player, 2, strength, num, upgd, true))
+    return open and 1 or 0       -- one of the task's 2: the card only opens it
+  end
+  return 0
+end
+
+function M.rep_bonus(player, c)
+  return M.rep_gain(player, rep_amount(player, c))
+end
+
 local function assist_bonus(player, c, w)
   local v = other_bonus(player, c, w)
+  if (w.rep or 0) ~= 0 then v = v + w.rep * M.rep_bonus(player, c) end
   if (w.snap or 0) ~= 0 then v = v + snap_bonus(player, c, w.snap) end
   if c.kind == "click" and (w.xtoken or 0) ~= 0 then v = v + x_bonus(player, c, w.xtoken) end
   if c.kind == "click" and (w.unlock or 0) ~= 0 then v = v + w.unlock * unlock_bonus(player, c, c.label or "") end
@@ -734,7 +816,7 @@ local function assist_bonus(player, c, w)
   return v
 end
 
--- the assists' points for one choice under weights w ({ build, cp, final, ending, unlock, upgrade, xtoken, snap }); 0 on any error
+-- the assists' points for one choice under weights w ({ build, cp, final, ending, unlock, upgrade, xtoken, snap, rep }); 0 on any error
 function M.assist_bonus(player, c, w)
   local ok, v = pcall(assist_bonus, player, c, w or M.ASSIST)
   if not ok and M.on_assist_error then M.on_assist_error(v, c) end     -- tests, analysis
