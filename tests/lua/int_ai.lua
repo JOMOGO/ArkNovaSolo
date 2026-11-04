@@ -482,4 +482,56 @@ T.test("assist xtoken: card gains by kind", function()
   T.eq(policy.card_gain_at(p, "ANIMALS", 1, 5), 0, "no animal playable")
 end)
 
+-- snapping from the display (snap): the display card the network cannot see
+local SW = { build = 0, cp = 0, snap = 2 }
+
+local function snap_game(numbers)
+  local p = hand_game({})
+  display_cards = {}
+  for i = 1, 6 do display_cards[i] = card_obj(numbers[i] or 102) end   -- 102: a project
+  return p
+end
+
+T.test("assist snap: Snap over Draw when the display holds an animal it can play", function()
+  local p = snap_game({ 102, 408 })                  -- a size-3 predator, no conditions
+  T.eq(policy.assist_bonus(p, click("Snap a card", "on_claim_button_clicked"), SW), 0, "no enclosure yet")
+  policy.SNAP_NEAR = 0.5
+  T.eq(policy.assist_bonus(p, click("Snap a card", "on_claim_button_clicked"), SW), 1, "no enclosure yet: SNAP_NEAR")
+  policy.SNAP_NEAR = 0
+  place(p, "SIZE 3")
+  T.eq(policy.display_card_gain(p, NAMES[408]), 1)
+  T.eq(policy.assist_bonus(p, click("Snap a card", "on_claim_button_clicked"), SW), 2, "playable now")
+  T.eq(policy.assist_bonus(p, click("Snap two cards", "on_claim_button_clicked"), SW), 2)
+  T.eq(policy.assist_bonus(p, click("Draw 3 cards, discard 1", "on_claim_button_clicked"), SW), 0, "not the draw")
+  T.eq(policy.assist_bonus(p, click("Snap a card", "on_claim_button_clicked"), W), 0, "snap off")
+  T.eq(policy.assist_bonus(p, { kind = "pick_up", label = "snap 2: " .. NAMES[408] }, SW), 2, "the snap pick")
+  T.eq(policy.assist_bonus(p, { kind = "pick_up", label = "snap 1: " .. NAMES[102] }, SW), 0, "a project")
+  T.eq(policy.assist_bonus(p, { kind = "pick_up", label = "play animal: " .. NAMES[408] }, SW), 0, "not a snap")
+  set_counter(p.money_counter, 0, sim.cnsts.counter_style.cp)
+  T.eq(policy.assist_bonus(p, click("Snap a card", "on_claim_button_clicked"), SW), 0, "no money: neither playable nor short of one thing")
+  local q = snap_game({ 402 })                       -- three conditions unmet
+  T.eq(policy.assist_bonus(q, click("Snap a card", "on_claim_button_clicked"), SW), 0)
+  local r = snap_game({})
+  T.eq(policy.snap_gain(r), 0, "nothing but projects")
+end)
+
+T.test("assist snap: the CARDS action card at a strength that snaps", function()
+  local p = snap_game({ 408 })
+  place(p, "SIZE 3")
+  local cards = card_button(p, "cards")
+  T.eq(choices.strength(p, cards), 2)
+  T.eq(policy.assist_bonus(p, cards, SW), 0, "CARDS I at 2: no snap")
+  local slot = action_card_slot_named(p, "cards")
+  p.action_cards[slot], p.action_cards[5] = p.action_cards[5], p.action_cards[slot]
+  cards = card_button(p, "cards")
+  T.eq(choices.strength(p, cards), 5)
+  T.eq(policy.assist_bonus(p, cards, SW), 1, "at 5: half the snap's gain")
+  T.eq(policy.assist_bonus(p, card_button(p, "animals"), SW), 0, "not another card")
+  T.eq(policy.cards_snaps(p, "0", 3), 0)
+  p.cards_flipped = true
+  T.eq(policy.cards_snaps(p, "0", 3), 1, "CARDS II snaps from 3")
+  T.eq(policy.cards_snaps(p, "3", 5), 2, "CARDS-3 II: two at 5")
+  T.eq(policy.cards_snaps(p, "0", 7), 1, "strength above 5")
+end)
+
 T.finish("integration AI")

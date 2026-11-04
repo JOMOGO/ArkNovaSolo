@@ -201,8 +201,14 @@ end
 --          build that houses a hand animal, a playable sponsor); minus that on "-"; and on the
 --          action card the chosen tokens lift (round 20: the network spends ~2 of its tokens a
 --          game, never on ANIMALS, and ends with 2.5-3.7 unused)
+--   snap   on "Snap a card" / "Snap two cards" (the CARDS action) the best display card's gain
+--          (M.snap_gain: 1 for an animal playable now; M.SNAP_NEAR for one a condition or an
+--          enclosure short); on a snap pick, that card's gain; half of it on the CARDS action card when
+--          its strength allows a snap (round 22: the network scores Snap and Draw within
+--          0.1-0.6 points: it cannot see the display, and drew with a playable animal there
+--          half of the time)
 -- (round 17, docs/AI_OPPONENT.md §10: final 1 / 2 and ending 6 brought nothing against ARNO 1: off)
-M.ASSIST = { build = 3, cp = 4, final = 0, ending = 0, unlock = 3, upgrade = 0.5, xtoken = 3 }   -- round 19: unlock + upgrade; round 20: xtoken (confirmed on fresh seeds)
+M.ASSIST = { build = 3, cp = 4, final = 0, ending = 0, unlock = 3, upgrade = 0.5, xtoken = 3, snap = 0 }   -- round 19: unlock + upgrade; round 20: xtoken (confirmed on fresh seeds)
 M.END_LAST_TURN = 6       -- what the other player's last turn brings, roughly (traces: ~6)
 M.END_OTHER_CP = 1.5      -- the final scoring CP of a player whose cards the AI cannot see
 M.END_RANGE = 25
@@ -664,15 +670,71 @@ local function x_bonus(player, c, w)
   return 0
 end
 
+-- ---- snapping from the display (snap): what a display card would do in hand
+-- (an animal playable now: 1; one condition or the enclosure short: SNAP_NEAR)
+M.SNAP_NEAR = 0     -- round 22: 0.5 made it snap at nearly every CARDS action (a near animal is almost always there)
+function M.display_card_gain(player, name)
+  local ok, data = pcall(card_data_for, name)
+  if not ok or data == nil or data.type ~= "animal" then return 0 end
+  if is_animal_playable(name, player, nil) then return 1 end
+  if waza_assignment_blocks(data, player) then return 0 end
+  local unmet = animal_conditions_unmet(data, player)
+  local fits = animal_fits_enclosure(data, player)
+  if (unmet <= 0 and not fits) or (unmet == 1 and fits) then return M.SNAP_NEAR end
+  return 0
+end
+
+-- the best display card's gain (any of the six: the CARDS snap is not limited by reputation)
+function M.snap_gain(player)
+  local best = 0
+  for i = 1, 6 do
+    local card = display_cards and display_cards[i]
+    if card then best = math.max(best, M.display_card_gain(player, card.getName())) end
+  end
+  return best
+end
+
+-- snaps of the CARDS action at a strength (as cards_action)
+function M.cards_snaps(player, num, strength)
+  local snaps = { 0, 0, 0, 0, 1 }
+  if player.cards_flipped then
+    snaps = num == "3" and { 0, 1, 1, 1, 2 } or { 0, 0, 1, 1, 1 }
+  elseif num == "3" then
+    snaps = { 0, 0, 1, 1, 1 }
+  end
+  return snaps[math.max(1, math.min(strength, 5))] or 0
+end
+
+local function snap_bonus(player, c, w)
+  local label = c.label or ""
+  if c.kind == "pick_up" then
+    local name = label:match("^snap %d+: (.+)$")
+    return name and w * M.display_card_gain(player, name) or 0
+  end
+  if c.kind ~= "click" then return 0 end
+  if c.handler == "on_claim_button_clicked" and (label == "Snap a card" or label == "Snap two cards") then
+    return w * M.snap_gain(player)
+  end
+  if c.handler == "on_action_card_button_clicked" and label:match("^(%a+)") == "CARDS" then
+    local slot = tonumber((c.arg or ""):match("_(%d+)$") or "")
+    local strength = choices_mod.strength(player, c)
+    if slot == nil or strength == nil then return 0 end
+    if M.cards_snaps(player, action_card_num(player, slot), strength) <= 0 then return 0 end
+    return 0.5 * w * M.snap_gain(player)
+  end
+  return 0
+end
+
 local function assist_bonus(player, c, w)
   local v = other_bonus(player, c, w)
+  if (w.snap or 0) ~= 0 then v = v + snap_bonus(player, c, w.snap) end
   if c.kind == "click" and (w.xtoken or 0) ~= 0 then v = v + x_bonus(player, c, w.xtoken) end
   if c.kind == "click" and (w.unlock or 0) ~= 0 then v = v + w.unlock * unlock_bonus(player, c, c.label or "") end
   if (w.upgrade or 0) ~= 0 and c.handler == "on_card_flip_clicked" and c.label == "ANIMALS" then v = v + w.upgrade end
   return v
 end
 
--- the assists' points for one choice under weights w ({ build, cp, final, ending, unlock, upgrade, xtoken }); 0 on any error
+-- the assists' points for one choice under weights w ({ build, cp, final, ending, unlock, upgrade, xtoken, snap }); 0 on any error
 function M.assist_bonus(player, c, w)
   local ok, v = pcall(assist_bonus, player, c, w or M.ASSIST)
   if not ok and M.on_assist_error then M.on_assist_error(v, c) end     -- tests, analysis

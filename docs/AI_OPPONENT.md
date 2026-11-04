@@ -664,7 +664,7 @@ inputs v3); matches 100001+, 200001+, 300001+, 400001+, 500001+, 600001+, 700001
 900001+ (FIXPILE repro), 1000001+ ... 2300001+ (every 100000 up to 2300001; 2026-11-01 checks and ladder),
 2400001+ and 2600001+ (200 games each), 3000001+ ... 3400001+ (100 each), 3500001+ and 3700001+
 (200 each), 3900001+ (200), 4100001+ ... 4300001+ (100 each), 4400001+ (2, smoke test),
-4500001+ and 4700001+ (200 each), 4900001+ and 5100001+ (200 each), 5300001+ ... 5500001+ (ladder), 5700001+ (200), 6000001+ and 7000001+ (sweeps, 1000 each, 0 failures), 8000001+ (smoke test), 10000001+ ... 10800001+ (round 11), 11000001+ ... 11200001+ (ladder), 12000001+ and 12200001+ (round 12). Self-play 23000-27499 (round 10). Self-play: 20000-22499 (round 5). Search probes (2026-11-03): 30000001-30000003, 40000001-40000002, 40000101-40000102, 40001001-40001008, 40001101-40001106, 40001201-40001202; search labels from 40100001. Round 17 (2026-11-03): traces 91000001-91000012, 91100001-91100012, 91200001-91200008 (91300001+ started and stopped), matches 18000001+ (60 each), 18100001+ (100 each), 18900001-18900002 (smoke test). Round 19 (2026-11-03): traces 91900001, 92000001-92000024, 92100001-92100020, 92200001-92200010, 92300001-92300003, 92400001-92400002; matches 21000001+ and 21100001+ (60 each), 21200001+, 21300001+ and 21400001+ (100 each). Round 20 (2026-11-03/04): traces 93000001, 93000008, 93100001; matches 23000001+ (100), 23100001+ (60), 23200001+ (100).
+4500001+ and 4700001+ (200 each), 4900001+ and 5100001+ (200 each), 5300001+ ... 5500001+ (ladder), 5700001+ (200), 6000001+ and 7000001+ (sweeps, 1000 each, 0 failures), 8000001+ (smoke test), 10000001+ ... 10800001+ (round 11), 11000001+ ... 11200001+ (ladder), 12000001+ and 12200001+ (round 12). Self-play 23000-27499 (round 10). Self-play: 20000-22499 (round 5). Search probes (2026-11-03): 30000001-30000003, 40000001-40000002, 40000101-40000102, 40001001-40001008, 40001101-40001106, 40001201-40001202; search labels from 40100001. Round 17 (2026-11-03): traces 91000001-91000012, 91100001-91100012, 91200001-91200008 (91300001+ started and stopped), matches 18000001+ (60 each), 18100001+ (100 each), 18900001-18900002 (smoke test). Round 19 (2026-11-03): traces 91900001, 92000001-92000024, 92100001-92100020, 92200001-92200010, 92300001-92300003, 92400001-92400002; matches 21000001+ and 21100001+ (60 each), 21200001+, 21300001+ and 21400001+ (100 each). Round 20 (2026-11-03/04): traces 93000001, 93000008, 93100001; matches 23000001+ (100), 23100001+ (60), 23200001+ (100). Round 22 (2026-11-04): traces 94000001-94000012, 94100001-94100012, 94000101-94000110, 94100101-94100108; matches 27000001+ (100), 27100001+ (60).
 
 | Round | Data | Result |
 |---|---|---|
@@ -688,6 +688,7 @@ inputs v3); matches 100001+, 200001+, 300001+, 400001+, 500001+, 600001+, 700001
 | 19 (2026-11-03) | third analysis (early game, own turns 1-16; traces of the shipped Expert vs ARNO 3, 1 and itself) and two assists, `unlock` and `upgrade` (below), measured on td2 + the round-16 assists (build 3, cp 4); every baseline rerun on the same seeds (the final scoring cards are shuffled now) | vs ARNO 3 (60 games, 21000001+): round 16 alone −28.8 / 7%; + unlock 3 −22.5 / 17%; + unlock 3 + upgrade 0.5 −24.3 / 10%; + upgrade 0.5 −27.6 / 10%. **Confirmed on fresh seeds (100, 21300001+): round 16 −31.9 / 5%, + unlock 3 −32.0 / 7%, + both −32.0 / 6%: no gain against ARNO 3.** vs ARNO 1 (60, 21100001+): −14.6 / 23%; unlock 3 −14.7 / 22%; both −9.8 / 28%; confirmed (100, 21400001+): −16.4 / 21% against both −10.2 / 35%. Against td2 without assists (100, 21200001+): round 16 +9.7 / 67%, + unlock 3 +15.3 / 70%, + both +17.0 / 69%. **Not kept (the keep rule asks for a gain against ARNO 3): both weights stay 0**; both together are a confirmed step against ARNO 1 (+6) and the network (+7): a candidate if the rule allows it |
 | 20 (2026-11-04) | fourth analysis (X-tokens; traces of td2 with the shipped assists against ARNO 3 and itself) and one assist, `xtoken` (below), measured on td2 + the current defaults (build 3, cp 4, unlock 3, upgrade 0.5; network_a) | paired: vs ARNO 3 (100 games, 23000001+): without −27.8 / 7%; xtoken 3 **−20.8 / 22%**; xtoken 6 −22.7 / 17%. vs ARNO 1 (60, 23100001+): −11.9 / 30%; xtoken 3 **−6.3 / 42%**; xtoken 6 −10.0 / 32%. vs the network without assists (100, 23200001+): +16.9 / 67%; xtoken 3 +18.9 / 73%; xtoken 6 not run (stopped: low memory on the owner's PC). **Kept at weight 3** (+7.0 against ARNO 3, +5.6 against ARNO 1, not worse against the network); the default stays 0 until build/ai/r21.cmd (which reads M.ASSIST) is done, then `xtoken = 3` |
 | 21 (2026-11-04) | data played by the assisted policy (`network_a` on td2): 1000 games against itself, 800 each against ARNO 1 and 2, 400 against the hand-written policy (seeds 37000-40399, `round9_*.txt`); td2's recipe on every round (minus the ARNO 3-8 games) + these = r21. xtoken (round 20) confirmed on fresh seeds | both with the assists, paired: vs ARNO 1 (60, 24000001+) td2 −3.2 / 43%, r21 −4.7 / 47%; vs ARNO 3 (60, 24100001+) td2 −27.4 / 12%, r21 −30.1 / 7%; vs plain td2 (100) td2 +11.5 / 64%, r21 +15.5 / 70%: r21 not kept (no gain against ARNO). xtoken 3, fresh seeds: vs ARNO 3 (100, 25000001+) −28.9 → −25.1, vs ARNO 1 (60, 25100001+) −5.5 → −4.0: positive on both seed sets, **switched on** (M.ASSIST xtoken = 3). Easy vs ARNO 3 (the paused cell): −46.9 / 0% |
+| 22 (2026-11-04) | fifth analysis (traces of the shipped Expert against ARNO 3 and itself, 12 games each, + 10 / 8 with the display at each CARDS choice) and one assist, `snap` (below), measured on td2 + the current defaults (build 3, cp 4, unlock 3, upgrade 0.5, xtoken 3; network_a) | paired: vs ARNO 3 (100 games, 27000001+): without −26.8 / 12%; snap 2 (near animals 1/2) −27.9 / 13%; snap 2 (playable animals only) −27.6 / 12%. vs ARNO 1 (60, 27100001+): −6.5 / 35%; −7.6 / 42%; −5.7 / 40%. **Not kept: the weight stays 0** (no gain against ARNO 3, under the +3 needed for a confirmation; the code and `--assist-snap` are in for later tries) |
 
 **Behaviour analysis (2026-11-03, 1000 games td2 vs ARNO 1 + 21 traced games):** the AI keeps
 pace on appeal and loses on CP, final scoring and game length (ARNO ends it, ~5 turns earlier
@@ -779,6 +780,24 @@ and on the action card the chosen tokens lift; `--assist-x`). With weight 3 the 
 tokens a game (mostly ASSOCIATION, BUILD, SPONSORS), holds 0.6 at the end and never sits at
 the cap. Results in the table: +7.0 against ARNO 3 and +5.6 against ARNO 1 at weight 3; 6 is
 weaker (+5.1, +1.9). Not yet confirmed on fresh seeds.
+
+**Fifth analysis (round 22, 2026-11-04; traces of the shipped Expert: 12 games against ARNO 3,
+12 against itself, then 10 / 8 more logging the display at every CARDS choice; `build/assist5/`:
+`trace.lua` (+ S| lines), `traj.py`, `rep.py`, `snap.py`):** against ARNO 3 the AI is behind from
+turn 3 (turn 16: score 8.8 against 19.9, appeal −6.5, CP −2.3, 2.9 animals against 3.8; turn 32:
+−17). Its reputation stays at 1-2 for 12 turns (ARNO 3: 5 by then); it reaches 5 (the free
+upgrade) at own turn 19 and 8 (the worker) at 24, in self-play 21 and 31 (the 5 seats that reached
+5 by turn 16 won by +17, the others lost by 4: confounded with doing well, not tried). Found:
+**at the CARDS action the network scores Snap and Draw within 0.1-0.6 points** (v1 inputs: it
+cannot see the display); with an animal it could play in the display it drew 17 times of 35.
+
+**Assist of round 22** (off, weight 0): `snap` (on "Snap a card" / "Snap two cards" the best
+display card's gain, `M.snap_gain`: 1 for an animal playable now, `M.SNAP_NEAR` for one a
+condition or the enclosure short; on a snap pick that card's gain; half of it on the CARDS action
+card at a strength that snaps, `M.cards_snaps`; `--assist-snap`). With weight 2 and SNAP_NEAR 1/2
+it snapped at 51 of 52 CARDS choices (a near animal is almost always on display), so SNAP_NEAR
+is 0 now. Neither moved the result (table): one better card a few times a game is worth little,
+the gap to ARNO 3 is the pace of appeal from turn 3.
 
 The richer inputs (v2, v3) predict held-out games better but play worse: a lower validation
 error does not mean better choices. (Not because the state explains most of the target: with
