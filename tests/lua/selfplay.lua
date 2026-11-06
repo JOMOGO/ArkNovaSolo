@@ -7,7 +7,7 @@
 -- margin = own score minus the best other score. The trainer's target for a decision is
 -- final margin minus margin now. Options (module "tests.selfplay_options"):
 --   { from, to, seats = { { policy = "heuristic" | "network" | "network_b" | "network_a", budget = n }, ... },
---     mw_every, assist_build, assist_cp, assist_final, assist_end, assist_unlock, assist_upgrade, assist_x, assist_snap, assist_rep, assist_slot, assist_discard, assist_partner, assist_flip, assist_uni, assist_enc }   (network_a: the network with policy's assists)
+--     mw_every, assist_build, assist_cp, assist_final, assist_end, assist_unlock, assist_upgrade, assist_x, assist_snap, assist_rep, assist_slot, assist_discard, assist_partner, assist_flip, assist_uni, assist_enc, assist_sponsor }   (network_a: the network with policy's assists)
 local game = require("tests.ai_game")
 local OPTS = require("tests.selfplay_options")
 local policy = require("ai.policy")
@@ -71,7 +71,7 @@ for seed = OPTS.from, OPTS.to do
                         rep = OPTS.assist_rep or policy.ASSIST.rep, slot = OPTS.assist_slot or policy.ASSIST.slot,
                         discard = OPTS.assist_discard or policy.ASSIST.discard, partner = OPTS.assist_partner or policy.ASSIST.partner,
                         flip = OPTS.assist_flip or policy.ASSIST.flip, uni = OPTS.assist_uni or policy.ASSIST.uni,
-                        enc = OPTS.assist_enc or policy.ASSIST.enc }
+                        enc = OPTS.assist_enc or policy.ASSIST.enc, sponsor = OPTS.assist_sponsor or policy.ASSIST.sponsor }
       end
       return policy.budgeted(rng.new(s * 31 + i), spec.budget or 0, opts)
     end end

@@ -231,7 +231,7 @@ end
 --           3 per hand card, so a hand that needs research still takes Double Research)
 -- (round 17, docs/AI_OPPONENT.md §10: final 1 / 2 and ending 6 brought nothing against ARNO 1: off)
 M.ASSIST = { build = 3, cp = 4, final = 0, ending = 0, unlock = 3, upgrade = 0.5, xtoken = 3, snap = 0, rep = 0,
-             slot = 1, discard = 1, partner = 1, flip = 1, uni = 0, enc = 0 }   -- round 19: unlock + upgrade; round 20: xtoken; round 24: slot + discard + partner (confirmed on fresh seeds); round 25: flip
+             slot = 1, discard = 1, partner = 1, flip = 1, uni = 0, enc = 0, sponsor = 0 }   -- round 19: unlock + upgrade; round 20: xtoken; round 24: slot + discard + partner (confirmed on fresh seeds); round 25: flip
 M.END_LAST_TURN = 6       -- what the other player's last turn brings, roughly (traces: ~6)
 M.END_OTHER_CP = 1.5      -- the final scoring CP of a player whose cards the AI cannot see
 M.END_RANGE = 25
@@ -896,8 +896,40 @@ local function order_bonus(c, w)
   return v
 end
 
+-- round 26 (sponsor): rollouts of the action card choice; the network undervalues SPONSORS when
+-- a hand sponsor is playable at the card's strength (with the X-tokens chosen)
+local function sponsor_bonus(player, c)
+  if c.handler == "on_x_token_spin_clicked" then
+    -- "+": 1 / j when j more tokens make a hand sponsor playable on the SPONSORS card (none now);
+    -- "-": -1 when one token fewer loses the only playable strength
+    local state = x_state(player)
+    if state == nil then return 0 end
+    local used, have = state.x_tokens_used or 0, #(player.x_tokens or {})
+    local dir = (c.arg or ""):match("_(%a+)$")
+    for slot = 1, 5 do
+      if card_kind(player, slot) == "SPONSORS" then
+        local s = action_strength(player, slot, used, player)
+        local now = #playable_sponsor_candidates(player, s) > 0
+        if dir == "up" and not now then
+          for j = 1, have - used do
+            if #playable_sponsor_candidates(player, s + j) > 0 then return 1 / j end
+          end
+        elseif dir == "down" and now and used > 0 and #playable_sponsor_candidates(player, s - 1) == 0 then
+          return -1
+        end
+        return 0
+      end
+    end
+    return 0
+  end
+  if c.handler ~= "on_action_card_button_clicked" or not (c.label or ""):find("^SPONSORS") then return 0 end
+  local strength = choices_mod.strength(player, c)
+  return (strength and #playable_sponsor_candidates(player, strength) > 0) and 1 or 0
+end
+
 local function assist_bonus(player, c, w)
   local v = other_bonus(player, c, w) + order_bonus(c, w)
+  if (w.sponsor or 0) ~= 0 and c.kind == "click" then v = v + w.sponsor * sponsor_bonus(player, c) end
   if (w.slot or 0) ~= 0 and c.kind == "click" then v = v + w.slot * slot_bonus(player, c) end
   if (w.discard or 0) ~= 0 and c.kind == "pick_up" then v = v + w.discard * discard_bonus(player, c) end
   if (w.partner or 0) ~= 0 then v = v + w.partner * partner_bonus(player, c) end
@@ -909,7 +941,7 @@ local function assist_bonus(player, c, w)
   return v
 end
 
--- the assists' points for one choice under weights w ({ build, cp, final, ending, unlock, upgrade, xtoken, snap, rep, slot, discard, partner, flip, uni, enc }); 0 on any error
+-- the assists' points for one choice under weights w ({ build, cp, final, ending, unlock, upgrade, xtoken, snap, rep, slot, discard, partner, flip, uni, enc, sponsor }); 0 on any error
 function M.assist_bonus(player, c, w)
   local ok, v = pcall(assist_bonus, player, c, w or M.ASSIST)
   if not ok and M.on_assist_error then M.on_assist_error(v, c) end     -- tests, analysis
