@@ -884,6 +884,28 @@ unit weight, below the `upgrade` assist's 0.5 on ANIMALS and far below unlock's 
 into the matches (table): +6 to +9 points against ARNO 3 and 1 on two seed sets, the largest single
 assist since round 16; the university and enclosure gains (~0.5 a choice, once or twice a game) do
 not show in 100-game matches. Left from round 24: tile spots, Kiosk / Pavilion, clever / boost.
+**Ninth analysis (round 26, 2026-11-04 / 06; rollouts of the action card choice; `build/assist9/`:
+`asearch.lua` (round 25's machinery; at a quarter of the shipped Expert's fresh action choices, every
+card at +0, +1 X-token (strength <= 5), +2 when it reaches 5 or adds `card_gain_at`, the X-token action,
+and the AI's own pick are forced as plans and played on, H = 20 + Q; samples 1-2 for every option,
+3-4 for the pick and the 2 best others), `collect.py`, `analyze.py` (unbiased regret: the best on
+samples 1-2 valued on 3-4; a picked -> best confusion table), `rules.py` (single-feature rules found on
+odd seeds, checked on even), `measure.sh`):** 146 games (70 against ARNO 3, 50 against ARNO 1, 30 in
+self-play; seeds 98000001+, 98100001+, 98200001+), 1757 points. The AI's pick is the rollout-best 27%
+of the time and **loses at least 2.65 ± 0.14 points a choice** (ARNO 3 2.8, ARNO 1 2.3, self 2.8), but
+the loss is diffuse: no picked -> best pair carries more than 6% of it (BUILD -> CARDS, CARDS ->
+SPONSORS, ANIMALS -> SPONSORS lead). The one rule steady on the held-out seeds and in every pool:
+SPONSORS (at 5, with X-tokens) when a hand sponsor is playable there, +0.18 to +0.20 a point, +1.6 each
+time it changes the pick.
+**Assist of round 26** (off, weight 0): `sponsor` (+w on the SPONSORS action card when a hand sponsor
+is playable at its strength; on the X-token "+" 1/j when j more tokens make one playable, −1 on "−"
+when one token fewer loses it; `--assist-sponsor`). Set A (100 games vs ARNO 3 from 32000001, 60 vs
+ARNO 1 from 32100001; base −17.8 / +2.0): card part only 1.5 −19.2 / +3.0, 3 −18.5 / +1.4, 8 −18.8 /
+−1.2; with the X-token part 3 −19.1 / +0.1, 8 −19.7 / −0.8. Flat to slightly worse: as in rounds 22-23,
+a rollout rule's gain does not carry into matches. The rollout regret of the action choice is large
+but not reachable with single-feature rules; whether it is real (a player that searches the action
+choice) has not been measured in a match (rollouts need the headless forced replay, so it could not
+ship to TTS as is).
 
 The richer inputs (v2, v3) predict held-out games better but play worse: a lower validation
 error does not mean better choices. (Not because the state explains most of the target: with
