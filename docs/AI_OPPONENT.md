@@ -552,7 +552,7 @@ Found on the way:
 | 2026-11-03 | Levels with the assists (build 3, cp 4; seats `expert`...), 100 games each | Expert vs Hard +9.4 (64%), Hard vs Medium +19.1 (71%), Medium vs Easy +10.2 (58%): Medium too weak |
 | 2026-11-03 | Shipped: + unlock 3 / upgrade 0.5 (round 19), Medium budget 1.3 -> 1.15; 100 games each (seeds 22000001+) | Expert vs Hard +13.5 (72%), Hard vs Medium +9.1 (64%), Medium vs Easy +9.0 (59%): order holds, 0 stalls in 300 games |
 | 2026-11-04 | Shipped: + xtoken 3 (round 20); 100 games each (seeds 26000001+) | Expert vs Hard +10.4 (59%), Hard vs Medium +9.2 (62%), Medium vs Easy +9.9 (62%); Expert vs ARNO 1 **−0.1 (52%)** on the table's seeds (was −8.6 / 38%), vs ARNO 3 −22.1 (17%) |
-| 2026-11-04 | Shipped: + slot/discard/partner (round 24) + flip (round 25); 100 games each (seeds 31000001+) | Expert vs Hard +14.3 (68%), Hard vs Medium +8.0 (60%), Medium vs Easy +7.5 (58%); Expert vs ARNO 1 **+9.3 (57%)** on the table's seeds (was −8.6 / 38% on 2026-11-03). Paused by the owner before vs ARNO 2/3/5: resume with build/ai/ladder25_resume.cmd |
+| 2026-11-04 | Shipped: + slot/discard/partner (round 24) + flip (round 25); 100 games each (seeds 31000001+) | Expert vs Hard +14.3 (68%), Hard vs Medium +8.0 (60%), Medium vs Easy +7.5 (58%); Expert vs ARNO 1 **+9.3 (57%)** on the table's seeds (was −8.6 / 38% on 2026-11-03); resumed 2026-11-06, 60 games each on the table's seeds: vs ARNO 2 **−6.1 (37%)** (was −20.6), vs ARNO 3 **−19.3 (18%)** (was −25.4), vs ARNO 5 **−34.3 (5%)** (was −41.1) |
 
 Ladder (2-seat games, seats swapped, `tools/ai_train.py match`; a margin is the average
 final score difference; ±4 points is noise at 100 games):
