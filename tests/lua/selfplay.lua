@@ -60,10 +60,11 @@ for seed = OPTS.from, OPTS.to do
     if spec.arno then arno = { color = color, level = spec.arno } end
     if not spec.arno then makers[color] = function(s)
       if spec.level then return levels.policy(spec.level, s * 31 + i) end     -- a shipped level
-      local opts = { network = spec.policy == "network" or spec.policy == "network_b" or spec.policy == "network_a" }
-      if spec.policy == "network_b" then opts.weights = require("ai.net_weights_b") end
+      local opts = { network = spec.policy == "network" or spec.policy == "network_b" or spec.policy == "network_a" or spec.policy == "network_ab" }
+      if spec.policy == "network_b" or spec.policy == "network_ab" then opts.weights = require("ai.net_weights_b") end
       -- network_a: the network with the assists (policy.ASSIST, or the options' assist_build / assist_cp)
-      if spec.policy == "network_a" then
+      -- network_ab: network_b's weights with the same assists
+      if spec.policy == "network_a" or spec.policy == "network_ab" then
         opts.assist = { build = OPTS.assist_build or policy.ASSIST.build, cp = OPTS.assist_cp or policy.ASSIST.cp,
                         final = OPTS.assist_final or policy.ASSIST.final, ending = OPTS.assist_end or policy.ASSIST.ending,
                         unlock = OPTS.assist_unlock or policy.ASSIST.unlock, upgrade = OPTS.assist_upgrade or policy.ASSIST.upgrade,
