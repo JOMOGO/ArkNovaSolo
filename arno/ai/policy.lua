@@ -231,7 +231,7 @@ end
 --           3 per hand card, so a hand that needs research still takes Double Research)
 -- (round 17, docs/AI_OPPONENT.md §10: final 1 / 2 and ending 6 brought nothing against ARNO 1: off)
 M.ASSIST = { build = 3, cp = 4, final = 0, ending = 0, unlock = 3, upgrade = 0.5, xtoken = 3, snap = 0, rep = 0,
-             slot = 1, discard = 1, partner = 1, flip = 1, uni = 0, enc = 0, sponsor = 0 }   -- round 19: unlock + upgrade; round 20: xtoken; round 24: slot + discard + partner (confirmed on fresh seeds); round 25: flip
+             slot = 1, discard = 1, partner = 1, flip = 1, uni = 0, enc = 0, sponsor = 0, clever = 0, kp = 0, tile = 0 }   -- round 19: unlock + upgrade; round 20: xtoken; round 24: slot + discard + partner (confirmed on fresh seeds); round 25: flip
 M.END_LAST_TURN = 6       -- what the other player's last turn brings, roughly (traces: ~6)
 M.END_OTHER_CP = 1.5      -- the final scoring CP of a player whose cards the AI cannot see
 M.END_RANGE = 25
@@ -886,9 +886,35 @@ M.FLIP_ORDER = { ASSOCIATION = 0.3, CARDS = 0.2, BUILD = 0.1, SPONSORS = 0 }
 M.UNI_ORDER = { ["Hand Size University"] = 0.3 }
 M.ENC_ORDER = { ["Build a Size-5 Enclosure"] = 0.3 }
 
+-- round 27: tie rollouts of the clever card (which card goes back to position 1), Kiosk / Pavilion
+M.CLEVER_ORDER = { CARDS = 0.4, SPONSORS = 0.3, ANIMALS = 0.2, BUILD = 0.1, ASSOCIATION = 0 }
+M.KP_ORDER = { ["Build a Pavilion"] = 0.3, ["Pavilion"] = 0.3 }
+-- tile spots: per reputation / card draw bonus under the tile
+M.TILE_REP, M.TILE_DRAW = 0.3, -0.3
+
+local function tile_bonus(player, c)
+  local state = tile_placements and tile_placements[player.color]
+  local opts = (state and state.opts) or (player.pending_building and player.pending_building.opts) or {}
+  local ok, reward = pcall(function() return player.map:previewReward(c.cells, opts) end)
+  if not ok or type(reward) ~= "table" then return 0 end
+  local v = 0
+  for _, tag in ipairs(reward.tags or {}) do
+    local t = tostring(tag)
+    local n = tonumber(t:match("(%d+)")) or 1
+    if t:find("x_token", 1, true) or t:find("money", 1, true) then
+    elseif t:find("^draw") then v = v + M.TILE_DRAW * n
+    elseif t:find("rep", 1, true) then v = v + M.TILE_REP * n end
+  end
+  return v
+end
+
 local function order_bonus(c, w)
   local v, label = 0, c.label or ""
   if (w.flip or 0) ~= 0 and c.handler == "on_card_flip_clicked" then v = v + w.flip * (M.FLIP_ORDER[label] or 0) end
+  if (w.clever or 0) ~= 0 and c.handler == "on_clever_slot_clicked" then
+    v = v + w.clever * (M.CLEVER_ORDER[string.upper(label:match("^(%a+)") or "")] or 0)
+  end
+  if (w.kp or 0) ~= 0 and c.kind == "click" then v = v + w.kp * (M.KP_ORDER[label] or 0) end
   if c.kind == "click" then
     if (w.uni or 0) ~= 0 then v = v + w.uni * (M.UNI_ORDER[label] or 0) end
     if (w.enc or 0) ~= 0 then v = v + w.enc * (M.ENC_ORDER[label] or 0) end
@@ -929,6 +955,7 @@ end
 
 local function assist_bonus(player, c, w)
   local v = other_bonus(player, c, w) + order_bonus(c, w)
+  if (w.tile or 0) ~= 0 and c.kind == "drop_tile" then v = v + w.tile * tile_bonus(player, c) end
   if (w.sponsor or 0) ~= 0 and c.kind == "click" then v = v + w.sponsor * sponsor_bonus(player, c) end
   if (w.slot or 0) ~= 0 and c.kind == "click" then v = v + w.slot * slot_bonus(player, c) end
   if (w.discard or 0) ~= 0 and c.kind == "pick_up" then v = v + w.discard * discard_bonus(player, c) end
@@ -941,7 +968,7 @@ local function assist_bonus(player, c, w)
   return v
 end
 
--- the assists' points for one choice under weights w ({ build, cp, final, ending, unlock, upgrade, xtoken, snap, rep, slot, discard, partner, flip, uni, enc, sponsor }); 0 on any error
+-- the assists' points for one choice under weights w ({ build, cp, final, ending, unlock, upgrade, xtoken, snap, rep, slot, discard, partner, flip, uni, enc, sponsor, clever, kp, tile }); 0 on any error
 function M.assist_bonus(player, c, w)
   local ok, v = pcall(assist_bonus, player, c, w or M.ASSIST)
   if not ok and M.on_assist_error then M.on_assist_error(v, c) end     -- tests, analysis

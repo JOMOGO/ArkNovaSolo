@@ -591,6 +591,9 @@ def main(argv=None) -> int:
         q.add_argument("--assist-uni", type=float, help="network_a: the Hand Size University first (policy.UNI_ORDER)")
         q.add_argument("--assist-enc", type=float, help="network_a: a Size-5 enclosure over Size-4 (policy.ENC_ORDER)")
         q.add_argument("--assist-sponsor", type=float, help="network_a: points on SPONSORS when a hand sponsor is playable at its strength")
+        q.add_argument("--assist-clever", type=float, help="network_a: the clever card order (policy.CLEVER_ORDER)")
+        q.add_argument("--assist-kp", type=float, help="network_a: a Pavilion over a Kiosk (policy.KP_ORDER)")
+        q.add_argument("--assist-tile", type=float, help="network_a: tile spots by their reputation / card draw bonuses")
     args = ap.parse_args(argv)
 
     if args.cmd in ("play", "match"):
@@ -604,7 +607,8 @@ def main(argv=None) -> int:
                              "assist_rep": args.assist_rep, "assist_slot": args.assist_slot,
                              "assist_discard": args.assist_discard, "assist_partner": args.assist_partner,
                              "assist_flip": args.assist_flip, "assist_uni": args.assist_uni,
-                             "assist_enc": args.assist_enc, "assist_sponsor": args.assist_sponsor})
+                             "assist_enc": args.assist_enc, "assist_sponsor": args.assist_sponsor,
+                             "assist_clever": args.assist_clever, "assist_kp": args.assist_kp, "assist_tile": args.assist_tile})
         report(lines, seats)
     elif args.cmd == "search" and args.report:
         lines = [l.rstrip("\n") for path in args.report for l in path.open(encoding="utf-8")]
