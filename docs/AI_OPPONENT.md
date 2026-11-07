@@ -922,8 +922,9 @@ the free-kiosk panel), clever (which card a clever bonus sets back to position 1
 **Assists of round 27** (weight 0): `clever` (`M.CLEVER_ORDER`: CARDS 0.4, SPONSORS 0.3, ANIMALS 0.2, BUILD
 0.1), `kp` (`M.KP_ORDER`: Pavilion 0.3), `tile` (on a tile spot 0.3 per reputation bonus under it,
 −0.3 per card draw; `M.TILE_REP` / `M.TILE_DRAW`); `--assist-clever/--assist-kp/--assist-tile`. Set A
-(base −17.8 / +2.0 against ARNO 3 / 1): clever −19.2 / +1.0 (flat). kp, tile and all three: paused by
-the owner 2026-11-07, resume with `build/assist10/r27a_resume.sh`.
+(base −17.8 / +2.0 against ARNO 3 / 1): clever −19.2 / +1.0, kp −18.6 / +2.7, tile −18.9 / −1.6, all three −19.1 / −2.4: flat to
+slightly worse, none switched on. Like round 25's university and enclosure assists, gains of +0.2 to +1
+a tie, once or a few times a game, do not show in 100-game matches; round 24's ties are now used up.
 
 The richer inputs (v2, v3) predict held-out games better but play worse: a lower validation
 error does not mean better choices. (Not because the state explains most of the target: with
