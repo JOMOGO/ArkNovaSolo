@@ -986,6 +986,16 @@ both seats (new seat `network_ab`: network_b's weights + the assists; 200 games,
 +2.4 / 53.5% against ens_td2. **Bundled** (arno/ai/net_weights.lua = ens_r30; r30a.lua is its single
 member for measurements, as td2 was). The first retraining gain since round 11: the data was not the
 limit, the harness's 2-money donations were.
+**Round 31 (2026-11-07; a second batch under the real costs, played by r30a with the assists; `build/ai/r31.sh`):**
+`round11_*.txt`: 1500 self-play (seeds 60000+), 800 each against ARNO 1 / 2 (62000+, 63000+), 400 against ARNO 3
+(64000+), 400 against the hand-written policy (65000+). Every round + round10 + round11, td2's recipe, set A
+(r30a −16.8 / +1.1, reproduced exactly): r31a (Q from td1) −20.2 / +3.6; r31b (Q from r30a) −21.2 / −0.5.
+**Not kept**: one clean batch took what it could; more of the same data does not lift the network (as rounds
+12-14, 21). Training on ~9.5M rows holds ~6 GB in Python.
+**Paused by the owner 2026-11-07 22:10.** Nothing is running. Open next steps (none started): drop the
+2-money rounds from training once enough clean data exists (r30c on round10 alone was −34: too little);
+the final-turn assist from round 29b (immediate points on the last turn, ~1.5 a game); the parked rollout
+bias diagnostic (build/assist11/STATE.md).
 
 The richer inputs (v2, v3) predict held-out games better but play worse: a lower validation
 error does not mean better choices. (Not because the state explains most of the target: with
