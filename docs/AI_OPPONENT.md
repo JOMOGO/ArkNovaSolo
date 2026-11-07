@@ -935,10 +935,13 @@ rollouts), and **played exactly as well: −18.4 against −18.4 on the same 32 
 better, 16 worse). A random option at every choice: −98. So the rollouts carry signal, but at the
 action choice they are no better a judge than the network: round 26's 2.65 a choice was the rollout
 value's own error, not a loss in play. Rollouts at tied choices still help (round 25's flip). The action
-choice is closed for rollout-based work (rules, distillation, search).
+choice is closed for rollout-based work (rules, distillation, search). A likely cause (not checked): the horizon counts
+own decisions, so options with fewer follow-up decisions (low-strength SPONSORS, the X-token action)
+cover more game time inside it; the random control's −98 says the error is systematic, not noise. Open
+question parked in build/assist11/STATE.md (rollout mean against the value reached, per option kind).
 Found on the way: `tests/lua/sim_lib.lua` keeps fake objects, stopped passes' Wait callbacks and recorded
 calls across the games of one process: a runner with many replays grew ~15 MB a CPU second (asearch /
-tsearch's ~2 GB workers); psearch.lua resets them per pass (workers flat at ~150 MB).
+tsearch's ~2 GB workers); psearch.lua resets them per pass (workers flat at ~150 MB). Port that reset to asearch / tsearch (or sim_lib) before another rollout round.
 
 The richer inputs (v2, v3) predict held-out games better but play worse: a lower validation
 error does not mean better choices. (Not because the state explains most of the target: with
