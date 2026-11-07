@@ -965,6 +965,10 @@ to 2, so **every headless donation cost 2 money** (the table: 2, 5, 5, 7, 7, 10,
 donations, free for him, take spots and raise the others' cost). Every training game and every match
 before 2026-11-07 played with 2-money CP for both seats; TTS never did. The donation spots now fill as on
 the table; the baselines are measured again (§8).
+**Assist of round 29** (off, weight 0): `donate` (points off "Donate (N Money)" per money above 2: the
+network learned donations at 2; `--assist-donate`). Set A under the fixed harness (base −20.3 / −2.6
+against ARNO 3 / 1): 0.1 −20.4 / −3.4, 0.25 −20.7 / −3.6: flat. Next (round 30): retrain on games played
+under the real donation costs (`build/ai/r30.sh`).
 
 The richer inputs (v2, v3) predict held-out games better but play worse: a lower validation
 error does not mean better choices. (Not because the state explains most of the target: with
