@@ -942,6 +942,10 @@ question parked in build/assist11/STATE.md (rollout mean against the value reach
 Found on the way: `tests/lua/sim_lib.lua` keeps fake objects, stopped passes' Wait callbacks and recorded
 calls across the games of one process: a runner with many replays grew ~15 MB a CPU second (asearch /
 tsearch's ~2 GB workers); psearch.lua resets them per pass (workers flat at ~150 MB). Port that reset to asearch / tsearch (or sim_lib) before another rollout round.
+**Round 29a (2026-11-07; reweight of the shipped assists, one at a time, x0.5 and x2, set A; base −17.8 /
++2.0 against ARNO 3 / 1; `build/assist9/r29w.sh`):** build 1.5 −19.1 / +1.4, 6 −17.3 / +3.0; cp 2 −18.2 /
++0.6, 8 −17.4 / +2.1; unlock 1.5 −17.6 / +2.6, 6 −18.8 / +0.5; xtoken 1.5 −18.4 / +0.6, 6 −20.1 / +0.2.
+All within ±2 (noise): the weights sit on a flat plateau; nothing changed.
 
 The richer inputs (v2, v3) predict held-out games better but play worse: a lower validation
 error does not mean better choices. (Not because the state explains most of the target: with
