@@ -507,9 +507,14 @@ function sim.ai_table(colors, deck, opts)
     for _, r in ipairs(sim.cnsts.universities[key].rewards or {}) do rewards[#rewards + 1] = r end
     create_claims_from_reward_groups(p, { { rewards = rewards, source = "university" } }, false)
   end)
-  sim.record("donation_slot", function() return 2, nil end)
-  sim.record("donation_12_position", function() return Vector(0, 0, 0) end)
-  sim.record("donation_12_count", function() return 0 end)
+  -- donation spots fill as on the table (2, 5, 5, 7, 7, 10, 10, then 12): every cube or token placed
+  -- on the next spot (a player's donation, ARNO's, the solo retiring token) goes through
+  -- donation_12_position, as the zones are fakes (the key is always nil)
+  local donations = 0
+  local DONATION_COSTS = { 2, 5, 5, 7, 7, 10, 10 }
+  sim.record("donation_slot", function() return DONATION_COSTS[donations + 1] or 12, nil end)
+  sim.record("donation_12_position", function() donations = donations + 1; return Vector(0, 0, 0) end)
+  sim.record("donation_12_count", function() return math.max(0, donations - #DONATION_COSTS) end)
   -- a player's cube carries the colour tag, as the real ones (cube_owner_color reads it)
   sim.record("take_player_cube", function(_, p)
     local cube = sim.fake("cube " .. p.color)
