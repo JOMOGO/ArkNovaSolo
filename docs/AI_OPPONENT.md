@@ -969,6 +969,13 @@ the table; the baselines are measured again (§8).
 network learned donations at 2; `--assist-donate`). Set A under the fixed harness (base −20.3 / −2.6
 against ARNO 3 / 1): 0.1 −20.4 / −3.4, 0.25 −20.7 / −3.6: flat. Next (round 30): retrain on games played
 under the real donation costs (`build/ai/r30.sh`).
+**Round 30 (2026-11-07; retrain under the real donation costs; `build/ai/r30.sh`):** data played by
+network_a (td2 + shipped assists) on the fixed harness, `round10_*.txt`: 1500 games self-play (seeds
+50000+), 800 each against ARNO 1 / 2 (52000+, 53000+; lost by 14.7 / 28.9), 400 against the hand-written
+policy (54000+). td2's recipe (v1 inputs, h20, lr 3e-4, 24 epochs), with the assists in play, set A
+(td2: −20.3 / −2.6 against ARNO 3 / 1): **r30a** (every round + round10, Q from td1) **−16.8 / +1.1**
+(+3.5 / +3.7); r30b (the same, Q from td2) −20.0 / −1.7; r30c (round10 only, Q from td2) −34.0 / −16.4.
+Confirming r30a on set B and against td2; members 2-4 (`r30a_s2..4`) in training (`build/ai/r30b.sh`).
 
 The richer inputs (v2, v3) predict held-out games better but play worse: a lower validation
 error does not mean better choices. (Not because the state explains most of the target: with
