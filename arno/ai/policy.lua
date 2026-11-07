@@ -231,7 +231,7 @@ end
 --           3 per hand card, so a hand that needs research still takes Double Research)
 -- (round 17, docs/AI_OPPONENT.md §10: final 1 / 2 and ending 6 brought nothing against ARNO 1: off)
 M.ASSIST = { build = 3, cp = 4, final = 0, ending = 0, unlock = 3, upgrade = 0.5, xtoken = 3, snap = 0, rep = 0,
-             slot = 1, discard = 1, partner = 1, flip = 1, uni = 0, enc = 0, sponsor = 0, clever = 0, kp = 0, tile = 0 }   -- round 19: unlock + upgrade; round 20: xtoken; round 24: slot + discard + partner (confirmed on fresh seeds); round 25: flip
+             slot = 1, discard = 1, partner = 1, flip = 1, uni = 0, enc = 0, sponsor = 0, clever = 0, kp = 0, tile = 0, donate = 0 }   -- round 19: unlock + upgrade; round 20: xtoken; round 24: slot + discard + partner (confirmed on fresh seeds); round 25: flip
 M.END_LAST_TURN = 6       -- what the other player's last turn brings, roughly (traces: ~6)
 M.END_OTHER_CP = 1.5      -- the final scoring CP of a player whose cards the AI cannot see
 M.END_RANGE = 25
@@ -955,6 +955,11 @@ end
 
 local function assist_bonus(player, c, w)
   local v = other_bonus(player, c, w) + order_bonus(c, w)
+  -- round 29: the network learned donations at 2 money (the headless harness); on the table they cost 2-12
+  if (w.donate or 0) ~= 0 and c.kind == "click" then
+    local cost = tonumber((c.label or ""):match("^Donate %((%d+) Money%)"))
+    if cost and cost > 2 then v = v - w.donate * (cost - 2) end
+  end
   if (w.tile or 0) ~= 0 and c.kind == "drop_tile" then v = v + w.tile * tile_bonus(player, c) end
   if (w.sponsor or 0) ~= 0 and c.kind == "click" then v = v + w.sponsor * sponsor_bonus(player, c) end
   if (w.slot or 0) ~= 0 and c.kind == "click" then v = v + w.slot * slot_bonus(player, c) end
@@ -968,7 +973,7 @@ local function assist_bonus(player, c, w)
   return v
 end
 
--- the assists' points for one choice under weights w ({ build, cp, final, ending, unlock, upgrade, xtoken, snap, rep, slot, discard, partner, flip, uni, enc, sponsor, clever, kp, tile }); 0 on any error
+-- the assists' points for one choice under weights w ({ build, cp, final, ending, unlock, upgrade, xtoken, snap, rep, slot, discard, partner, flip, uni, enc, sponsor, clever, kp, tile, donate }); 0 on any error
 function M.assist_bonus(player, c, w)
   local ok, v = pcall(assist_bonus, player, c, w or M.ASSIST)
   if not ok and M.on_assist_error then M.on_assist_error(v, c) end     -- tests, analysis
