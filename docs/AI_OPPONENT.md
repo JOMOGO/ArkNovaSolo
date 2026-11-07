@@ -925,6 +925,20 @@ the free-kiosk panel), clever (which card a clever bonus sets back to position 1
 (base −17.8 / +2.0 against ARNO 3 / 1): clever −19.2 / +1.0, kp −18.6 / +2.7, tile −18.9 / −1.6, all three −19.1 / −2.4: flat to
 slightly worse, none switched on. Like round 25's university and enclosure assists, gains of +0.2 to +1
 a tie, once or a few times a game, do not show in 100-game matches; round 24's ties are now used up.
+**Round 28 (2026-11-07; is round 26's action choice regret real? `build/assist11/`: `psearch.lua` (a
+headless player: at every fresh action selection it rolls out asearch's option set, 2 paired samples,
+H = 20 + Q, and plays the best mean; every other decision is network_a; modes plain / follow / random),
+`run.py`, `summary.py`):** against ARNO 3, seeds 32000001-32000032 (Red = network_a starts, as in `match`;
+follow mode reproduces plain exactly, own plain baseline −17.8 / 16% on 100 seeds = the match's). Search
+changed the network's pick at 57% of the choices (20 a game; in-sample +2.6 a choice by its own
+rollouts), and **played exactly as well: −18.4 against −18.4 on the same 32 seeds, +0.0 ± 5.6** (16
+better, 16 worse). A random option at every choice: −98. So the rollouts carry signal, but at the
+action choice they are no better a judge than the network: round 26's 2.65 a choice was the rollout
+value's own error, not a loss in play. Rollouts at tied choices still help (round 25's flip). The action
+choice is closed for rollout-based work (rules, distillation, search).
+Found on the way: `tests/lua/sim_lib.lua` keeps fake objects, stopped passes' Wait callbacks and recorded
+calls across the games of one process: a runner with many replays grew ~15 MB a CPU second (asearch /
+tsearch's ~2 GB workers); psearch.lua resets them per pass (workers flat at ~150 MB).
 
 The richer inputs (v2, v3) predict held-out games better but play worse: a lower validation
 error does not mean better choices. (Not because the state explains most of the target: with
