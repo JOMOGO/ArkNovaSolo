@@ -906,6 +906,24 @@ a rollout rule's gain does not carry into matches. The rollout regret of the act
 but not reachable with single-feature rules; whether it is real (a player that searches the action
 choice) has not been measured in a match (rollouts need the headless forced replay, so it could not
 ship to TTS as is).
+**Tenth analysis (round 27, 2026-11-06 / 07; rollouts of the ties round 24 left; `build/assist10/`: `tsearch.lua`
+(round 25's runner + groups tile (tied tile spots with distinct cells, per-spot C| features: bonuses
+under the tile, terrain, touching tiles, free regions and footprints left), kp (Kiosk / Pavilion, also
+the free-kiosk panel), clever (which card a clever bonus sets back to position 1), boost), `collect.py`,
+`analyze.py`):** 200 games (100 against ARNO 3, 60 against ARNO 1, 40 in self-play; seeds 96000001+,
+96100001+, 96200001+); the AI's pick scores ~0 against a random tie-break everywhere (unbiased).
+- **clever** (182 points): CARDS +1.06 ± 0.23, SPONSORS +0.39, ANIMALS +0.20, BUILD −1.3 (13),
+  ASSOCIATION −1.56 against a random pick; CARDS first in every pool.
+- **Kiosk / Pavilion** (304): Pavilion +0.21 ± 0.07, the same sign in every pool.
+- **tile spots** (1004 points, 2.9 distinct candidates): fewest card-draw bonuses, then most bonuses
+  +0.26 ± 0.08 on the held-out seeds (+0.17 to +0.39 per pool); a reputation bonus under the tile
+  +0.9 a bonus, a draw bonus −1.7; the board's shape (free regions, footprints, water side) ±0.1.
+- **boost** (199): nothing.
+**Assists of round 27** (weight 0): `clever` (`M.CLEVER_ORDER`: CARDS 0.4, SPONSORS 0.3, ANIMALS 0.2, BUILD
+0.1), `kp` (`M.KP_ORDER`: Pavilion 0.3), `tile` (on a tile spot 0.3 per reputation bonus under it,
+−0.3 per card draw; `M.TILE_REP` / `M.TILE_DRAW`); `--assist-clever/--assist-kp/--assist-tile`. Set A
+(base −17.8 / +2.0 against ARNO 3 / 1): clever −19.2 / +1.0 (flat). kp, tile and all three: paused by
+the owner 2026-11-07, resume with `build/assist10/r27a_resume.sh`.
 
 The richer inputs (v2, v3) predict held-out games better but play worse: a lower validation
 error does not mean better choices. (Not because the state explains most of the target: with
