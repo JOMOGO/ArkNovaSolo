@@ -553,6 +553,7 @@ Found on the way:
 | 2026-11-03 | Shipped: + unlock 3 / upgrade 0.5 (round 19), Medium budget 1.3 -> 1.15; 100 games each (seeds 22000001+) | Expert vs Hard +13.5 (72%), Hard vs Medium +9.1 (64%), Medium vs Easy +9.0 (59%): order holds, 0 stalls in 300 games |
 | 2026-11-04 | Shipped: + xtoken 3 (round 20); 100 games each (seeds 26000001+) | Expert vs Hard +10.4 (59%), Hard vs Medium +9.2 (62%), Medium vs Easy +9.9 (62%); Expert vs ARNO 1 **−0.1 (52%)** on the table's seeds (was −8.6 / 38%), vs ARNO 3 −22.1 (17%) |
 | 2026-11-04 | Shipped: + slot/discard/partner (round 24) + flip (round 25); 100 games each (seeds 31000001+) | Expert vs Hard +14.3 (68%), Hard vs Medium +8.0 (60%), Medium vs Easy +7.5 (58%); Expert vs ARNO 1 **+9.3 (57%)** on the table's seeds (was −8.6 / 38% on 2026-11-03); resumed 2026-11-06, 60 games each on the table's seeds: vs ARNO 2 **−6.1 (37%)** (was −20.6), vs ARNO 3 **−19.3 (18%)** (was −25.4), vs ARNO 5 **−34.3 (5%)** (was −41.1) |
+| 2026-11-07 | Round 30: retrained under the real donation costs; ens_r30 bundled (§10) | Expert vs ARNO 1 **+9.7 (65%)**, ARNO 2 **−4.2 (37%)**, ARNO 3 **−15.8 (20%)**, ARNO 5 **−33.7 (0%)** on the table's seeds (ens_td2, same harness: +6.7 / −8.4 / −20.8 / −35.5); ens_r30 vs ens_td2, both with the assists, +2.4 / 53.5% (200 games) |
 | 2026-11-07 | Headless harness: donations now cost as on the table (2, 5, 5, 7, 7, 10, 10, 12; before always 2, §10 round 29b); the same Expert again, 60 games each on the table's seeds | Expert vs ARNO 1 **+6.7 (57%)**, ARNO 2 **−8.4 (37%)**, ARNO 3 **−20.8 (15%)**, ARNO 5 **−35.5 (5%)**: 1-2.6 points below the 2-money runs. Measurement bases (network_a = td2 + shipped assists): set A −20.3 / −2.6 against ARNO 3 / 1 (32000001 / 32100001), set B −19.6 / −5.5 (32200001 / 32300001), +26.6 / 82% against the plain network (32400001) |
 
 Ladder (2-seat games, seats swapped, `tools/ai_train.py match`; a margin is the average
@@ -975,7 +976,15 @@ network_a (td2 + shipped assists) on the fixed harness, `round10_*.txt`: 1500 ga
 policy (54000+). td2's recipe (v1 inputs, h20, lr 3e-4, 24 epochs), with the assists in play, set A
 (td2: −20.3 / −2.6 against ARNO 3 / 1): **r30a** (every round + round10, Q from td1) **−16.8 / +1.1**
 (+3.5 / +3.7); r30b (the same, Q from td2) −20.0 / −1.7; r30c (round10 only, Q from td2) −34.0 / −16.4.
-Confirming r30a on set B and against td2; members 2-4 (`r30a_s2..4`) in training (`build/ai/r30b.sh`).
+Set B (td2 −19.6 / −5.5): r30a −16.9 / −4.2 (+2.7 / +1.3): positive on both sets. Against plain td2
+(100, 32500001+): r30a with assists +20.4, td2 with assists +23.9 (−3.5, noise). Ensemble **ens_r30**
+(r30a + seeds 2-4, validation 90.8-91.1; `build/ai/r30b.sh`, `r30c.sh`) as the Expert, table seeds
+(ens_td2 under the same harness: +6.7 / −8.4 / −20.8 / −35.5): **vs ARNO 1 +9.7 (65%), ARNO 2 −4.2 (37%),
+ARNO 3 −15.8 (20%), ARNO 5 −33.7 (0%)** (+3.0 / +4.2 / +5.0 / +1.8). Head-to-head with the assists on
+both seats (new seat `network_ab`: network_b's weights + the assists; 200 games, 32600001+): ens_r30
++2.4 / 53.5% against ens_td2. **Bundled** (arno/ai/net_weights.lua = ens_r30; r30a.lua is its single
+member for measurements, as td2 was). The first retraining gain since round 11: the data was not the
+limit, the harness's 2-money donations were.
 
 The richer inputs (v2, v3) predict held-out games better but play worse: a lower validation
 error does not mean better choices. (Not because the state explains most of the target: with
