@@ -946,6 +946,24 @@ tsearch's ~2 GB workers); psearch.lua resets them per pass (workers flat at ~150
 +2.0 against ARNO 3 / 1; `build/assist9/r29w.sh`):** build 1.5 −19.1 / +1.4, 6 −17.3 / +3.0; cp 2 −18.2 /
 +0.6, 8 −17.4 / +2.1; unlock 1.5 −17.6 / +2.6, 6 −18.8 / +0.5; xtoken 1.5 −18.4 / +0.6, 6 −20.1 / +0.2.
 All within ±2 (noise): the weights sit on a flat plateau; nothing changed.
+**Round 29b (2026-11-07; end-game traces against ARNO 3, 40 games + 20 in self-play, seeds 33000001+ /
+33100001+; `build/assist12/`: `trace.lua` (T|/O|/A| per turn and action choice, G| the end trigger,
+F|..FS| the state at final scoring, K| exact counterfactuals of every option at the last 2-3 action
+choices, played to the end), `run.py`, `analyse.py`, `cfsplit.py`):** ARNO triggers the end in 31 of 40
+games (the AI loses 30, by 30.6, and always gets exactly one more turn); the AI triggers in 9 and wins
+7. At the trigger the AI has 81.8 against 96.7; before final scoring the gap is appeal −5.9 and CP
+−5.8, final scoring adds −8.2 (the AI's card and sponsors 6.2, ARNO's tokens 14.5). At final scoring
+the AI holds 32 money (40+ in 40% of the games), 2.3 free workers, 3.8 cards (no playable animal). The
+one provable leak is **the final turn**: the best option beats the network's pick by +1.84 at the 32
+final turns after a trigger (1.5 a game; 34% of them, +3 to +7 each), mostly a cheap upgraded
+ASSOCIATION task with immediate CP (+ a donation); the network's Q differs by 0.1-2 between options
+there (it values a future that no longer exists). Under 2 points a game: the −20 is the race before
+the end, not the end game.
+**Harness bug found on the way (fixed, `tests/lua/sim_lib.lua`):** `sim.ai_table` stubbed `donation_slot`
+to 2, so **every headless donation cost 2 money** (the table: 2, 5, 5, 7, 7, 10, 10, then 12; ARNO's
+donations, free for him, take spots and raise the others' cost). Every training game and every match
+before 2026-11-07 played with 2-money CP for both seats; TTS never did. The donation spots now fill as on
+the table; the baselines are measured again (§8).
 
 The richer inputs (v2, v3) predict held-out games better but play worse: a lower validation
 error does not mean better choices. (Not because the state explains most of the target: with
