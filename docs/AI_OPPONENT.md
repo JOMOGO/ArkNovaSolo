@@ -559,6 +559,7 @@ Found on the way:
 | 2026-11-08 | Shipped: + last 3 (round 32, final turn); table's seeds 60 games each, ladder 100 each (34000001+) | Expert vs ARNO 1 **+9.8 (65%)**, ARNO 2 **−3.7 (37%)**, ARNO 3 **−14.8 (20%)**, ARNO 5 **−32.9 (2%)**; Expert vs Hard +14.9 (64%), Hard vs Medium +10.2 (65%), Medium vs Easy +11.3 (70%) |
 | 2026-11-08 | Headless table corrected (round 35: association board and icons, 2-player donations, random base projects / bonus tiles, worker deploy, interactive effects off); the same shipped Expert, table's seeds | Expert vs ARNO 1 **+3.5 (53%)**, ARNO 2 **−11.8 (27%)**, ARNO 3 **−16.1 (20%)**, ARNO 5 **−33.9 (7%)**: the benchmark resets (ARNO now gets his icons too) |
 | 2026-11-08 | Round 36: ens_r36 bundled (round 30's recipe on a batch played on the corrected table, §10) | Expert vs ARNO 1 **+6.6 (70%)**, ARNO 2 **−14.5 (25%)**, ARNO 3 **−16.6 (22%)**, ARNO 5 **−31.7 (5%)**; ens_r36 vs ens_r30, both with the assists, +3.2 / 55.5% (200) |
+| 2026-11-08 | Ladder with ens_r36 on the corrected table, 100 games each (34000001+) | Expert vs Hard +13.9 (70%), Hard vs Medium +8.7 (59%), Medium vs Easy +6.6 (62%): order holds, 0 failed in 300 games; Medium-Easy the narrowest step |
 
 Ladder (2-seat games, seats swapped, `tools/ai_train.py match`; a margin is the average
 final score difference; ±4 points is noise at 100 games):
