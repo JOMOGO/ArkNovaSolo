@@ -405,12 +405,16 @@ end
 -- (counters, base projects, break track), each with opts.hand zoo cards and 2 final scoring
 -- cards, the display filled, every physical primitive recorded or emulated. Then
 -- start_player_turn(players[1]) runs the real game loop: turns, breaks, income, game end,
--- final scoring, announce_winner (recorded: sim.calls.announce_winner).
+-- final scoring, announce_winner (recorded: sim.calls.announce_winner). Or, with opts.hand 8
+-- and opts.discards 0, start_setup_discard() first: the seats keep 4 of their 8 cards on the
+-- real panel, the discards form the discard pile, and start_game (stubbed: sim.on_start_game,
+-- then the first turn) starts the game.
 -- deck: card numbers, dealt in order (hands, display, discard pile, then the zoo deck);
 -- opts.names: card number -> card name (as in the save);
 -- opts.base_projects: the base projects 101-112 in the order the game drew them (the first 3,
 -- 4 with 4 players, on the board, the rest in the base conservation deck; default 101-106);
--- opts.bonus_tiles: GUIDs of the 5/8-CP bonus tiles in drawn order (default a fixed four).
+-- opts.bonus_tiles: GUIDs of the 5/8-CP bonus tiles in drawn order (default a fixed four;
+-- with opts.mw a 5th is rep_max_bonus); opts.mw: Marine Worlds (also its species universities).
 -- As on the shipped 1-human table, interactive effects are off (no final scoring card 9).
 function sim.ai_table(colors, deck, opts)
   opts = opts or {}
@@ -457,9 +461,14 @@ function sim.ai_table(colors, deck, opts)
   local function card(n)
     return sim.fake(names[n] or string.format("(%03d) Card %d", n, n))
   end
+  -- opts.no_cards: colours dealt no zoo or final scoring cards (an ARNO seat: he draws his
+  -- own at start_game)
+  local no_cards = opts.no_cards or {}
   local at = 1
   for _, p in ipairs(players) do
-    for _ = 1, opts.hand or 4 do card(deck[at]).deal(1, p.color, 1); at = at + 1 end
+    if not no_cards[p.color] then
+      for _ = 1, opts.hand or 4 do card(deck[at]).deal(1, p.color, 1); at = at + 1 end
+    end
   end
   display_cards, display_marks = {}, {}
   for i = 1, 6 do display_cards[i] = card(deck[at]); at = at + 1 end
@@ -475,7 +484,9 @@ function sim.ai_table(colors, deck, opts)
   end
   final_scoring_deck = sim.deck(scoring)
   for _, p in ipairs(players) do
-    for _ = 1, 2 do final_scoring_deck.takeObject({}).deal(1, p.color, 2) end
+    if not no_cards[p.color] then
+      for _ = 1, 2 do final_scoring_deck.takeObject({}).deal(1, p.color, 2) end
+    end
   end
 
   -- base projects (setup_game ~4109): 3 (4 with 4 players) from the shuffled base
@@ -498,6 +509,9 @@ function sim.ai_table(colors, deck, opts)
   local tiles = opts.bonus_tiles or { "cc1325", "4fb150", "840cd1", "03d9ca" }
   cp_bonuses_5 = { sim.fake("bonus tile", nil, tiles[1]), sim.fake("bonus tile", nil, tiles[2]) }
   cp_bonuses_8 = { sim.fake("bonus tile", nil, tiles[3]), sim.fake("bonus tile", nil, tiles[4]) }
+  -- Marine Worlds: a 5th tile from the same bag is the bonus at the end of the reputation
+  -- track (draw_bonus_tiles); without MW there is none
+  rep_max_bonus = (opts.mw and tiles[5]) and sim.fake("bonus tile", nil, tiles[5]) or nil
   added_projects = {}
   break_init_val = ({ [2] = 9, [3] = 12, [4] = 15 })[#players]
   break_current_val = break_init_val
@@ -519,10 +533,18 @@ function sim.ai_table(colors, deck, opts)
   -- the association board (Global.lua available_* / take_* / refill_association_board): one
   -- tile of each partner zoo and university on the board, 3 more in its bag; a taken board
   -- tile is refilled at the break unless every player owns it; supply = from the bag. The
-  -- takes give the map's rewards and the tile's icons. (Marine Worlds species universities
-  -- are not emulated.)
+  -- takes give the map's rewards and the tile's icons.
+  -- Marine Worlds (Global.lua species_universities_remaining, available_universities,
+  -- take_university): the 6 species universities, one tile each, lie in their zone; from the
+  -- board one may be taken while the generic university tile is on its spot and the player
+  -- has none yet (the generic tile then goes home until the break's refill); from the
+  -- supply any one that is left
   local board, bag = {}, {}
   for _, t in ipairs(sim.cnsts.association_tiles) do board[t.key], bag[t.key] = true, 3 end
+  local species, generic_on_board = {}, opts.mw or false
+  if opts.mw then
+    for _, name in pairs(sim.cnsts.species_university_guids) do species[name] = true end
+  end
   sim.record("refill_association_board", function()
     for _, t in ipairs(sim.cnsts.association_tiles) do
       local owner = t.key:sub(1, -#t.tag - 2)
@@ -530,6 +552,7 @@ function sim.ai_table(colors, deck, opts)
         board[t.key], bag[t.key] = true, bag[t.key] - 1
       end
     end
+    if marine_worlds_enabled then generic_on_board = true end
   end)
   local function on_table(k, supply)
     if supply then return bag[k] > 0 end
@@ -546,9 +569,17 @@ function sim.ai_table(colors, deck, opts)
   sim.record("available_universities", function(_, p, supply)
     local held, out = {}, {}
     if not supply then for _, u in ipairs(p.acquired_universities) do held[u] = true end end
+    local species_open = marine_worlds_enabled
+      and (supply or (generic_on_board and not has_species_university(p)))
     for _, name in ipairs(sim.cnsts.university_order) do
       local k = name .. "_university"
-      if board[k] ~= nil and on_table(k, supply) and not held[name] then out[#out + 1] = name end
+      local available
+      if sim.cnsts.universities[name].species then
+        available = species_open and species[name] == true
+      else
+        available = board[k] ~= nil and on_table(k, supply)
+      end
+      if available and not held[name] then out[#out + 1] = name end
     end
     return out
   end)
@@ -566,7 +597,12 @@ function sim.ai_table(colors, deck, opts)
   sim.record("take_university", function(_, p, key, supply)
     local spec = sim.cnsts.universities[key]
     p.acquired_universities[#p.acquired_universities + 1] = key
-    take_tile(key .. "_university", supply)
+    if spec.species then
+      species[key] = nil
+      if not supply then generic_on_board = false end
+    else
+      take_tile(key .. "_university", supply)
+    end
     local groups = {
       { rewards = sim.cnsts.map_data[p.map_key].university_rewards[#p.acquired_universities] or {},
         source = "acquiring a university" },
@@ -593,5 +629,21 @@ function sim.ai_table(colors, deck, opts)
     return cube
   end)
   sim.record("take_cube", function() return sim.fake("cube") end)
+  -- the setup discard (start_setup_discard, on_setup_discard_clicked) on the empty discard
+  -- pile: on the table the first card becomes the pile in the discard zone and the rest
+  -- stack on it; here they go onto the pile's deck in the same order
+  sim.record("discard_cards_to_new_pile", function(_, p, cards)
+    report_discard(p, cards)
+    for _, c in ipairs(cards) do discard_pile.putObject(c) end
+    return discard_pile
+  end)
+  -- start_game waits for the discard zone (a fake here) to hold every setup discard, then
+  -- starts the first turn; here: opts.on_start_game (ARNO's H8 step), then the first turn
+  sim.record("start_game", function()
+    game_started = true
+    if sim.on_start_game then sim.on_start_game() end
+    start_player_turn(players[1])
+  end)
+  sim.on_start_game = nil
   return players
 end
