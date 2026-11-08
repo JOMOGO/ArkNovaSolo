@@ -996,6 +996,17 @@ limit, the harness's 2-money donations were.
 2-money rounds from training once enough clean data exists (r30c on round10 alone was −34: too little);
 the final-turn assist from round 29b (immediate points on the last turn, ~1.5 a game); the parked rollout
 bias diagnostic (build/assist11/STATE.md).
+**Round 32 (2026-11-08; the final-turn assist from round 29b; `build/assist13/`):** `last` (on, weight 3): when
+the game end is triggered (`M.final_turn`: game_end_triggered and this is the current player; nobody moves twice
+after a trigger), every action card gets the points it brings at once at its strength (ANIMALS the best one or
+two affordable animals, SPONSORS the best playable sponsor: appeal + CP as the final scoring converts it,
+including the final scoring card; ASSOCIATION the best open task set: track CP of the reputation task, partner
+zoo / university / worker rewards, project support; +1 CP for an affordable donation; BUILD / CARDS 0), and so
+do the follow-ups (X-token +/-, Donate, the task buttons, animal / sponsor picks, appeal / CP / reputation
+rewards); `--assist-last`. 10 traced games: fires only on final turns (0 of ~1700 before), changes 7 of 39
+final-turn picks. Measured on r30a (the bundled ensemble's member): set A −16.8 / +1.1 -> −15.4 / +1.8 (3 and 10
+the same), set B −16.9 / −4.2 -> −15.9 / −3.6, against the plain network +24.8 -> +24.9: small, positive on both
+sets, as the trace said (~1.5 a game). **Switched on (last = 3).**
 
 The richer inputs (v2, v3) predict held-out games better but play worse: a lower validation
 error does not mean better choices. (Not because the state explains most of the target: with

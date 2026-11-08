@@ -238,7 +238,7 @@ end
 --           the donation), the X-token spin, the association tasks, the donation, the card picked
 -- (round 17, docs/AI_OPPONENT.md §10: final 1 / 2 and ending 6 brought nothing against ARNO 1: off)
 M.ASSIST = { build = 3, cp = 4, final = 0, ending = 0, unlock = 3, upgrade = 0.5, xtoken = 3, snap = 0, rep = 0,
-             slot = 1, discard = 1, partner = 1, flip = 1, uni = 0, enc = 0, sponsor = 0, clever = 0, kp = 0, tile = 0, donate = 0, last = 0 }   -- round 19: unlock + upgrade; round 20: xtoken; round 24: slot + discard + partner (confirmed on fresh seeds); round 25: flip
+             slot = 1, discard = 1, partner = 1, flip = 1, uni = 0, enc = 0, sponsor = 0, clever = 0, kp = 0, tile = 0, donate = 0, last = 3 }   -- round 32: last (final turn, confirmed on two seed sets); round 19: unlock + upgrade; round 20: xtoken; round 24: slot + discard + partner (confirmed on fresh seeds); round 25: flip
 M.END_LAST_TURN = 6       -- what the other player's last turn brings, roughly (traces: ~6)
 M.END_OTHER_CP = 1.5      -- the final scoring CP of a player whose cards the AI cannot see
 M.END_RANGE = 25
