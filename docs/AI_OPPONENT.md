@@ -1018,6 +1018,22 @@ still matters more than their 2-money donations; round 30's mix (every round + o
 **Round 34 (2026-11-08; an ensemble of 8 r30a members, seeds 1-8; `build/ai/r34.sh`):** against the bundled
 ens_r30 (4), both with the shipped assists: +3.2 / 54.5% (200 games, 35000001+); against ARNO 3 on set A −14.5
 against −14.2. **Not kept**: no gain against ARNO, and twice the thinking per decision in TTS.
+**Round 35 (2026-11-08; audit of the headless table against src/Global.lua; `build/assist14/`: `probe.lua` (each
+fix as an override, `OPTS.fix` bitmask), `run.py`, `analyze.py`, `paired.py`):** every stub of `sim.ai_table`
+compared with the real code; 60 paired games per variant against ARNO 3 with r30a (base −23.5; a delta is how
+much the benchmark moves, not what retraining gains). Found:
+- **Partner zoos / universities** (`available_*` always every option, `take_*` without the icons): on the table
+  only the board's tiles (refilled at the break), never one already held, and taking gives the continent /
+  research icons. The sim never granted ~2 continent and ~2.5 research icons per seat a game and let both seats
+  take duplicates (~0.45 / ~0.55 a game). Fixed in the probe: **+14.3 ± 2.4** (icons alone +6.7).
+- **Two-player donations**: round 29b's sequence was the 3-4 player one; with 2 players neutral cubes block three
+  spots: 2, 5, 7, 10, then 12 (−1.6 ± 0.9).
+- **Base projects and bonus tiles** always the same (101-103; 4 of the 9 bonus tiles), and base projects 104-112
+  in the zoo deck (added to the row 0.48 times a game, never possible on the table) (−3.8 ± 3.3).
+- Workers on a task already holding one: 1 placed instead of 2 (0.0); interactive effects on, while the shipped
+  1-human table turns them off (+0.3 ± 1.1). Everything else is equivalent.
+All together +10.8 ± 3.3. Being applied to sim_lib / ai_game; then new baselines and round 30's recipe on a
+batch played under the corrected table.
 
 The richer inputs (v2, v3) predict held-out games better but play worse: a lower validation
 error does not mean better choices. (Not because the state explains most of the target: with
