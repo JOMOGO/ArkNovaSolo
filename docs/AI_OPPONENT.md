@@ -1059,7 +1059,18 @@ ARNO 3: −14.7 -> −20.6 (−6.0 ± 3.2; base games −4.0, MW games −9.8): 
 MW cards. Driver note: `driver.tried` / `rejected` count repeated inputs per view without the seat's colour; with 4
 AI seats in setup the 4th seat's Confirm looked like a loop (ai_game.lua clears them at each setup Confirm; the
 table always has a human, so TTS is not affected; the proper fix is the colour in the key).
-Round 38 (running, `build/ai/r38.sh`): new baselines, a batch on this table (`round14_*`, by r36a), round 30's recipe.
+**Round 38 (2026-11-08, paused):** baseline on this table (shipped Expert = ens_r36, table's seeds): ARNO 1 **+3.3
+(50%)**, ARNO 2 −9.9 (25%), ARNO 3 −14.7 (28%), ARNO 5 −29.6 (7%). Batch `round14_*` played (r36a, seeds 90000+ /
+92000+ / 93000+ / 94000+); r38a (every 2-money round + round14) and r38b (+ round13) trained (validation 90.3); **their
+set A matches not run yet**.
+**Expert vs ARNO 1 analysis (paused, `build/assist16/`: trace.lua, run.py, analyse*.py; t_a1.txt 60 traced games
+seeds 37000001+, t_fix.txt partial):** found another harness gap: `sim.ai_table` makes the AI seats' project cubes
+without their colour tag, so `project_already_supported` never sees the AI's own cubes and headless AI seats can
+support one project twice (impossible on the table). Tagging them (`OPTS.fixcubes` in the trace) cost the Expert
+~6 points a game in the first 18 games: the benchmarks still flatter the AI.
+**Paused by the owner 2026-11-08.** Resume: (1) fix the cube colour tag in sim_lib (`ai_table`'s project cubes as
+take_player_cube does), tests, re-baseline; (2) finish the ARNO 1 analysis (build/assist16, REPORT.md); (3) round 38
+again on the fixed table (a new batch; r38a/b were played before the cube fix).
 
 The richer inputs (v2, v3) predict held-out games better but play worse: a lower validation
 error does not mean better choices. (Not because the state explains most of the target: with
