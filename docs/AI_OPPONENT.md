@@ -1008,6 +1008,11 @@ rewards); `--assist-last`. 10 traced games: fires only on final turns (0 of ~170
 final-turn picks. Measured on r30a (the bundled ensemble's member): set A −16.8 / +1.1 -> −15.4 / +1.8 (3 and 10
 the same), set B −16.9 / −4.2 -> −15.9 / −3.6, against the plain network +24.8 -> +24.9: small, positive on both
 sets, as the trace said (~1.5 a game). **Switched on (last = 3).**
+**Round 33 (2026-11-08; train only on the clean data; `build/ai/r33data.sh`, `r33.sh`):** a third clean batch
+`round12_*` (r30a with the assists: 1500 self-play 70000+, 600 each against ARNO 1 / 2 72000+ / 73000+, 300
+against ARNO 3 74000+); trained on round10-12 only (~10,000 games), td2's recipe. Set A with last on (r30a −15.4
+/ +1.8): r33a (Q from r30a) −27.1 / −3.0, r33b (Q from td1) −24.1 / +0.3. **Not kept**: the older rounds' volume
+still matters more than their 2-money donations; round 30's mix (every round + one clean batch) stays best.
 
 The richer inputs (v2, v3) predict held-out games better but play worse: a lower validation
 error does not mean better choices. (Not because the state explains most of the target: with
