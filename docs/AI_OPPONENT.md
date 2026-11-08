@@ -1013,6 +1013,9 @@ sets, as the trace said (~1.5 a game). **Switched on (last = 3).**
 against ARNO 3 74000+); trained on round10-12 only (~10,000 games), td2's recipe. Set A with last on (r30a −15.4
 / +1.8): r33a (Q from r30a) −27.1 / −3.0, r33b (Q from td1) −24.1 / +0.3. **Not kept**: the older rounds' volume
 still matters more than their 2-money donations; round 30's mix (every round + one clean batch) stays best.
+**Round 34 (2026-11-08; an ensemble of 8 r30a members, seeds 1-8; `build/ai/r34.sh`):** against the bundled
+ens_r30 (4), both with the shipped assists: +3.2 / 54.5% (200 games, 35000001+); against ARNO 3 on set A −14.5
+against −14.2. **Not kept**: no gain against ARNO, and twice the thinking per decision in TTS.
 
 The richer inputs (v2, v3) predict held-out games better but play worse: a lower validation
 error does not mean better choices. (Not because the state explains most of the target: with
