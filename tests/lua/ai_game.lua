@@ -11,7 +11,9 @@ function M.zoo_cards(mw)
   local out = {}
   for n = 101, 560 do
     local data = (mw and sim.cnsts.cards.mw[n]) or sim.cnsts.cards.base[n]
-    if NAMES[n] and data and n ~= 101 and n ~= 102 and n ~= 103
+    -- (the base projects 101-112 are not in the zoo deck: setup puts them on the board or in
+    -- the base conservation deck)
+    if NAMES[n] and data and n > 112
        and (data.type == "animal" or data.type == "sponsor" or data.type == "project") then
       out[#out + 1] = n
     end
@@ -80,8 +82,14 @@ function M.play(seed, opts)
   local zoo = rng.shuffle(r, M.zoo_cards(mw))
   -- the final scoring cards shuffled too (they were dealt 1, 2 / 3, 4 in every game: the
   -- network saw 4 of the 11, found in round 17)
-  sim.ai_table(colors, zoo, { mw = mw, names = NAMES,
-                              final_scoring = rng.shuffle(r, { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 }) })
+  local final_scoring = rng.shuffle(r, { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 })
+  -- the base projects (setup_game shuffles the base conservation deck and lays out 3, or 4)
+  -- and the 5/8-CP bonus tiles (the first 4 of the shuffled base bag 1c73d4)
+  local projects = rng.shuffle(r, { 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112 })
+  local tiles = rng.shuffle(r, { "1e8ab9", "14dcd6", "03d9ca", "4fb150", "840cd1", "cc1325",
+                                 "7dab5a", "d60a8e", "7cd38f" })
+  sim.ai_table(colors, zoo, { mw = mw, names = NAMES, final_scoring = final_scoring,
+                              base_projects = projects, bonus_tiles = tiles })
   if opts.arno then M.seat_arno(opts.arno.color, opts.arno.level, seed) end
   driver.reset(seed)
   for color, make in pairs(opts.policies or {}) do driver.policies[color] = make(seed) end

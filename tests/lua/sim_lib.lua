@@ -407,10 +407,15 @@ end
 -- start_player_turn(players[1]) runs the real game loop: turns, breaks, income, game end,
 -- final scoring, announce_winner (recorded: sim.calls.announce_winner).
 -- deck: card numbers, dealt in order (hands, display, discard pile, then the zoo deck);
--- opts.names: card number -> card name (as in the save)
+-- opts.names: card number -> card name (as in the save);
+-- opts.base_projects: the base projects 101-112 in the order the game drew them (the first 3,
+-- 4 with 4 players, on the board, the rest in the base conservation deck; default 101-106);
+-- opts.bonus_tiles: GUIDs of the 5/8-CP bonus tiles in drawn order (default a fixed four).
+-- As on the shipped 1-human table, interactive effects are off (no final scoring card 9).
 function sim.ai_table(colors, deck, opts)
   opts = opts or {}
   local first = sim.human_game(opts.mw, "map_A")
+  interactive_effects = false      -- on_setup_proceed_clicked with one seated player
   first.color = colors[1]
   local function seat(color, i)
     local p = i == 1 and first or sim.make_player(color, false)
@@ -462,19 +467,37 @@ function sim.ai_table(colors, deck, opts)
   for _ = 1, opts.discards or 10 do discard_pile.putObject(card(deck[at])); at = at + 1 end
   zoo_deck = sim.fake("zoo deck"); zoo_deck.tag = "Deck"
   for i = at, #deck do zoo_deck.putObject(card(deck[i])) end
-  -- opts.final_scoring: the deck's order (shuffled by the game, as in TTS); else 1..11
-  final_scoring_deck = sim.deck(opts.final_scoring or { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 })
+  -- opts.final_scoring: the deck's order (shuffled by the game, as in TTS); else 1..11.
+  -- Without interactive effects setup_game removes card 9 (and MW's 17)
+  local scoring = {}
+  for _, n in ipairs(opts.final_scoring or { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 }) do
+    if interactive_effects ~= false or (n ~= 9 and n ~= 17) then scoring[#scoring + 1] = n end
+  end
+  final_scoring_deck = sim.deck(scoring)
   for _, p in ipairs(players) do
     for _ = 1, 2 do final_scoring_deck.takeObject({}).deal(1, p.color, 2) end
   end
 
-  base_conservation_deck = sim.deck({ 104, 105, 106 })
+  -- base projects (setup_game ~4109): 3 (4 with 4 players) from the shuffled base
+  -- conservation deck onto the board, the rest stay in that deck
+  local projects = opts.base_projects or { 101, 102, 103, 104, 105, 106 }
+  local on_board = #colors > 3 and 4 or 3
+  base_conservation_deck = sim.fake("base conservation deck"); base_conservation_deck.tag = "Deck"
   base_projects = {}
-  for i, n in ipairs({ 101, 102, 103 }) do
-    base_projects[i] = { sim.fake(names[n] or string.format("(%03d) Project %d", n, n)).getGUID(), {} }
-    -- 2 players: a neutral cube blocks slot i of base project i (setup_game 4124-4127)
-    if #colors == 2 then base_projects[i][2][i] = sim.fake("cube").getGUID() end
+  for i, n in ipairs(projects) do
+    local obj = sim.fake(names[n] or string.format("(%03d) Project %d", n, n))
+    if i <= on_board then
+      base_projects[i] = { obj.getGUID(), {} }
+      -- 2 players: a neutral cube blocks slot i of base project i (setup_game 4124-4127)
+      if #colors == 2 then base_projects[i][2][i] = sim.fake("cube").getGUID() end
+    else
+      base_conservation_deck.putObject(obj)
+    end
   end
+  -- the 5/8-CP bonus tiles: the first 4 drawn from the shuffled bag 1c73d4 (draw_bonus_tiles)
+  local tiles = opts.bonus_tiles or { "cc1325", "4fb150", "840cd1", "03d9ca" }
+  cp_bonuses_5 = { sim.fake("bonus tile", nil, tiles[1]), sim.fake("bonus tile", nil, tiles[2]) }
+  cp_bonuses_8 = { sim.fake("bonus tile", nil, tiles[3]), sim.fake("bonus tile", nil, tiles[4]) }
   added_projects = {}
   break_init_val = ({ [2] = 9, [3] = 12, [4] = 15 })[#players]
   break_current_val = break_init_val
@@ -485,7 +508,7 @@ function sim.ai_table(colors, deck, opts)
   checkpoint_open = false
 
   for _, name in ipairs({ "take_checkpoint", "stop_rewind_checkpoints", "announce_winner",
-                          "move_break_token", "refill_association_board", "move_display_mark",
+                          "move_break_token", "move_display_mark",
                           "send_worker_home", "report_discard", "refresh_status_panels",
                           "lock_display_cards" }) do
     sim.record(name)
@@ -493,25 +516,73 @@ function sim.ai_table(colors, deck, opts)
   sim.record("end_player_turn", function(orig, ...) return orig(...) end)
   sim.record("finish_player_turn", function(orig, ...) return orig(...) end)
   sim.record("start_player_turn", function(orig, ...) return orig(...) end)
-  sim.record("available_partner_zoos", function() return { "america", "europe", "asia", "africa", "australia" } end)
-  sim.record("available_universities", function() return { "hand_size", "double_rep", "double_research" } end)
-  sim.record("take_partner_zoo", function(_, p, owner)
+  -- the association board (Global.lua available_* / take_* / refill_association_board): one
+  -- tile of each partner zoo and university on the board, 3 more in its bag; a taken board
+  -- tile is refilled at the break unless every player owns it; supply = from the bag. The
+  -- takes give the map's rewards and the tile's icons. (Marine Worlds species universities
+  -- are not emulated.)
+  local board, bag = {}, {}
+  for _, t in ipairs(sim.cnsts.association_tiles) do board[t.key], bag[t.key] = true, 3 end
+  sim.record("refill_association_board", function()
+    for _, t in ipairs(sim.cnsts.association_tiles) do
+      local owner = t.key:sub(1, -#t.tag - 2)
+      if not board[t.key] and bag[t.key] > 0 and not every_player_owns(t.tag, owner) then
+        board[t.key], bag[t.key] = true, bag[t.key] - 1
+      end
+    end
+  end)
+  local function on_table(k, supply)
+    if supply then return bag[k] > 0 end
+    return board[k]
+  end
+  sim.record("available_partner_zoos", function(_, p, supply)
+    local held, out = {}, {}
+    if not supply then for _, z in ipairs(p.acquired_partner_zoos) do held[z] = true end end
+    for _, owner in ipairs(sim.cnsts.icons.habitat) do
+      if on_table(owner .. "_partner", supply) and not held[owner] then out[#out + 1] = owner end
+    end
+    return out
+  end)
+  sim.record("available_universities", function(_, p, supply)
+    local held, out = {}, {}
+    if not supply then for _, u in ipairs(p.acquired_universities) do held[u] = true end end
+    for _, name in ipairs(sim.cnsts.university_order) do
+      local k = name .. "_university"
+      if board[k] ~= nil and on_table(k, supply) and not held[name] then out[#out + 1] = name end
+    end
+    return out
+  end)
+  local function take_tile(k, supply)
+    if supply then bag[k] = bag[k] - 1 else board[k] = false end
+  end
+  sim.record("take_partner_zoo", function(_, p, owner, supply)
     p.acquired_partner_zoos[#p.acquired_partner_zoos + 1] = owner
-    create_claims_from_reward_groups(p, { { rewards = sim.cnsts.map_data[p.map_key].partner_zoo_rewards[#p.acquired_partner_zoos] or {},
-      source = "partner zoo" } }, false)
+    take_tile(owner .. "_partner", supply)
+    local groups = { { rewards = sim.cnsts.map_data[p.map_key].partner_zoo_rewards[#p.acquired_partner_zoos] or {},
+                       source = "acquiring a partner zoo" } }
+    append_icon_groups(groups, p, { owner })
+    create_claims_from_reward_groups(p, groups, false)
   end)
-  sim.record("take_university", function(_, p, key)
+  sim.record("take_university", function(_, p, key, supply)
+    local spec = sim.cnsts.universities[key]
     p.acquired_universities[#p.acquired_universities + 1] = key
-    local rewards = {}
-    for _, r in ipairs(sim.cnsts.map_data[p.map_key].university_rewards[#p.acquired_universities] or {}) do rewards[#rewards + 1] = r end
-    for _, r in ipairs(sim.cnsts.universities[key].rewards or {}) do rewards[#rewards + 1] = r end
-    create_claims_from_reward_groups(p, { { rewards = rewards, source = "university" } }, false)
+    take_tile(key .. "_university", supply)
+    local groups = {
+      { rewards = sim.cnsts.map_data[p.map_key].university_rewards[#p.acquired_universities] or {},
+        source = "acquiring a university" },
+      { rewards = spec.rewards or {}, source = spec.label },
+    }
+    append_icon_groups(groups, p, spec.icons)
+    create_claims_from_reward_groups(p, groups, false)
   end)
-  -- donation spots fill as on the table (2, 5, 5, 7, 7, 10, 10, then 12): every cube or token placed
-  -- on the next spot (a player's donation, ARNO's, the solo retiring token) goes through
+  -- workers go out as on the table (sim.human_game's stub ignores count and the standing)
+  sim.record("deploy_workers_to_task", function(orig, ...) return orig(...) end)
+  -- donation spots fill as on the table (2, 5, 5, 7, 7, 10, 10, then 12; with 2 players
+  -- neutral cubes block 5_1, 7_1 and 10_1 at setup: 2, 5, 7, 10, then 12): every cube or token
+  -- placed on the next spot (a player's donation, ARNO's, the solo retiring token) goes through
   -- donation_12_position, as the zones are fakes (the key is always nil)
   local donations = 0
-  local DONATION_COSTS = { 2, 5, 5, 7, 7, 10, 10 }
+  local DONATION_COSTS = #colors == 2 and { 2, 5, 7, 10 } or { 2, 5, 5, 7, 7, 10, 10 }
   sim.record("donation_slot", function() return DONATION_COSTS[donations + 1] or 12, nil end)
   sim.record("donation_12_position", function() donations = donations + 1; return Vector(0, 0, 0) end)
   sim.record("donation_12_count", function() return math.max(0, donations - #DONATION_COSTS) end)
