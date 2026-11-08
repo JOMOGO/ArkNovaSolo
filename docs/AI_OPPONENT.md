@@ -1049,6 +1049,17 @@ assists (200 games): r36a +6.0 / 60.5% against r30a. Ensemble **ens_r36** (r36a 
 within the 60-game noise). Every paired comparison positive (pooled ~+1 against ARNO 3, ~+3 against ARNO 1, +3 / +6
 head-to-head), and its data follow the real table: **bundled** (arno/ai/net_weights.lua = ens_r36; r36a is the
 single member for measurements).
+**Round 37 (2026-11-08; the audit's last gaps; `build/assist15/`):** AI seats in headless games are now dealt 8 and
+keep 4 on the real setup-discard panel by their own policy (ARNO sits it out and gets his real draw at the start;
+the discard pile starts empty and fills as on the table; before, 4 cards dealt and 10 made-up discards). Marine
+Worlds games (1 in 3): their final scoring deck (MW versions of 1, 3, 5, 8-11 and 12-17; 9 and 17 out with
+interactive effects off), base project 133, the MW bonus tiles with `rep_max_bonus`, species universities as
+Global.lua. Left out: the MW action card draft. Full suite passes, deterministic. Paired 60 games with r36a against
+ARNO 3: −14.7 -> −20.6 (−6.0 ± 3.2; base games −4.0, MW games −9.8): the network never saw the keep-4 choice or the
+MW cards. Driver note: `driver.tried` / `rejected` count repeated inputs per view without the seat's colour; with 4
+AI seats in setup the 4th seat's Confirm looked like a loop (ai_game.lua clears them at each setup Confirm; the
+table always has a human, so TTS is not affected; the proper fix is the colour in the key).
+Round 38 (running, `build/ai/r38.sh`): new baselines, a batch on this table (`round14_*`, by r36a), round 30's recipe.
 
 The richer inputs (v2, v3) predict held-out games better but play worse: a lower validation
 error does not mean better choices. (Not because the state explains most of the target: with
