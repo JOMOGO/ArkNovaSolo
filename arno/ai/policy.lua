@@ -229,9 +229,16 @@ end
 --           gain in matches
 --           (all three: a fixed tie-break below the `upgrade` assist's 0.5 and far below unlock's
 --           3 per hand card, so a hand that needs research still takes Double Research)
+--   Round 32 (round 29b's traces: the final turn after the end trigger loses 1.84 a turn):
+--   last    on the AI's final turn only (M.final_turn: the game end triggered), per point of the
+--           final margin a choice brings at once (M.last_points: appeal 1, CP as cp_to_score from
+--           the CP the game ends with): the action cards at their strength (ANIMALS the best one /
+--           two affordable animals, SPONSORS the best playable sponsor, both with what the card
+--           adds to the own final scoring card; ASSOCIATION the best open tasks with their CP and
+--           the donation), the X-token spin, the association tasks, the donation, the card picked
 -- (round 17, docs/AI_OPPONENT.md §10: final 1 / 2 and ending 6 brought nothing against ARNO 1: off)
 M.ASSIST = { build = 3, cp = 4, final = 0, ending = 0, unlock = 3, upgrade = 0.5, xtoken = 3, snap = 0, rep = 0,
-             slot = 1, discard = 1, partner = 1, flip = 1, uni = 0, enc = 0, sponsor = 0, clever = 0, kp = 0, tile = 0, donate = 0 }   -- round 19: unlock + upgrade; round 20: xtoken; round 24: slot + discard + partner (confirmed on fresh seeds); round 25: flip
+             slot = 1, discard = 1, partner = 1, flip = 1, uni = 0, enc = 0, sponsor = 0, clever = 0, kp = 0, tile = 0, donate = 0, last = 0 }   -- round 19: unlock + upgrade; round 20: xtoken; round 24: slot + discard + partner (confirmed on fresh seeds); round 25: flip
 M.END_LAST_TURN = 6       -- what the other player's last turn brings, roughly (traces: ~6)
 M.END_OTHER_CP = 1.5      -- the final scoring CP of a player whose cards the AI cannot see
 M.END_RANGE = 25
@@ -651,7 +658,9 @@ end
 
 -- the gain of spending `extra` more X-tokens (negative: fewer) on the best card for it, per
 -- token: max over the cards of (gain at used + extra) - (gain at used), / |extra| when positive
-function M.x_step_gain(player, up)
+-- (gain: M.card_gain_at, or another function of (player, kind, slot, strength): the last assist's)
+function M.x_step_gain(player, up, gain)
+  gain = gain or M.card_gain_at
   local state = x_state(player)
   if state == nil then return 0 end
   local used, have = state.x_tokens_used or 0, #(player.x_tokens or {})
@@ -660,13 +669,13 @@ function M.x_step_gain(player, up)
     local kind = card_kind(player, slot)
     if kind then
       local s = action_strength(player, slot, used, player)
-      local now = M.card_gain_at(player, kind, slot, s)
+      local now = gain(player, kind, slot, s)
       if up then
         for j = 1, have - used do
-          best = math.max(best, (M.card_gain_at(player, kind, slot, s + j) - now) / j)
+          best = math.max(best, (gain(player, kind, slot, s + j) - now) / j)
         end
       elseif used > 0 then
-        best = math.max(best, now - M.card_gain_at(player, kind, slot, s - 1))
+        best = math.max(best, now - gain(player, kind, slot, s - 1))
       end
     end
   end
@@ -953,8 +962,261 @@ local function sponsor_bonus(player, c)
   return (strength and #playable_sponsor_candidates(player, strength) > 0) and 1 or 0
 end
 
+-- ---- round 32 (last): the AI's final turn (build/assist12, docs §10 round 29b: after ARNO
+-- triggers the end the AI gets one more turn; the network's Q is nearly flat there, it values a
+-- future that no longer exists). Every player moves at most once after the trigger (the
+-- player's turn that crossed the end score is over; a trigger at a break owes the full round),
+-- so the trigger alone marks the own turn now as the last one.
+function M.final_turn(player)
+  if game_end_triggered ~= true or #(players or {}) < 2 then return false end
+  return current_player == nil or current_player == player
+end
+
+-- the own final scoring card's award now (CP), the best card held (exact, as the final scoring)
+local function exact_award(rule, count)
+  local cp
+  if rule.bands then
+    cp = 0
+    for _, band in ipairs(rule.bands) do if count >= band[1] then cp = band[2] break end end
+  elseif rule.divisor then cp = math.floor(count / rule.divisor)
+  elseif rule.per then cp = count
+  else cp = count - (rule.offset or 0) end
+  return math.max(0, math.min(4, cp))
+end
+
+-- the best held final scoring card's award (CP) now, and after playing a card (data; nil: none)
+local function final_award(player, data)
+  local best = 0
+  for _, card in ipairs(final_scoring_cards(player)) do
+    local rule = final_scoring_data_for(card_number_of(card.getName()))
+    if rule then
+      local delta = data and rule.count and FINAL_DELTA[rule.count]
+      local a
+      if delta then a = exact_award(rule, final_score_count(player, rule.count) + delta(data))
+      else a = final_score_award(player, rule) end
+      best = math.max(best, a)
+    end
+  end
+  return best
+end
+
+-- points of the final margin: appeal 1 each, CP as cp_to_score from the CP the game will end
+-- with (now + the own final scoring card's award)
+local function last_value(player, appeal, cp)
+  if cp == 0 then return appeal end
+  local base = get_counter_value(player.cp_counter) + final_award(player, nil)
+  return appeal + cp_to_score(base + cp) - cp_to_score(base)
+end
+
+-- appeal, CP of a list of reward texts on the final turn: "N appeal", "N cp", "N rep" (the
+-- reputation track's spaces reached; above the cap, the overflow's appeal), "unlock worker" (the
+-- map's worker reward)
+local function last_rewards(player, list, depth)
+  local appeal, cp = 0, 0
+  for _, r in ipairs(list or {}) do
+    if type(r) == "string" then
+      local k, what = r:match("^(%d+) (%a+)$")
+      k = tonumber(k)
+      if what == "appeal" then appeal = appeal + k
+      elseif what == "cp" then cp = cp + k
+      elseif what == "rep" and (depth or 0) < 2 then
+        local now = get_counter_value(player.rep_counter)
+        local to = math.min(max_reputation(player), now + k)
+        local track = {}
+        for i = now + 1, to do track[#track + 1] = cnsts.rep_rewards[i] end
+        local a, p = last_rewards(player, track, (depth or 0) + 1)
+        appeal, cp = appeal + a, cp + p
+        if player.cards_flipped then appeal = appeal + math.max(0, now + k - to) end
+      elseif r == "unlock worker" and (depth or 0) < 2 and (player.worker_count or 4) < 4 then
+        local data = cnsts.map_data[player.map_key]
+        local a, p = last_rewards(player, data and data.worker_rewards and data.worker_rewards[player.worker_count], (depth or 0) + 1)
+        appeal, cp = appeal + a, cp + p
+      end
+    end
+  end
+  return appeal, cp
+end
+
+-- appeal, CP of playing a card (data): its rewards + what it adds to the own final scoring card
+local function last_card(player, data)
+  if data == nil then return 0, 0 end
+  local appeal, cp = last_rewards(player, type(data.rewards) == "table" and data.rewards or {})
+  return appeal, cp + final_award(player, data) - final_award(player, nil)
+end
+
+local function last_card_points(player, name)
+  local ok, data = pcall(card_data_for, name)
+  if not ok then return 0 end
+  return last_value(player, last_card(player, data))
+end
+
+-- appeal, CP of one association task (2-5, "hire") on the final turn
+local function last_task(player, task, num, upgd)
+  local data = cnsts.map_data[player.map_key] or {}
+  if task == 2 then return last_rewards(player, { "2 rep" }) end
+  if task == 3 then
+    return last_rewards(player, (data.partner_zoo_rewards or {})[#(player.acquired_partner_zoos or {}) + 1])
+  end
+  if task == "hire" then return last_rewards(player, (data.worker_rewards or {})[player.worker_count]) end
+  if task == 4 then
+    local a0, c0 = last_rewards(player, (data.university_rewards or {})[#(player.acquired_universities or {}) + 1])
+    local ba, bc, best
+    for _, name in ipairs(available_universities(player, association_from_supply(num, upgd, 4))) do
+      local a, p = last_rewards(player, cnsts.universities[name].rewards or {})
+      if best == nil or a + 2 * p > best then ba, bc, best = a, p, a + 2 * p end
+    end
+    return a0 + (ba or 0), c0 + (bc or 0)
+  end
+  if task == 5 then
+    local ba, bc, best = 0, 0, 0
+    for _, offer in ipairs(project_support_offers(player, upgd)) do
+      if offer.card.project ~= "release" then
+        for _, entry in ipairs(offer.slots or {}) do
+          if (entry.boost or 0) == 0 then
+            local ok, rewards = pcall(project_slot_awards, player, offer.card, entry.slot)
+            if ok then
+              local a, p = last_rewards(player, rewards)
+              if a + 2 * p > best then ba, bc, best = a, p, a + 2 * p end
+            end
+          end
+        end
+      end
+    end
+    return ba, bc
+  end
+  return 0, 0
+end
+
+local ASSOC_TASK_OF = { ["Take 2 Reputation"] = 2, ["Take a Partner Zoo"] = 3, ["Take a University"] = 4,
+                        ["Support a Conservation Project"] = 5, ["Hire a Worker"] = "hire" }
+
+-- the ASSOCIATION action card at a strength on the final turn: the best set of open tasks
+-- (upgraded: several, their values within the strength and their workers within the free ones;
+-- else one), + 1 CP for the donation (upgraded, a task taken, the money for it)
+local function last_association(player, slot, strength)
+  local num = action_card_num(player, slot)
+  local upgd = player.association_flipped
+  local tasks = {}
+  for task = 2, 5 do
+    if association_task_open(player, task, strength, num, upgd, false) then
+      tasks[#tasks + 1] = { task = task, value = association_task_value(player, task, false),
+                            workers = association_task_cost(player, task, false) or 9 }
+    elseif association_extra_worker_allowed(num, upgd) and association_task_open(player, task, strength, num, upgd, true) then
+      tasks[#tasks + 1] = { task = task, value = association_task_value(player, task, true),
+                            workers = association_task_cost(player, task, true) or 9 }
+    end
+  end
+  local extra = association_extra_task(num, upgd)
+  if extra and extra.key == "hire" and strength >= extra.strength and association_extra_task_open(player, extra) then
+    tasks[#tasks + 1] = { task = "hire", value = extra.strength, workers = task_worker_cost(player, extra.zone) or 9 }
+  end
+  if #tasks == 0 then return 0 end
+  for _, t in ipairs(tasks) do t.appeal, t.cp = last_task(player, t.task, num, upgd) end
+  local donation = 0
+  if upgd then
+    local cost = donation_cost(player, true)
+    if num == "3" then cost = math.max(0, cost - #(player.x_tokens or {})) end
+    if get_counter_value(player.money_counter) >= cost then donation = 1 end
+  end
+  local free, best = available_workers(player), 0
+  for mask = 1, 2 ^ #tasks - 1 do
+    local value, workers, appeal, cp, n, m = 0, 0, 0, 0, 0, mask
+    for i = 1, #tasks do
+      if m % 2 == 1 then
+        local t = tasks[i]
+        value, workers, appeal, cp, n = value + t.value, workers + t.workers, appeal + t.appeal, cp + t.cp, n + 1
+      end
+      m = math.floor(m / 2)
+    end
+    if (upgd or n == 1) and value <= strength and workers <= free then
+      best = math.max(best, last_value(player, appeal, cp + donation))
+    end
+  end
+  return best
+end
+
+-- the points an action card brings at once at a strength on the final turn (BUILD, CARDS: 0;
+-- their points depend on the placement / a break)
+function M.last_card_points(player, kind, slot, strength)
+  if kind == "ANIMALS" then
+    if not animals_upgraded(player) and strength <= 1 then return 0 end
+    local list = {}
+    for _, a in ipairs(affordable_animals(player)) do
+      local ok, data = pcall(card_data_for, a.name)
+      if ok and data then
+        local ap, cp = last_card(player, data)
+        list[#list + 1] = { cost = a.cost, appeal = ap, cp = cp }
+      end
+    end
+    local money, best = get_counter_value(player.money_counter), 0
+    for i, a in ipairs(list) do
+      best = math.max(best, last_value(player, a.appeal, a.cp))
+      if animals_count(player, strength) >= 2 then
+        for j = i + 1, #list do
+          local b = list[j]
+          if a.cost + b.cost <= money then best = math.max(best, last_value(player, a.appeal + b.appeal, a.cp + b.cp)) end
+        end
+      end
+    end
+    return best
+  elseif kind == "SPONSORS" then
+    local best = 0
+    for _, cand in ipairs(playable_sponsor_candidates(player, strength)) do
+      best = math.max(best, last_card_points(player, cand.obj.getName()))
+    end
+    return best
+  elseif kind == "ASSOCIATION" then
+    return last_association(player, slot, strength)
+  end
+  return 0
+end
+
+-- the final turn's immediate points of a choice: the action cards at their strength (the chosen
+-- X-tokens included), an X-token "+" / "-" (what a token more / less adds to the best card), the
+-- association tasks and the donation, the animal / sponsor picked
+function M.last_points(player, c)
+  local label = c.label or ""
+  if c.kind == "pick_up" then
+    local name = label:match("^play animal: (.+)$") or label:match("^sponsor: (.+)$")
+    return name and last_card_points(player, name) or 0
+  end
+  if c.kind ~= "click" then return 0 end
+  if c.handler == "on_action_card_button_clicked" then
+    local kind = label:match("^(%a+)")
+    local slot = tonumber((c.arg or ""):match("_(%d+)$") or "")
+    local strength = choices_mod.strength(player, c)
+    if kind == nil or slot == nil or strength == nil then return 0 end
+    return M.last_card_points(player, kind, slot, strength)
+  end
+  if c.handler == "on_x_token_spin_clicked" then
+    local dir = (c.arg or ""):match("_(%a+)$")
+    if dir == "up" then return M.x_step_gain(player, true, M.last_card_points) end
+    if dir == "down" then return -M.x_step_gain(player, false, M.last_card_points) end
+    return 0
+  end
+  -- a reward claim's choice ("5 Appeal" / "Sunbathing 3", "2 Conservation Points" / "2 Reputation")
+  local n = tonumber(label:match("^(%d+) Appeal$") or "")
+  if n then return n end
+  n = tonumber(label:match("^(%d+) Conservation Points?$") or "")
+  if n then return last_value(player, 0, n) end
+  n = tonumber(label:match("^(%d+) Reputation$") or "")
+  if n then return last_value(player, last_rewards(player, { n .. " rep" })) end
+  local cost = tonumber(label:match("^Donate %((%d+) Money%)") or "")
+  if cost then
+    return get_counter_value(player.money_counter) >= cost and last_value(player, 0, 1) or 0
+  end
+  local task = ASSOC_TASK_OF[label]
+  if task then
+    local state = association_actions and association_actions[player.color]
+    return last_value(player, last_task(player, task, state and state.num or "1",
+                                        state and state.upgd or player.association_flipped))
+  end
+  return 0
+end
+
 local function assist_bonus(player, c, w)
   local v = other_bonus(player, c, w) + order_bonus(c, w)
+  if (w.last or 0) ~= 0 and M.final_turn(player) then v = v + w.last * M.last_points(player, c) end
   -- round 29: the network learned donations at 2 money (the headless harness); on the table they cost 2-12
   if (w.donate or 0) ~= 0 and c.kind == "click" then
     local cost = tonumber((c.label or ""):match("^Donate %((%d+) Money%)"))
@@ -973,7 +1235,7 @@ local function assist_bonus(player, c, w)
   return v
 end
 
--- the assists' points for one choice under weights w ({ build, cp, final, ending, unlock, upgrade, xtoken, snap, rep, slot, discard, partner, flip, uni, enc, sponsor, clever, kp, tile, donate }); 0 on any error
+-- the assists' points for one choice under weights w ({ build, cp, final, ending, unlock, upgrade, xtoken, snap, rep, slot, discard, partner, flip, uni, enc, sponsor, clever, kp, tile, donate, last }); 0 on any error
 function M.assist_bonus(player, c, w)
   local ok, v = pcall(assist_bonus, player, c, w or M.ASSIST)
   if not ok and M.on_assist_error then M.on_assist_error(v, c) end     -- tests, analysis

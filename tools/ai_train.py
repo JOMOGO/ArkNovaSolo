@@ -595,6 +595,7 @@ def main(argv=None) -> int:
         q.add_argument("--assist-kp", type=float, help="network_a: a Pavilion over a Kiosk (policy.KP_ORDER)")
         q.add_argument("--assist-tile", type=float, help="network_a: tile spots by their reputation / card draw bonuses")
         q.add_argument("--assist-donate", type=float, help="network_a: points off a donation per money above 2")
+        q.add_argument("--assist-last", type=float, help="network_a: on the final turn, points per point a choice brings at once")
     args = ap.parse_args(argv)
 
     if args.cmd in ("play", "match"):
@@ -609,7 +610,8 @@ def main(argv=None) -> int:
                              "assist_discard": args.assist_discard, "assist_partner": args.assist_partner,
                              "assist_flip": args.assist_flip, "assist_uni": args.assist_uni,
                              "assist_enc": args.assist_enc, "assist_sponsor": args.assist_sponsor,
-                             "assist_clever": args.assist_clever, "assist_kp": args.assist_kp, "assist_tile": args.assist_tile, "assist_donate": args.assist_donate})
+                             "assist_clever": args.assist_clever, "assist_kp": args.assist_kp, "assist_tile": args.assist_tile, "assist_donate": args.assist_donate,
+                             "assist_last": args.assist_last})
         report(lines, seats)
     elif args.cmd == "search" and args.report:
         lines = [l.rstrip("\n") for path in args.report for l in path.open(encoding="utf-8")]
