@@ -571,6 +571,8 @@ final score difference; ±4 points is noise at 100 games):
 | Easy vs hand-written policy | 80 | +14.1 | 73% |
 | Expert vs hand-written policy | 99 | +31.7 | 89% |
 
+**Current figures: the 2026-11-08 row above (ens_r30 + assists incl. last; real donation costs). The tables below are history (older networks, 2-money donations in the harness).**
+
 AI levels against ARNO 3.0 (2026-11-03, bundled ens_td2; 60 games each, the AI starts;
 `ai_train.py match --seats expert:0,arno:5`; AI's average margin and win rate). A harness
 audit found it fair (ARNO's scoring, CP debt, start order, end trigger as in TTS); its two
