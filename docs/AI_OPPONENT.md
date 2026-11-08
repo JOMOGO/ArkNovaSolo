@@ -556,6 +556,7 @@ Found on the way:
 | 2026-11-07 | Headless harness: donations now cost as on the table (2, 5, 5, 7, 7, 10, 10, 12; before always 2, §10 round 29b); the same Expert again, 60 games each on the table's seeds | Expert vs ARNO 1 **+6.7 (57%)**, ARNO 2 **−8.4 (37%)**, ARNO 3 **−20.8 (15%)**, ARNO 5 **−35.5 (5%)**: 1-2.6 points below the 2-money runs. Measurement bases (network_a = td2 + shipped assists): set A −20.3 / −2.6 against ARNO 3 / 1 (32000001 / 32100001), set B −19.6 / −5.5 (32200001 / 32300001), +26.6 / 82% against the plain network (32400001) |
 | 2026-11-07 | Round 30: retrained under the real donation costs; ens_r30 bundled (§10) | Expert vs ARNO 1 **+9.7 (65%)**, ARNO 2 **−4.2 (37%)**, ARNO 3 **−15.8 (20%)**, ARNO 5 **−33.7 (0%)** on the table's seeds (ens_td2, same harness: +6.7 / −8.4 / −20.8 / −35.5); ens_r30 vs ens_td2, both with the assists, +2.4 / 53.5% (200 games) |
 | 2026-11-07 | Ladder with ens_r30 (same budgets), 100 games each (seeds 34000001+) | Expert vs Hard +14.6 (63%), Hard vs Medium +10.3 (65%), Medium vs Easy +11.9 (70%): order holds, 0 failed in 300 games |
+| 2026-11-08 | Shipped: + last 3 (round 32, final turn); table's seeds 60 games each, ladder 100 each (34000001+) | Expert vs ARNO 1 **+9.8 (65%)**, ARNO 2 **−3.7 (37%)**, ARNO 3 **−14.8 (20%)**, ARNO 5 **−32.9 (2%)**; Expert vs Hard +14.9 (64%), Hard vs Medium +10.2 (65%), Medium vs Easy +11.3 (70%) |
 
 Ladder (2-seat games, seats swapped, `tools/ai_train.py match`; a margin is the average
 final score difference; ±4 points is noise at 100 games):
