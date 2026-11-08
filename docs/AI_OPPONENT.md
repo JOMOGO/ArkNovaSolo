@@ -557,6 +557,7 @@ Found on the way:
 | 2026-11-07 | Round 30: retrained under the real donation costs; ens_r30 bundled (§10) | Expert vs ARNO 1 **+9.7 (65%)**, ARNO 2 **−4.2 (37%)**, ARNO 3 **−15.8 (20%)**, ARNO 5 **−33.7 (0%)** on the table's seeds (ens_td2, same harness: +6.7 / −8.4 / −20.8 / −35.5); ens_r30 vs ens_td2, both with the assists, +2.4 / 53.5% (200 games) |
 | 2026-11-07 | Ladder with ens_r30 (same budgets), 100 games each (seeds 34000001+) | Expert vs Hard +14.6 (63%), Hard vs Medium +10.3 (65%), Medium vs Easy +11.9 (70%): order holds, 0 failed in 300 games |
 | 2026-11-08 | Shipped: + last 3 (round 32, final turn); table's seeds 60 games each, ladder 100 each (34000001+) | Expert vs ARNO 1 **+9.8 (65%)**, ARNO 2 **−3.7 (37%)**, ARNO 3 **−14.8 (20%)**, ARNO 5 **−32.9 (2%)**; Expert vs Hard +14.9 (64%), Hard vs Medium +10.2 (65%), Medium vs Easy +11.3 (70%) |
+| 2026-11-08 | Headless table corrected (round 35: association board and icons, 2-player donations, random base projects / bonus tiles, worker deploy, interactive effects off); the same shipped Expert, table's seeds | Expert vs ARNO 1 **+3.5 (53%)**, ARNO 2 **−11.8 (27%)**, ARNO 3 **−16.1 (20%)**, ARNO 5 **−33.9 (7%)**: the benchmark resets (ARNO now gets his icons too) |
 
 Ladder (2-seat games, seats swapped, `tools/ai_train.py match`; a margin is the average
 final score difference; ±4 points is noise at 100 games):
@@ -1032,8 +1033,14 @@ much the benchmark moves, not what retraining gains). Found:
   in the zoo deck (added to the row 0.48 times a game, never possible on the table) (−3.8 ± 3.3).
 - Workers on a task already holding one: 1 placed instead of 2 (0.0); interactive effects on, while the shipped
   1-human table turns them off (+0.3 ± 1.1). Everything else is equivalent.
-All together +10.8 ± 3.3. Being applied to sim_lib / ai_game; then new baselines and round 30's recipe on a
-batch played under the corrected table.
+All together +10.8 ± 3.3. Applied to `sim.ai_table` / `ai_game.play` (full suite passes unchanged; deterministic;
+60 paired games −23.5 -> −15.8; duplicates 121 -> 0, partner zoos without their icon 51 -> 0; 4-player games get 4
+base projects as the table; the Marine Worlds extra tile is not emulated).
+**Round 36 (2026-11-08; round 30's recipe on the corrected table; `build/ai/r36.sh`):** batch `round13_*` played
+by r30a with the assists on the corrected table (1500 self-play 80000+, 800 each against ARNO 1 / 2 82000+ /
+83000+, 400 against the hand-written policy 84000+). Set A on the corrected table (r30a −24.1 / +0.7 against
+ARNO 3 / 1): **r36a** (every 2-money round + round13, Q from td1) **−20.7 / +2.4** (+3.4 / +1.7); r36b (+ round10)
+−20.8 / +1.5. Confirming (set B, head-to-head, members 2-4, ens_r36 as the Expert: `build/ai/r36b.sh`).
 
 The richer inputs (v2, v3) predict held-out games better but play worse: a lower validation
 error does not mean better choices. (Not because the state explains most of the target: with
